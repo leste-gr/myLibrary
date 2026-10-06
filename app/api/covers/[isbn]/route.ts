@@ -1,4 +1,6 @@
 import { canonicalIsbn } from "@/lib/isbn";
+import books from "@/books.json";
+import acceptedIsbns from "@/isbn.json";
 
 export const runtime = "nodejs";
 
@@ -7,6 +9,13 @@ const MISS_CACHE = "public, max-age=300, s-maxage=3600";
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 type Cover = { bytes: ArrayBuffer; contentType: string; source: string };
+
+const legacyCoverByIsbn = new Map(
+  Object.entries(acceptedIsbns as Record<string, string>).flatMap(([copyId, isbn]) => {
+    const book = books.find((item) => item.id === copyId);
+    return book?.cover ? [[isbn, `/${book.cover}`] as const] : [];
+  }),
+);
 
 async function fetchImage(url: string, source: string): Promise<Cover | null> {
   try {
@@ -56,14 +65,18 @@ function missingCover(isbn: string) {
   return new Response(svg, { status: 200, headers: { "Content-Type": "image/svg+xml", "Cache-Control": MISS_CACHE, "X-Cover-Source": "placeholder" } });
 }
 
-export async function GET(_request: Request, { params }: { params: Promise<{ isbn: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ isbn: string }> }) {
   const isbn = canonicalIsbn((await params).isbn);
   if (!isbn || isbn.length !== 13) return new Response("Invalid ISBN", { status: 400 });
 
   const openLibrary = await fetchImage(`https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg?default=false`, "openlibrary");
   const googleUrl = openLibrary ? null : await googleBooksCover(isbn);
   const cover = openLibrary ?? (googleUrl ? await fetchImage(googleUrl, "google-books") : null);
-  if (!cover) return missingCover(isbn);
+  if (!cover) {
+    const legacyCover = legacyCoverByIsbn.get(isbn);
+    if (legacyCover) return new Response(null, { status: 307, headers: { Location: new URL(legacyCover, request.url).toString(), "Cache-Control": SUCCESS_CACHE, "X-Cover-Source": "legacy-library" } });
+    return missingCover(isbn);
+  }
 
   return new Response(cover.bytes, {
     headers: {
