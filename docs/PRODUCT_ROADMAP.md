@@ -231,19 +231,21 @@ This is an optional product expansion after catalogue maintenance works well.
 
 ## 7. Proposed product shape
 
-Use two cooperating surfaces:
+Use one collection experience with public and owner-aware modes:
 
 ### Public catalogue
 
-Continue serving static HTML, CSS, JavaScript, catalogue JSON, and local covers. This keeps browsing fast, reliable, cacheable, and inexpensive. Generate these files from reviewed records rather than treating them as the editing database.
+Serve public collection pages from Next.js and Supabase, with cacheable cover URLs and read-only public database policies. The main page lists public collections, and each collection has a stable `/collections/{slug}` URL.
 
 ### Owner workspace
 
-Add an authenticated web application for uploads, jobs, review, editing, and publishing. A small API and database are required because GitHub Pages cannot securely accept uploads, protect edits, run asynchronous recognition, or store draft state.
+When an owner signs in and browses their own public collection, the same interface exposes edition candidates, typed ISBN input, draft review, and publishing controls. Ingestion jobs and future shelfie batches should enter this same review flow rather than creating a separate admin product.
 
-An initial single-owner deployment is sufficient. Avoid multi-tenant complexity until there is a real need.
+Each authenticated user owns one collection. Supabase row-level security isolates mutations by collection while allowing public collections to remain readable.
 
 ## 8. Processing architecture
+
+The canonical stage-by-stage contract is documented in [`INGESTION_PIPELINE.md`](INGESTION_PIPELINE.md). It separates implemented behavior from planned shelfie processing and defines the handoff between recognition, ISBN ranking, cover resolution, and owner review.
 
 ### Shelfie pipeline
 
