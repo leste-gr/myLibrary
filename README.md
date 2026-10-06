@@ -6,7 +6,7 @@ Plain HTML, CSS and JavaScript: no build step, npm packages, backend or API keys
 ## Included
 
 - `index.html` — page structure and metadata.
-- `style.css` — warm, classic bookshop styling and responsive layouts.
+- `style.css` and `edition.css` — bookshop styling, responsive layouts, and edition-picker styles.
 - `app.js` — search, filters, sorting, book details and incremental loading.
 - `books.json` — all 166 catalogue entries.
 - `isbn.json` — accepted ISBN-13 values keyed by physical-copy ID.
@@ -54,6 +54,11 @@ python -m http.server 8000
 
 Then open http://localhost:8000. Use a local HTTP server instead of double-clicking
 `index.html`, because the application fetches `books.json`.
+
+The edition picker uses ranked candidates from `data/isbn-mapping.json`. A selection
+updates the visible ISBN and cover and is stored in that browser's local storage.
+The static site cannot publish the selection back to the repository; the interface
+marks local selections accordingly.
 
 ## Update your books
 
