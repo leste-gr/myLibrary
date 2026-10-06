@@ -13,7 +13,7 @@ Each stage must retain its inputs, outputs, evidence, confidence, and failures. 
 | Stage | Status | Current implementation |
 | --- | --- | --- |
 | 1. Extract book data from a shelfie | Planned | No shelfie upload, segmentation, or OCR pipeline exists yet. |
-| 2. Identify an ISBN from book data | Partially implemented | The batch mapper creates ranked candidates. Exact-provenance ISBNs are published; other suggestions require review. The target policy of always choosing rank 1 is not implemented yet. |
+| 2. Identify an ISBN from book data | Implemented for existing metadata | The mapper ranks candidates and automatically publishes rank 1. Owner-confirmed overrides are protected from later algorithm runs. Shelfie-derived observations are not implemented yet. |
 | 3. Resolve a cover from ISBN | Implemented | `/api/covers/{isbn}` uses Open Library, Google Books, the existing bundled cover, then a generated placeholder. Successful results are cached at the Vercel edge. |
 | 4. Owner editing and selection | Implemented | A signed-in owner edits books from their public collection, can select any retained candidate, or can enter an ISBN-10/ISBN-13 manually and publish the draft. |
 
@@ -69,7 +69,7 @@ Poor-quality or ambiguous detections remain reviewable rather than being silentl
 
 ## 2. Identify ISBN from book data
 
-Status: **candidate generation and manual review exist; automatic rank-1 selection remains to be implemented**.
+Status: **implemented for existing catalogue metadata; shelfie-derived candidate generation remains planned**.
 
 ### Candidate sources
 
@@ -107,9 +107,9 @@ The selection records one of these verification states:
 - `unresolved`: no valid candidate exists.
 - `no_isbn`: the owner confirmed that the edition has no ISBN.
 
-### Current gap
+### Current behavior and remaining gap
 
-The existing mapper only publishes unambiguous exact-provenance ISBNs. A unique cover match may be marked as suggested, but the mapper does not always select rank 1. Updating this policy and strengthening the scoring model are the next ISBN-mapping priorities.
+The strongest retained candidate is published automatically with the `algorithm_selected` state. Candidate rows retain algorithm version, confidence, score breakdown, provider count, and structured evidence. An owner override changes the copy to `owner_overridden`, records feedback and audit history, and prevents later candidate imports from replacing it. The remaining gap is to populate these same structures from shelfie observations rather than only existing catalogue metadata.
 
 ## 3. Extract a cover from ISBN
 
@@ -196,8 +196,8 @@ Reuse cached results by normalized ISBN, provider record ID, and content checksu
 
 ## Next implementation slice
 
-1. Make the strongest ranked ISBN candidate the algorithmic selection for every book with candidates.
-2. Expand scoring to author, language, provider agreement, and confidence margin.
-3. Persist verification state and scoring evidence in Supabase.
-4. Add “no ISBN” and cover upload/crop owner actions.
-5. Define the shelfie, detection, crop, and ingestion-job tables before building the worker.
+1. Add language, format, fuzzy similarity, and calibrated confidence to ranking.
+2. Add “no ISBN” and cover upload/crop owner actions.
+3. Build shelfie upload, detection, crop, and background-job processing on the observation tables.
+4. Measure owner override rate by evidence type and algorithm version.
+5. Use that feedback to tune ranking without replacing owner decisions.

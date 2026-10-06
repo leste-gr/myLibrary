@@ -120,6 +120,12 @@ const candidateRows = mapping.books.flatMap((item) =>
     suggested: candidate.isbn13 === item.suggestedIsbn13,
     rank: rank + 1,
     evidence: candidate.evidence ?? [],
+    selection_state: rank === 0 ? "algorithm_selected" : "alternative",
+    confidence: candidate.confidence ?? null,
+    algorithm_version: candidate.algorithmVersion ?? "isbn-ranker-v2",
+    score_breakdown: candidate.scoreBreakdown ?? {},
+    provider_count: candidate.providerCount ?? 1,
+    last_evaluated_at: new Date().toISOString(),
   })),
 );
 

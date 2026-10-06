@@ -39,6 +39,10 @@ export async function saveEditionDraft(formData: FormData) {
     .single();
   if (candidateError || !candidate) throw new Error("Edition candidate not found.");
 
+  await supabase.from("edition_candidates").update({ selection_state: "alternative" }).eq("copy_id", copyId).neq("selection_state", "owner_rejected");
+  const { error: selectionError } = await supabase.from("edition_candidates").update({ selection_state: "owner_selected" }).eq("id", candidateId);
+  if (selectionError) throw new Error("Could not select edition candidate.");
+
   const { data: edition, error: editionError } = await supabase
     .from("editions")
     .upsert({
@@ -124,6 +128,12 @@ export async function saveManualIsbnDraft(formData: FormData) {
     suggested: true,
     rank: 0,
     evidence: ["manual ISBN entry"],
+    selection_state: "owner_selected",
+    confidence: 1,
+    algorithm_version: "manual-owner-v1",
+    score_breakdown: { manual_isbn: 1000 },
+    provider_count: 1,
+    last_evaluated_at: new Date().toISOString(),
   }, { onConflict: "copy_id,isbn13" });
   if (candidateError) throw new Error("Could not save ISBN candidate.");
 
@@ -163,6 +173,13 @@ export async function discardEditionDraft(formData: FormData) {
   const { supabase } = await authenticatedClient();
   const { error } = await supabase.from("copy_drafts").delete().eq("copy_id", copyId);
   if (error) throw new Error("Could not discard draft.");
+  const { data: copy } = await supabase.from("copies").select("edition_verification_state,edition:editions(isbn13)").eq("id", copyId).single();
+  await supabase.from("edition_candidates").update({ selection_state: "alternative" }).eq("copy_id", copyId).neq("selection_state", "owner_rejected");
+  const edition = Array.isArray(copy?.edition) ? copy.edition[0] : copy?.edition;
+  if (edition?.isbn13) {
+    const restoredState = copy?.edition_verification_state === "algorithm_selected" ? "algorithm_selected" : "owner_selected";
+    await supabase.from("edition_candidates").update({ selection_state: restoredState }).eq("copy_id", copyId).eq("isbn13", edition.isbn13);
+  }
 
   revalidatePath("/admin");
   revalidatePath("/admin/books/" + legacyId);

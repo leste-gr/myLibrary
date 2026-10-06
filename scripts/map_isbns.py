@@ -230,17 +230,40 @@ def deduplicate(records: list[dict]) -> list[dict]:
 def rank_candidates(book: dict, records: list[dict], limit: int = 10) -> list[dict]:
     ranked = []
     book_title = text_key(book.get("title"))
+    book_author = text_key(book.get("author"))
     book_publisher = text_key(book.get("publisher"))
+    providers_by_isbn: dict[str, set[str]] = {}
+    for record in records:
+        providers_by_isbn.setdefault(record["isbn13"], set()).add(record["provider"])
     for item in records:
         score = 0
+        breakdown = {}
+        if "existing edition-level source" in item["evidence"] or "structured ISBN on existing source page" in item["evidence"]:
+            score += 500
+            breakdown["exactProvenance"] = 500
         if "selected cover ID matches edition" in item["evidence"]:
             score += 100
+            breakdown["selectedCover"] = 100
         if book_title and book_title == text_key(item.get("title")):
             score += 25
+            breakdown["exactTitle"] = 25
+        candidate_authors = item.get("authors") or []
+        if book_author and book_author in {text_key(value) for value in candidate_authors if value}:
+            score += 25
+            breakdown["exactAuthor"] = 25
         candidate_publishers = item.get("publishers") or [item.get("publisher")]
         if book_publisher and book_publisher in {text_key(value) for value in candidate_publishers if value}:
             score += 20
+            breakdown["exactPublisher"] = 20
+        provider_count = len(providers_by_isbn[item["isbn13"]])
+        if provider_count > 1:
+            agreement_score = min(80, (provider_count - 1) * 40)
+            score += agreement_score
+            breakdown["providerAgreement"] = agreement_score
         item["score"] = score
+        item["scoreBreakdown"] = breakdown
+        item["providerCount"] = provider_count
+        item["algorithmVersion"] = "isbn-ranker-v2"
         ranked.append(item)
     ranked.sort(key=lambda item: (-item["score"], item["isbn13"], item["provider"], item["providerId"]))
     unique = []
@@ -252,6 +275,12 @@ def rank_candidates(book: dict, records: list[dict], limit: int = 10) -> list[di
         unique.append(item)
         if len(unique) == limit:
             break
+    if unique:
+        leader = unique[0]["score"]
+        runner_up = unique[1]["score"] if len(unique) > 1 else 0
+        unique[0]["confidence"] = min(1, max(0, (leader + max(0, leader - runner_up)) / 600))
+        for item in unique[1:]:
+            item["confidence"] = min(0.99, max(0, item["score"] / 600))
     return unique
 
 
@@ -308,20 +337,34 @@ def map_entry(entry: dict, book: dict, source: dict | None, use_google_books: bo
         except (urllib.error.URLError, TimeoutError, ValueError, json.JSONDecodeError) as error:
             entry["notes"].append(f"Google Books lookup failed: {type(error).__name__}")
     records = deduplicate(records)
-    selected, status = select_exact(records)
-    cover_isbns = {
-        item["isbn13"] for item in records if "selected cover ID matches edition" in item["evidence"]
-    }
-    suggestion = selected or (next(iter(cover_isbns)) if len(cover_isbns) == 1 else None)
-    basis = "exact_provenance" if selected else ("selected_cover" if suggestion else None)
+    ranked = rank_candidates(book, records)
+    selected = ranked[0]["isbn13"] if ranked else None
+    status = "algorithm_selected" if selected else "unresolved"
+    basis = "rank_1" if selected else None
     entry.update(
         {
             "isbn13": selected,
-            "suggestedIsbn13": suggestion,
+            "suggestedIsbn13": selected,
             "suggestionBasis": basis,
             "status": status,
-            "confidence": "exact_provenance" if selected else None,
-            "candidates": rank_candidates(book, records),
+            "confidence": ranked[0].get("confidence") if ranked else None,
+            "candidates": ranked,
+        }
+    )
+    return entry
+
+
+def rerank_entry(entry: dict, book: dict) -> dict:
+    ranked = rank_candidates(book, entry.get("candidates", []))
+    selected = ranked[0]["isbn13"] if ranked else None
+    entry.update(
+        {
+            "isbn13": selected,
+            "suggestedIsbn13": selected,
+            "suggestionBasis": "rank_1" if selected else None,
+            "status": "algorithm_selected" if selected else "unresolved",
+            "confidence": ranked[0].get("confidence") if ranked else None,
+            "candidates": ranked,
         }
     )
     return entry
@@ -333,6 +376,7 @@ def main() -> None:
     parser.add_argument("--copy-id", action="append", help="Only process a copy ID; may be repeated")
     parser.add_argument("--delay", type=float, default=0.15, help="Delay between records in seconds")
     parser.add_argument("--google-books", action="store_true", help="Also query Google Books (requires available API quota)")
+    parser.add_argument("--rerank-only", action="store_true", help="Re-rank stored candidates without provider requests")
     args = parser.parse_args()
 
     books = json.loads(BOOKS_PATH.read_text(encoding="utf-8"))
@@ -345,7 +389,9 @@ def main() -> None:
     output = []
     for book in books:
         entry = existing.get(book["id"], initial_entry(book, sources.get(book["id"])))
-        if not args.init_only and (not selected_ids or book["id"] in selected_ids):
+        if args.rerank_only and (not selected_ids or book["id"] in selected_ids):
+            entry = rerank_entry(entry, book)
+        elif not args.init_only and (not selected_ids or book["id"] in selected_ids):
             entry = map_entry(entry, book, sources.get(book["id"]), use_google_books=args.google_books)
             time.sleep(args.delay)
         output.append(entry)
@@ -353,12 +399,12 @@ def main() -> None:
     payload = {
         "schemaVersion": 1,
         "assumption": "Each unique valid ISBN-13 identifies one cover edition for myLibrary.",
-        "policy": "Only exact edition-level provenance is accepted automatically; all other candidates require review.",
+        "policy": "The strongest ranked ISBN is selected automatically; owners may optionally override it.",
         "books": output,
     }
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    public_isbns = {item["copyId"]: item["isbn13"] for item in output if item["status"] == "accepted"}
+    public_isbns = {item["copyId"]: item["isbn13"] for item in output if item.get("isbn13")}
     PUBLIC_OUTPUT_PATH.write_text(json.dumps(public_isbns, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     counts: dict[str, int] = {}
