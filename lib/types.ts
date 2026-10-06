@@ -15,6 +15,15 @@ export type CatalogueBook = {
   isbn13: string | null;
 };
 
+export type PublicCollection = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  bookCount: number;
+  authorCount: number;
+};
+
 export type EditionCandidate = {
   id: string;
   isbn13: string;

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
-import type { CatalogueBook } from "@/lib/types";
+import type { CatalogueBook, PublicCollection } from "@/lib/types";
 
 const normalize = (value: unknown) =>
   String(value ?? "")
@@ -11,7 +11,7 @@ const normalize = (value: unknown) =>
     .toLocaleLowerCase("el")
     .replace(/ς/g, "σ");
 
-export function Catalogue({ initialBooks }: { initialBooks: CatalogueBook[] }) {
+export function Catalogue({ initialBooks, collection }: { initialBooks: CatalogueBook[]; collection: PublicCollection }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [author, setAuthor] = useState("");
@@ -57,12 +57,12 @@ export function Catalogue({ initialBooks }: { initialBooks: CatalogueBook[] }) {
   return (
     <div className="catalogue-shell">
       <header className="masthead">
-        <div className="brand"><span className="monogram" aria-hidden="true">Β.</span><span>Η βιβλιοθήκη μου<small>ΠΡΟΣΩΠΙΚΗ ΣΥΛΛΟΓΗ</small></span></div>
-        <nav className="site-nav"><span className="header-note">Μια συλλογή, πολλοί κόσμοι.</span><Link href="/admin">Διαχείριση</Link></nav>
+        <div className="brand"><span className="monogram" aria-hidden="true">Β.</span><span>{collection.name}<small>ΔΗΜΟΣΙΑ ΣΥΛΛΟΓΗ</small></span></div>
+        <nav className="site-nav"><Link href="/">Όλες οι συλλογές</Link><Link href="/admin">Διαχείριση</Link></nav>
       </header>
       <main>
         <section className="intro">
-          <div><p className="eyebrow">Ο ΚΑΤΑΛΟΓΟΣ</p><h1>Στα ράφια μου.</h1><p className="intro-copy">Ιστορίες που μένουν, κόσμοι που περιμένουν.</p></div>
+          <div><p className="eyebrow">Ο ΚΑΤΑΛΟΓΟΣ</p><h1>{collection.name}</h1><p className="intro-copy">{collection.description ?? "Μια συλλογή, πολλοί κόσμοι."}</p></div>
           <div className="collection-stats"><div><strong>{initialBooks.length}</strong><span>βιβλία</span></div><div><strong>{authors.length}</strong><span>συγγραφείς</span></div><div><strong>{categories.length}</strong><span>κατηγορίες</span></div></div>
         </section>
         <label className="searchbar">
@@ -91,7 +91,7 @@ export function Catalogue({ initialBooks }: { initialBooks: CatalogueBook[] }) {
           </section>
         </div>
       </main>
-      <footer><span>Η βιβλιοθήκη μου</span><p>Κάθε εγγραφή αντιστοιχεί σε έναν φυσικό τόμο της συλλογής.</p></footer>
+      <footer><span>{collection.name}</span><p>Κάθε εγγραφή αντιστοιχεί σε έναν φυσικό τόμο της συλλογής.</p></footer>
       <dialog ref={dialogRef} onCancel={() => setSelected(null)}>
         <button className="close-dialog" aria-label="Κλείσιμο" onClick={() => { dialogRef.current?.close(); setSelected(null); }}>×</button>
         {selected && <div className="detail-layout"><div className="detail-art"><div className="cover-wrap">{selected.cover ? <img src={selected.cover} alt={"Εξώφυλλο: " + selected.title} /> : <div className="missing-cover"><span>Δεν υπάρχει εξώφυλλο</span></div>}</div></div><div className="detail-copy"><p className="eyebrow">ΑΠΟ ΤΗ ΣΥΛΛΟΓΗ</p><h2>{selected.title}</h2><p className="detail-author">{selected.author}</p><dl>

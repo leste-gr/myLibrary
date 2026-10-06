@@ -21,9 +21,13 @@ function first<T>(value: T | T[] | null): T | null {
 export default async function AdminPage() {
   if (!isSupabaseConfigured()) redirect("/login");
   const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const { data: collection } = await supabase.from("collections").select("id").eq("owner_id", user.id).single();
+  if (!collection) redirect("/");
   const { data, error } = await supabase.from("copies").select(
     "id,legacy_id,work:works(title,author),edition:editions(isbn13),copy_drafts(copy_id),edition_candidates(count)"
-  ).order("display_order");
+  ).eq("collection_id", collection.id).order("display_order");
   if (error) throw new Error(error.message);
   const copies = (data ?? []) as AdminCopy[];
   const drafts = copies.filter((copy) => first(copy.copy_drafts)).length;

@@ -20,9 +20,13 @@ export default async function AdminBookPage({ params, searchParams }: { params: 
   const { legacyId } = await params;
   const messages = await searchParams;
   const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const { data: collection } = await supabase.from("collections").select("id").eq("owner_id", user.id).single();
+  if (!collection) notFound();
   const { data, error } = await supabase.from("copies").select(
     "id,legacy_id,category,language,cover_url,work:works(title,author),edition:editions(isbn13,title,publishers,published_date,cover_url),copy_drafts(edition_id,cover_url,edition:editions(isbn13,title,publishers,published_date,cover_url))"
-  ).eq("legacy_id", legacyId).single();
+  ).eq("collection_id", collection.id).eq("legacy_id", legacyId).single();
   if (error || !data) notFound();
   const copy = data as Copy;
   const { data: candidateData, error: candidateError } = await supabase.from("edition_candidates").select(

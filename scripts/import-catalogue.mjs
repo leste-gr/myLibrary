@@ -28,6 +28,12 @@ const supabase = createClient(url, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
+const collectionSlug = process.env.MYLIBRARY_COLLECTION_SLUG ?? "lefteris";
+const collection = assertResult(
+  await supabase.from("collections").select("id").eq("slug", collectionSlug).single(),
+  "Find target collection",
+);
+
 const books = await readJson("../books.json");
 const mapping = await readJson("../data/isbn-mapping.json");
 const acceptedIsbns = await readJson("../isbn.json");
@@ -81,6 +87,7 @@ const editions = assertResult(
 const editionIdByIsbn = new Map(editions.map((edition) => [edition.isbn13, edition.id]));
 
 const copyRows = books.map((book, index) => ({
+  collection_id: collection.id,
   legacy_id: book.id,
   work_id: workIdByLegacy.get(book.id),
   edition_id: acceptedIsbns[book.id] ? editionIdByIsbn.get(acceptedIsbns[book.id]) : null,
@@ -96,7 +103,7 @@ const copyRows = books.map((book, index) => ({
   updated_at: new Date().toISOString(),
 }));
 const copies = assertResult(
-  await supabase.from("copies").upsert(copyRows, { onConflict: "legacy_id" }).select("id,legacy_id"),
+  await supabase.from("copies").upsert(copyRows, { onConflict: "collection_id,legacy_id" }).select("id,legacy_id"),
   "Import copies",
 );
 const copyIdByLegacy = new Map(copies.map((copy) => [copy.legacy_id, copy.id]));

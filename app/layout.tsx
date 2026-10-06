@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Η βιβλιοθήκη μου · Προσωπική συλλογή",
-  description: "Η προσωπική βιβλιοθήκη του Λευτέρη.",
+  title: "myLibrary · Δημόσιες συλλογές βιβλίων",
+  description: "Προσωπικές βιβλιοθήκες και δημόσιες συλλογές βιβλίων.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

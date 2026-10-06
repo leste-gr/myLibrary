@@ -16,8 +16,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const { error } = await searchParams;
 
   return <main className="login-card">
-    <Link href="/">← Επιστροφή στη βιβλιοθήκη</Link>
-    <p className="eyebrow">MYLIBRARY OWNER</p>
+    <Link href="/">← Όλες οι συλλογές</Link>
+    <p className="eyebrow">MYLIBRARY</p>
     <h1>Σύνδεση</h1>
     {!configured ? <div className="form-error">Το Supabase δεν έχει συνδεθεί ακόμη. Πρόσθεσε τις μεταβλητές περιβάλλοντος για να ενεργοποιήσεις τη διαχείριση.</div> :
       <form action={signIn} className="form-stack">

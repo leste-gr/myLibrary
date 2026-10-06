@@ -11,11 +11,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  const { data: collection } = await supabase
+    .from("collections")
+    .select("slug,name")
+    .eq("owner_id", user.id)
+    .single();
+  if (!collection) redirect("/");
 
   return <div className="admin-shell">
     <header className="admin-header">
-      <div><p className="eyebrow">OWNER WORKSPACE</p><h1>Διαχείριση βιβλιοθήκης</h1></div>
-      <nav><Link href="/">Δημόσιος κατάλογος</Link><form action={signOut}><button type="submit" className="secondary-button">Αποσύνδεση</button></form></nav>
+      <div><p className="eyebrow">OWNER WORKSPACE</p><h1>{collection.name}</h1></div>
+      <nav><Link href={`/collections/${collection.slug}`}>Δημόσιος κατάλογος</Link><form action={signOut}><button type="submit" className="secondary-button">Αποσύνδεση</button></form></nav>
     </header>
     {children}
   </div>;
