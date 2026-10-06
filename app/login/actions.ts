@@ -7,7 +7,8 @@ export async function signIn(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) redirect("/login?error=" + encodeURIComponent(error.message));
-  redirect("/admin");
+  const { data: collection } = await supabase.from("collections").select("slug").eq("owner_id", data.user.id).single();
+  redirect(collection ? `/collections/${collection.slug}` : "/");
 }

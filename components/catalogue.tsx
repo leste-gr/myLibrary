@@ -11,7 +11,12 @@ const normalize = (value: unknown) =>
     .toLocaleLowerCase("el")
     .replace(/ς/g, "σ");
 
-export function Catalogue({ initialBooks, collection }: { initialBooks: CatalogueBook[]; collection: PublicCollection }) {
+export function Catalogue({ initialBooks, collection, canEdit = false, viewerCollectionSlug = null }: {
+  initialBooks: CatalogueBook[];
+  collection: PublicCollection;
+  canEdit?: boolean;
+  viewerCollectionSlug?: string | null;
+}) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [author, setAuthor] = useState("");
@@ -58,7 +63,7 @@ export function Catalogue({ initialBooks, collection }: { initialBooks: Catalogu
     <div className="catalogue-shell">
       <header className="masthead">
         <div className="brand"><span className="monogram" aria-hidden="true">Β.</span><span>{collection.name}<small>ΔΗΜΟΣΙΑ ΣΥΛΛΟΓΗ</small></span></div>
-        <nav className="site-nav"><Link href="/">Όλες οι συλλογές</Link><Link href="/admin">Διαχείριση</Link></nav>
+        <nav className="site-nav"><Link href="/">Όλες οι συλλογές</Link>{canEdit ? <span className="edit-mode">Επεξεργασία ενεργή</span> : viewerCollectionSlug ? <Link href={`/collections/${viewerCollectionSlug}`}>Η συλλογή μου</Link> : <Link href="/login">Σύνδεση</Link>}</nav>
       </header>
       <main>
         <section className="intro">
@@ -81,10 +86,10 @@ export function Catalogue({ initialBooks, collection }: { initialBooks: Catalogu
           <section id="catalogue">
             <div className="catalogue-toolbar"><div><h2>{category || "Όλα τα βιβλία"}</h2><p>{filteredBooks.length} από {initialBooks.length} βιβλία</p></div><div className="sort-wrap"><label htmlFor="sort">Ταξινόμηση</label><select id="sort" value={sort} onChange={(event) => setSort(event.target.value)}><option value="catalogue">Σειρά καταλόγου</option><option value="title">Τίτλος Α–Ω</option><option value="author">Συγγραφέας Α–Ω</option></select></div></div>
             <div className="book-grid">
-              {filteredBooks.slice(0, limit).map((book) => <button type="button" className="book-card" key={book.id} onClick={() => openBook(book)}>
+              {filteredBooks.slice(0, limit).map((book) => <article className="book-card-shell" key={book.id}><button type="button" className="book-card" onClick={() => openBook(book)}>
                 <div className="cover-wrap">{book.cover ? <img src={book.cover} alt={"Εξώφυλλο: " + book.title} loading="lazy" /> : <div className="missing-cover"><span>Το εξώφυλλο δεν είναι διαθέσιμο</span></div>}</div>
                 <h3>{book.title}</h3><p className="book-author">{book.author}</p>{book.series && <p className="book-series">{book.series}</p>}{book.isbn13 && <p className="book-isbn">{book.isbn13}</p>}
-              </button>)}
+              </button>{canEdit && <Link className="edit-book-link" href={`/collections/${collection.slug}/books/${book.id}`}>Επεξεργασία ISBN και έκδοσης</Link>}</article>)}
             </div>
             {!filteredBooks.length && <div id="empty"><h3>Δεν βρέθηκε κάποιο βιβλίο.</h3><button type="button" onClick={reset}>Εμφάνιση όλων</button></div>}
             <div className="load-more">{filteredBooks.length > limit && <button type="button" onClick={() => setLimit((value) => value + 32)}>Περισσότερα βιβλία</button>}</div>

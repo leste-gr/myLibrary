@@ -11,6 +11,26 @@ async function authenticatedClient() {
   return { supabase, user };
 }
 
+function editPath(collectionSlug: string, legacyId: string, query = "") {
+  const base = collectionSlug ? `/collections/${collectionSlug}/books/${legacyId}` : `/admin/books/${legacyId}`;
+  return base + query;
+}
+
+function canonicalIsbn(value: string): string | null {
+  const cleaned = value.toUpperCase().replace(/[^0-9X]/g, "");
+  if (cleaned.length === 10) {
+    const valid = /^[0-9]{9}[0-9X]$/.test(cleaned)
+      && [...cleaned].reduce((sum, char, index) => sum + (10 - index) * (char === "X" ? 10 : Number(char)), 0) % 11 === 0;
+    if (!valid) return null;
+    const body = "978" + cleaned.slice(0, 9);
+    const check = (10 - [...body].reduce((sum, char, index) => sum + Number(char) * (index % 2 ? 3 : 1), 0) % 10) % 10;
+    return body + check;
+  }
+  if (!/^97[89][0-9]{10}$/.test(cleaned)) return null;
+  const checksum = [...cleaned.slice(0, 12)].reduce((sum, char, index) => sum + Number(char) * (index % 2 ? 3 : 1), 0) + Number(cleaned[12]);
+  return checksum % 10 === 0 ? cleaned : null;
+}
+
 export async function signOut() {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
@@ -21,6 +41,7 @@ export async function saveEditionDraft(formData: FormData) {
   const candidateId = String(formData.get("candidateId") ?? "");
   const copyId = String(formData.get("copyId") ?? "");
   const legacyId = String(formData.get("legacyId") ?? "");
+  const collectionSlug = String(formData.get("collectionSlug") ?? "");
   if (!candidateId || !copyId || !legacyId) throw new Error("Missing edition selection.");
 
   const { supabase, user } = await authenticatedClient();
@@ -60,12 +81,84 @@ export async function saveEditionDraft(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/admin/books/" + legacyId);
-  redirect("/admin/books/" + legacyId + "?saved=1");
+  if (collectionSlug) revalidatePath("/collections/" + collectionSlug);
+  redirect(editPath(collectionSlug, legacyId, "?saved=1"));
+}
+
+export async function saveManualIsbnDraft(formData: FormData) {
+  const rawIsbn = String(formData.get("isbn") ?? "");
+  const copyId = String(formData.get("copyId") ?? "");
+  const legacyId = String(formData.get("legacyId") ?? "");
+  const collectionSlug = String(formData.get("collectionSlug") ?? "");
+  const isbn13 = canonicalIsbn(rawIsbn);
+  if (!isbn13) redirect(editPath(collectionSlug, legacyId, "?error=" + encodeURIComponent("Μη έγκυρο ISBN-10 ή ISBN-13.")));
+
+  const { supabase, user } = await authenticatedClient();
+  const { data: collection } = await supabase
+    .from("collections")
+    .select("id")
+    .eq("owner_id", user.id)
+    .eq("slug", collectionSlug)
+    .single();
+  if (!collection) throw new Error("Collection not found.");
+  const { data: copy } = await supabase
+    .from("copies")
+    .select("id,work:works(title)")
+    .eq("id", copyId)
+    .eq("collection_id", collection.id)
+    .single();
+  if (!copy) throw new Error("Book not found.");
+
+  const coverUrl = `https://covers.openlibrary.org/b/isbn/${isbn13}-L.jpg`;
+  const work = Array.isArray(copy.work) ? copy.work[0] : copy.work;
+  let { data: edition } = await supabase.from("editions").select("id").eq("isbn13", isbn13).maybeSingle();
+  if (!edition) {
+    const created = await supabase.from("editions").insert({
+      isbn13,
+      title: work?.title ?? null,
+      cover_url: coverUrl,
+      provider: "manual",
+      provider_id: `manual:${isbn13}`,
+      metadata: { evidence: ["manual ISBN entry"] },
+    }).select("id").single();
+    if (created.error || !created.data) throw new Error("Could not save ISBN.");
+    edition = created.data;
+  }
+
+  await supabase.from("edition_candidates").update({ suggested: false }).eq("copy_id", copyId);
+  const { error: candidateError } = await supabase.from("edition_candidates").upsert({
+    copy_id: copyId,
+    isbn13,
+    title: work?.title ?? null,
+    publishers: [],
+    cover_url: coverUrl,
+    provider: "manual",
+    provider_id: `manual:${isbn13}`,
+    score: 1000,
+    suggested: true,
+    rank: 0,
+    evidence: ["manual ISBN entry"],
+  }, { onConflict: "copy_id,isbn13" });
+  if (candidateError) throw new Error("Could not save ISBN candidate.");
+
+  const { error: draftError } = await supabase.from("copy_drafts").upsert({
+    copy_id: copyId,
+    edition_id: edition.id,
+    cover_url: coverUrl,
+    created_by: user.id,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "copy_id" });
+  if (draftError) throw new Error("Could not save ISBN draft.");
+
+  revalidatePath("/collections/" + collectionSlug);
+  revalidatePath(editPath(collectionSlug, legacyId));
+  redirect(editPath(collectionSlug, legacyId, "?saved=1"));
 }
 
 export async function publishEditionDraft(formData: FormData) {
   const copyId = String(formData.get("copyId") ?? "");
   const legacyId = String(formData.get("legacyId") ?? "");
+  const collectionSlug = String(formData.get("collectionSlug") ?? "");
   const { supabase } = await authenticatedClient();
   const { error } = await supabase.rpc("publish_copy_draft", { target_copy_id: copyId });
   if (error) throw new Error("Could not publish edition: " + error.message);
@@ -73,17 +166,20 @@ export async function publishEditionDraft(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/admin");
   revalidatePath("/admin/books/" + legacyId);
-  redirect("/admin/books/" + legacyId + "?published=1");
+  if (collectionSlug) revalidatePath("/collections/" + collectionSlug);
+  redirect(editPath(collectionSlug, legacyId, "?published=1"));
 }
 
 export async function discardEditionDraft(formData: FormData) {
   const copyId = String(formData.get("copyId") ?? "");
   const legacyId = String(formData.get("legacyId") ?? "");
+  const collectionSlug = String(formData.get("collectionSlug") ?? "");
   const { supabase } = await authenticatedClient();
   const { error } = await supabase.from("copy_drafts").delete().eq("copy_id", copyId);
   if (error) throw new Error("Could not discard draft.");
 
   revalidatePath("/admin");
   revalidatePath("/admin/books/" + legacyId);
-  redirect("/admin/books/" + legacyId);
+  if (collectionSlug) revalidatePath("/collections/" + collectionSlug);
+  redirect(editPath(collectionSlug, legacyId));
 }

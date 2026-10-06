@@ -8,7 +8,7 @@ export default async function HomePage() {
   return <div className="directory-shell">
     <header className="masthead">
       <div className="brand"><span className="monogram" aria-hidden="true">Β.</span><span>myLibrary<small>ΔΗΜΟΣΙΕΣ ΣΥΛΛΟΓΕΣ</small></span></div>
-      <nav className="site-nav"><Link href="/admin">Η συλλογή μου</Link></nav>
+      <nav className="site-nav"><Link href="/login">Η συλλογή μου</Link></nav>
     </header>
     <main className="directory-main">
       <section className="directory-intro"><p className="eyebrow">MYLIBRARY</p><h1>Βιβλιοθήκες που ανοίγουν.</h1><p>Ανακάλυψε τις δημόσιες συλλογές της κοινότητας.</p></section>
