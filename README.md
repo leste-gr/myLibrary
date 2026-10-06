@@ -12,7 +12,7 @@ myLibrary is a Next.js catalogue and owner workspace for a physical book collect
 - Atomic catalogue publication with audit history.
 - Bundled fallback data for local development and deployment previews.
 
-Shelfie uploads into new or existing collections are implemented. OCR, spine segmentation, and the Railway worker remain the next release stage. Source photos are private and must be deleted by the worker immediately after observations are persisted.
+Shelfie uploads into new or existing collections and the background ingestion worker are implemented. The worker uses one structured vision request per shelfie, searches Open Library and Google Books for ISBN candidates, publishes the highest-ranked candidate automatically, and retains alternatives for owner correction. Source photos are private and are deleted immediately after observations are persisted.
 
 ## Local development
 
@@ -39,6 +39,7 @@ The service-role key is only for the local importer. Never expose it in browser 
 npm run typecheck
 npm run build
 npm run import:dry-run
+python3 -m unittest discover -s worker/tests -v
 ```
 
 See [Deployment](docs/DEPLOYMENT.md) for Supabase setup, catalogue import, and Vercel publication.
@@ -51,6 +52,7 @@ See [Deployment](docs/DEPLOYMENT.md) for Supabase setup, catalogue import, and V
 - `scripts/import-catalogue.mjs` imports the catalogue into Supabase.
 - `scripts/map_isbns.py` regenerates ISBN candidates.
 - `supabase/migrations/` contains the persistent schema and publish transaction.
+- `worker/` contains the Railway shelfie ingestion service.
 - `public/covers/` contains local cover assets.
 
 The stable `Bxxx` identifiers remain the IDs shown to users and used during migration.

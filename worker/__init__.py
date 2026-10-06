@@ -1,0 +1,1 @@
+"""myLibrary shelfie ingestion worker."""

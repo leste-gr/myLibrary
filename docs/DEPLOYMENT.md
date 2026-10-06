@@ -1,6 +1,23 @@
 # Initial release deployment
 
-This release uses GitHub for source control, Vercel for the Next.js application, and Supabase for authentication and persistent catalogue data. Railway is intentionally deferred until shelfie processing begins.
+This release uses GitHub for source control, Vercel for the Next.js application, Supabase for authentication and persistent catalogue data, and Railway for shelfie processing.
+
+## Railway shelfie worker
+
+Create a Railway service from this GitHub repository. Railway reads `railway.toml` and builds `worker/Dockerfile`. It is a background worker and does not need a public domain.
+
+Set these service variables:
+
+```text
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_VISION_MODEL=gpt-4.1-mini
+POLL_SECONDS=10
+MAX_ATTEMPTS=3
+```
+
+Never expose the service-role or OpenAI keys to Vercel client variables. The worker claims jobs atomically, retries transient failures, and deletes the private source image after success or after the final failed attempt. Deploy the Supabase migrations before starting the service.
 
 ## 1. Create the Supabase project
 

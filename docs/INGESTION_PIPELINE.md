@@ -12,7 +12,7 @@ Each stage must retain its inputs, outputs, evidence, confidence, and failures. 
 
 | Stage | Status | Current implementation |
 | --- | --- | --- |
-| 1. Extract book data from a shelfie | Upload implemented; extraction planned | Owners can upload a private shelfie into a new or existing collection. Uploads enter a durable processing queue; segmentation and OCR remain worker work. |
+| 1. Extract book data from a shelfie | Implemented | Owners upload a private shelfie into a new or existing collection. A Railway worker claims it, performs structured vision recognition, persists observations, and deletes the image. |
 | 2. Identify an ISBN from book data | Implemented for existing metadata | The mapper ranks candidates and automatically publishes rank 1. Owner-confirmed overrides are protected from later algorithm runs. Shelfie-derived observations are not implemented yet. |
 | 3. Resolve a cover from ISBN | Implemented | `/api/covers/{isbn}` uses Open Library, Google Books, the existing bundled cover, then a generated placeholder. Successful results are cached at the Vercel edge. |
 | 4. Owner editing and selection | Implemented | A signed-in owner edits books from their public collection, can select any retained candidate, or can enter an ISBN-10/ISBN-13 manually and publish the draft. |
@@ -30,19 +30,19 @@ Each stage must retain its inputs, outputs, evidence, confidence, and failures. 
 
 ## 1. Get book data from a shelfie
 
-Status: **upload and queue implemented; image extraction worker not implemented**.
+Status: **implemented**.
 
 ### Input
 
 - One or more shelf photographs owned by the signed-in user.
 - Capture metadata such as upload time, image dimensions, orientation, and optional shelf/location label.
 
-### Planned processing
+### Processing
 
 1. Validate image type, size, orientation, sharpness, and usable resolution.
 2. Detect shelves and individual book spines.
-3. Process the source image and transient crops during the initial ingestion run.
-4. Run OCR on each crop.
+3. Send the source image through one structured vision-recognition request; the current implementation does not retain crops.
+4. Extract readable title, author, publisher, language, and visible ISBN evidence for each spine.
 5. Extract observations such as title fragments, author, publisher mark, language, series, visible barcode, and visual features.
 6. Match observations against copies already in the user's collection before proposing additions.
 7. After observations and tokens have been persisted, delete the original shelfie and all transient crops. Set `storage_path` to `null`, record `asset_deleted_at`, and only then mark the upload `completed`.
@@ -199,6 +199,6 @@ Reuse cached results by normalized ISBN, provider record ID, and content checksu
 
 1. Add language, format, fuzzy similarity, and calibrated confidence to ranking.
 2. Add “no ISBN” and cover upload/crop owner actions.
-3. Build the detection, crop, and background-job processing stages on the implemented shelfie queue and observation tables.
+3. Add image-quality scoring, optional local spine segmentation, and targeted retries for weak detections.
 4. Measure owner override rate by evidence type and algorithm version.
 5. Use that feedback to tune ranking without replacing owner decisions.
