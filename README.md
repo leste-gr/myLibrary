@@ -12,7 +12,7 @@ myLibrary is a Next.js catalogue and owner workspace for a physical book collect
 - Atomic catalogue publication with audit history.
 - Bundled fallback data for local development and deployment previews.
 
-Shelfie uploads, OCR, and the Railway worker belong to the next release stage.
+Shelfie uploads into new or existing collections are implemented. OCR, spine segmentation, and the Railway worker remain the next release stage. Source photos are private and must be deleted by the worker immediately after observations are persisted.
 
 ## Local development
 

@@ -12,7 +12,7 @@ Each stage must retain its inputs, outputs, evidence, confidence, and failures. 
 
 | Stage | Status | Current implementation |
 | --- | --- | --- |
-| 1. Extract book data from a shelfie | Planned | No shelfie upload, segmentation, or OCR pipeline exists yet. |
+| 1. Extract book data from a shelfie | Upload implemented; extraction planned | Owners can upload a private shelfie into a new or existing collection. Uploads enter a durable processing queue; segmentation and OCR remain worker work. |
 | 2. Identify an ISBN from book data | Implemented for existing metadata | The mapper ranks candidates and automatically publishes rank 1. Owner-confirmed overrides are protected from later algorithm runs. Shelfie-derived observations are not implemented yet. |
 | 3. Resolve a cover from ISBN | Implemented | `/api/covers/{isbn}` uses Open Library, Google Books, the existing bundled cover, then a generated placeholder. Successful results are cached at the Vercel edge. |
 | 4. Owner editing and selection | Implemented | A signed-in owner edits books from their public collection, can select any retained candidate, or can enter an ISBN-10/ISBN-13 manually and publish the draft. |
@@ -30,7 +30,7 @@ Each stage must retain its inputs, outputs, evidence, confidence, and failures. 
 
 ## 1. Get book data from a shelfie
 
-Status: **not implemented**.
+Status: **upload and queue implemented; image extraction worker not implemented**.
 
 ### Input
 
@@ -41,10 +41,11 @@ Status: **not implemented**.
 
 1. Validate image type, size, orientation, sharpness, and usable resolution.
 2. Detect shelves and individual book spines.
-3. Store normalized crops so recognition can be retried without uploading the original again.
+3. Process the source image and transient crops during the initial ingestion run.
 4. Run OCR on each crop.
 5. Extract observations such as title fragments, author, publisher mark, language, series, visible barcode, and visual features.
 6. Match observations against copies already in the user's collection before proposing additions.
+7. After observations and tokens have been persisted, delete the original shelfie and all transient crops. Set `storage_path` to `null`, record `asset_deleted_at`, and only then mark the upload `completed`.
 
 ### Output
 
@@ -65,7 +66,7 @@ Each detected physical book should produce an observation record similar to:
 }
 ```
 
-Poor-quality or ambiguous detections remain reviewable rather than being silently discarded.
+Poor-quality or ambiguous structured detections remain reviewable rather than being silently discarded. Source photos are not retained after their initial ingestion and mapping run. Failed jobs may keep an image only while a retry is pending and must be covered by an expiry cleanup job.
 
 ## 2. Identify ISBN from book data
 
@@ -173,7 +174,7 @@ Future owner controls should add:
 
 | Failure | Required behavior |
 | --- | --- |
-| Shelfie is unreadable | Retain the upload, explain the quality issue, and request another image. |
+| Shelfie is unreadable | Record the quality failure, delete the source image after analysis, and request another image. |
 | OCR produces weak book data | Keep the detection unresolved and allow manual correction. |
 | No valid ISBN candidate | Continue with non-ISBN cover fallback and owner review. |
 | Providers disagree | Select rank 1 algorithmically, show confidence/evidence, and retain every alternative. |
@@ -192,12 +193,12 @@ Track these values per stage and provider:
 - Provider requests, failures, throttling, and cost.
 - Time from ingestion to owner confirmation and publication.
 
-Reuse cached results by normalized ISBN, provider record ID, and content checksum. Shelfie recognition and bibliographic lookup should run as resumable background jobs with explicit budgets; public catalogue rendering must never wait for ingestion work.
+Reuse cached results by normalized ISBN, provider record ID, and content checksum. Shelfie recognition and bibliographic lookup should run as resumable background jobs with explicit budgets; public catalogue rendering must never wait for ingestion work. Content checksums may be retained for deduplication, but original shelfies and transient crops must be deleted after the initial ingestion and mapping transaction succeeds.
 
 ## Next implementation slice
 
 1. Add language, format, fuzzy similarity, and calibrated confidence to ranking.
 2. Add “no ISBN” and cover upload/crop owner actions.
-3. Build shelfie upload, detection, crop, and background-job processing on the observation tables.
+3. Build the detection, crop, and background-job processing stages on the implemented shelfie queue and observation tables.
 4. Measure owner override rate by evidence type and algorithm version.
 5. Use that feedback to tune ranking without replacing owner decisions.

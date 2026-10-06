@@ -63,7 +63,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerCol
     <div className="catalogue-shell">
       <header className="masthead">
         <div className="brand"><span className="monogram" aria-hidden="true">Β.</span><span>{collection.name}<small>ΔΗΜΟΣΙΑ ΣΥΛΛΟΓΗ</small></span></div>
-        <nav className="site-nav"><Link href="/">Όλες οι συλλογές</Link>{canEdit ? <span className="edit-mode">Επεξεργασία ενεργή</span> : viewerCollectionSlug ? <Link href={`/collections/${viewerCollectionSlug}`}>Η συλλογή μου</Link> : <Link href="/login">Σύνδεση</Link>}</nav>
+        <nav className="site-nav"><Link href="/">Όλες οι συλλογές</Link>{canEdit ? <><Link className="button-link" href={`/shelfies?collection=${collection.slug}`}>+ Shelfie</Link><span className="edit-mode">Επεξεργασία ενεργή</span></> : viewerCollectionSlug ? <Link href={`/collections/${viewerCollectionSlug}`}>Η συλλογή μου</Link> : <Link href="/login">Σύνδεση</Link>}</nav>
       </header>
       <main>
         <section className="intro">

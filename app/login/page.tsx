@@ -12,7 +12,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     const supabase = await createSupabaseServerClient();
     const { data } = await supabase.auth.getClaims();
     if (data?.claims) {
-      const { data: collection } = await supabase.from("collections").select("slug").eq("owner_id", data.claims.sub).single();
+      const { data: collection } = await supabase.from("collections").select("slug").eq("owner_id", data.claims.sub).order("created_at", { ascending: true }).limit(1).maybeSingle();
       redirect(collection ? `/collections/${collection.slug}` : "/");
     }
   }
