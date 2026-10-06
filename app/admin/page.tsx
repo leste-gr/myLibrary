@@ -8,9 +8,11 @@ type AdminCopy = {
   legacy_id: string;
   work: { title: string; author: string } | { title: string; author: string }[];
   edition: { isbn13: string | null } | { isbn13: string | null }[] | null;
-  copy_drafts: { copy_id: string }[];
+  copy_drafts: Relation<{ copy_id: string }>;
   edition_candidates: { count: number }[];
 };
+
+type Relation<T> = T | T[] | null;
 
 function first<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? value[0] ?? null : value;
@@ -24,7 +26,7 @@ export default async function AdminPage() {
   ).order("display_order");
   if (error) throw new Error(error.message);
   const copies = (data ?? []) as AdminCopy[];
-  const drafts = copies.filter((copy) => copy.copy_drafts.length).length;
+  const drafts = copies.filter((copy) => first(copy.copy_drafts)).length;
   const mapped = copies.filter((copy) => first(copy.edition)?.isbn13).length;
 
   return <>
@@ -39,11 +41,12 @@ export default async function AdminPage() {
         const work = first(copy.work);
         const edition = first(copy.edition);
         const candidateCount = copy.edition_candidates[0]?.count ?? 0;
+        const draft = first(copy.copy_drafts);
         return <Link className="admin-row" href={"/admin/books/" + copy.legacy_id} key={copy.id}>
           <code>{copy.legacy_id}</code>
           <span><strong>{work?.title}</strong><small>{work?.author}</small></span>
           <span>{edition?.isbn13 ?? "Χωρίς ISBN"}</span>
-          <span className={"status-pill " + (copy.copy_drafts.length ? "draft" : "")}>{copy.copy_drafts.length ? "Πρόχειρο" : candidateCount + " επιλογές"}</span>
+          <span className={"status-pill " + (draft ? "draft" : "")}>{draft ? "Πρόχειρο" : candidateCount + " επιλογές"}</span>
         </Link>;
       })}
     </div>

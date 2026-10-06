@@ -8,7 +8,7 @@ type Relation<T> = T | T[] | null;
 type Work = { title: string; author: string };
 type Edition = { isbn13: string | null; title: string | null; publishers: string[]; published_date: string | null; cover_url: string | null };
 type Draft = { edition_id: string; cover_url: string | null; edition: Relation<Edition> };
-type Copy = { id: string; legacy_id: string; category: string; language: string; cover_url: string | null; work: Relation<Work>; edition: Relation<Edition>; copy_drafts: Draft[] };
+type Copy = { id: string; legacy_id: string; category: string; language: string; cover_url: string | null; work: Relation<Work>; edition: Relation<Edition>; copy_drafts: Relation<Draft> };
 type Candidate = { id: string; isbn13: string; title: string | null; publishers: string[]; published_date: string | null; cover_url: string | null; provider: string; score: number; suggested: boolean; rank: number };
 
 function first<T>(value: Relation<T>): T | null {
@@ -32,7 +32,7 @@ export default async function AdminBookPage({ params, searchParams }: { params: 
   const candidates = (candidateData ?? []) as Candidate[];
   const work = first(copy.work);
   const edition = first(copy.edition);
-  const draft = copy.copy_drafts[0] ?? null;
+  const draft = first(copy.copy_drafts);
   const draftEdition = draft ? first(draft.edition) : null;
 
   return <>
