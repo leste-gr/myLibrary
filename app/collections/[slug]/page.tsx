@@ -5,9 +5,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const revalidate = 60;
 
-export default async function CollectionPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ shelfie?: string }> }) {
+export default async function CollectionPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ shelfie?: string; chatgpt?: string; count?: string }> }) {
   const { slug } = await params;
-  const { shelfie } = await searchParams;
+  const { shelfie, chatgpt, count } = await searchParams;
   const [collection, books] = await Promise.all([
     getPublicCollection(slug),
     getPublicCatalogue(slug),
@@ -28,6 +28,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
   }
   return <>
     {shelfie === "queued" && <div className="global-notice" role="status">Η shelfie ανέβηκε και περιμένει επεξεργασία. Η φωτογραφία θα διαγραφεί μόλις εξαχθούν τα δεδομένα των βιβλίων.</div>}
+    {chatgpt === "imported" && <div className="global-notice" role="status">Η εισαγωγή ολοκληρώθηκε: προστέθηκαν {Number(count) || 0} βιβλία από το ChatGPT.</div>}
     <Catalogue initialBooks={books} collection={collection} canEdit={canEdit} viewerCollectionSlug={viewerCollectionSlug} />
   </>;
 }

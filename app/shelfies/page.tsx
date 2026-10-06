@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ShelfieUploadForm } from "@/components/shelfie-upload-form";
+import { ChatGptImportFlow } from "@/components/chatgpt-import-flow";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -24,9 +24,9 @@ export default async function ShelfiePage({ searchParams }: { searchParams: Prom
   return <main className="shelfie-shell">
     <Link href={requestedSlug ? `/collections/${requestedSlug}` : "/"}>← Επιστροφή</Link>
     <p className="eyebrow">ΝΕΑ ΠΗΓΗ ΒΙΒΛΙΩΝ</p>
-    <h1>Ανέβασε μια shelfie</h1>
-    <p className="shelfie-lead">Φωτογράφισε τα ράφια σου. Η εικόνα θα προστεθεί στην ουρά επεξεργασίας ώστε να εντοπιστούν αυτόματα τα βιβλία και οι πιθανές εκδόσεις τους.</p>
-    <ShelfieUploadForm userId={user.id} collections={ordered} />
-    <p className="privacy-note">Η φωτογραφία αποθηκεύεται ιδιωτικά μόνο όσο διαρκεί η αρχική επεξεργασία. Διαγράφεται μόλις εξαχθούν και αποθηκευτούν τα δεδομένα των βιβλίων· διατηρούνται μόνο τα δομημένα δεδομένα και όχι η εικόνα.</p>
+    <h1>Shelfie μέσω ChatGPT</h1>
+    <p className="shelfie-lead">Χρησιμοποίησε το δικό σου ChatGPT για να διαβάσει τη φωτογραφία. Το myLibrary λαμβάνει μόνο τα δομημένα δεδομένα βιβλίων—ποτέ την εικόνα.</p>
+    <ChatGptImportFlow collections={ordered} />
+    <p className="privacy-note">Ο προσωρινός κωδικός λήγει σε 30 λεπτά και χρησιμοποιείται μόνο μία φορά.</p>
   </main>;
 }
