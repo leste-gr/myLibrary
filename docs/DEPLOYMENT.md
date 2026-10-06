@@ -2,7 +2,7 @@
 
 This release uses GitHub for source control, Vercel for the Next.js application, and Supabase for authentication and persistent catalogue data. Shelfie recognition runs in the owner's ChatGPT account, so no Railway service or OpenAI API key is required.
 
-The ChatGPT import endpoint requires `SUPABASE_SERVICE_ROLE_KEY` as an encrypted, server-only Vercel variable. Never prefix it with `NEXT_PUBLIC_`. The Custom GPT Action schema is available at `/api/chatgpt-import/openapi.json`.
+The ChatGPT import endpoint uses a narrowly scoped, security-definer database function authenticated by the short-lived import-code hash. It requires no additional Vercel secret. The Custom GPT Action schema is available at `/api/chatgpt-import/openapi.json`.
 
 ## 1. Create the Supabase project
 
