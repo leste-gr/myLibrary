@@ -40,9 +40,7 @@ const acceptedIsbns = await readJson("../isbn.json");
 const mappingById = new Map(mapping.books.map((item) => [item.copyId, item]));
 
 function coverUrl(candidate) {
-  const coverId = (candidate?.coverIds ?? []).find((value) => Number(value) > 0);
-  if (coverId) return "https://covers.openlibrary.org/b/id/" + coverId + "-L.jpg";
-  return candidate?.isbn13 ? "https://covers.openlibrary.org/b/isbn/" + candidate.isbn13 + "-L.jpg" : null;
+  return candidate?.isbn13 ? "/api/covers/" + candidate.isbn13 : null;
 }
 
 function assertResult(result, label) {
