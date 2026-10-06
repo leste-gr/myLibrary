@@ -40,6 +40,10 @@ This is a good public presentation layer. It is not yet an application for maint
 7. **Keep the public catalogue fast.** Generate static public assets from reviewed data even if the owner workflow uses a backend.
 8. **Make uncertainty visible.** Confidence, unresolved fields, and suspected duplicates belong in a review queue.
 
+### Edition-cover assumption
+
+For the initial product, myLibrary assumes that each unique valid ISBN identifies one cover edition. The ISBN is therefore the primary key for cover lookup and caching. Distinct physical copies may share an ISBN, while books without an ISBN continue to use a manually reviewed edition record.
+
 ## 4. Primary users and jobs
 
 ### Library owner

@@ -9,6 +9,7 @@ Plain HTML, CSS and JavaScript: no build step, npm packages, backend or API keys
 - `style.css` — warm, classic bookshop styling and responsive layouts.
 - `app.js` — search, filters, sorting, book details and incremental loading.
 - `books.json` — all 166 catalogue entries.
+- `isbn.json` — accepted ISBN-13 values keyed by physical-copy ID.
 - `covers/` — 145 local cover images.
 - `cover-sources.json` — cover provenance.
 - `.nojekyll` — serve these static files without Jekyll processing.
