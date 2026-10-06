@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Η βιβλιοθήκη μου · Προσωπική συλλογή</title>
+  <meta name="description" content="166 βιβλία από την προσωπική μου βιβλιοθήκη. Περιηγηθείτε στα εξώφυλλα και ανακαλύψτε τη συλλογή ανά συγγραφέα, κατηγορία και σειρά.">
+  <meta name="theme-color" content="#71332f">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2371332f'/%3E%3Cpath d='M7 8h7l2 2 2-2h7v17h-7l-2 1-2-1H7z' fill='none' stroke='%23f8efd9' stroke-width='2'/%3E%3Cpath d='M16 10v16' stroke='%23f8efd9' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css"><script src="app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#catalogue">Μετάβαση στα βιβλία</a>
+<header class="masthead"><div class="brand"><span class="monogram" aria-hidden="true">Β.</span><span>Η βιβλιοθήκη μου<small>ΠΡΟΣΩΠΙΚΗ ΣΥΛΛΟΓΗ</small></span></div><span class="header-note">Μια συλλογή, πολλοί κόσμοι.</span></header>
+<main>
+  <section class="intro" aria-labelledby="page-title"><div><p class="eyebrow">Ο ΚΑΤΑΛΟΓΟΣ</p><h1 id="page-title">Στα ράφια μου.</h1><p class="intro-copy">Ιστορίες που μένουν, κόσμοι που περιμένουν.</p></div><div class="collection-stats"><div><strong id="total">166</strong><span>βιβλία</span></div><div><strong id="author-total">—</strong><span>συγγραφείς</span></div><div><strong id="category-total">—</strong><span>κατηγορίες</span></div></div></section>
+  <form class="searchbar" role="search" id="search-form"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg><label class="sr-only" for="search">Αναζήτηση στη βιβλιοθήκη</label><input id="search" type="search" placeholder="Αναζήτησε τίτλο, συγγραφέα ή σειρά…" autocomplete="off"><span class="search-hint">ΑΝΑΚΑΛΥΨΕ ΤΗ ΣΥΛΛΟΓΗ</span></form>
+  <div class="catalogue-layout">
+    <aside aria-label="Φίλτρα βιβλίων"><details id="filters" open><summary>Φίλτρα συλλογής <span aria-hidden="true">＋</span></summary><div class="filter-body"><div class="filter-heading"><h2>Κατηγορίες</h2><button id="reset" type="button">Καθαρισμός</button></div><nav id="categories" aria-label="Κατηγορίες"></nav><div class="select-filters"><label for="author">Συγγραφέας</label><select id="author"><option value="">Όλοι οι συγγραφείς</option></select><label for="series">Σειρά / συλλογή</label><select id="series"><option value="">Όλες οι σειρές</option></select><label for="language">Γλώσσα βιβλίου</label><select id="language"><option value="">Όλες οι γλώσσες</option></select></div><p class="sidebar-note">Κάθε εγγραφή αντιστοιχεί σε έναν φυσικό τόμο της συλλογής.</p></div></details></aside>
+    <section id="catalogue" tabindex="-1" aria-labelledby="collection-title"><div class="catalogue-toolbar"><div><h2 id="collection-title">Όλα τα βιβλία</h2><p id="results" role="status" aria-live="polite">Φόρτωση συλλογής…</p></div><div class="sort-wrap"><label for="sort">Ταξινόμηση</label><select id="sort"><option value="catalogue">Σειρά καταλόγου</option><option value="title">Τίτλος Α–Ω</option><option value="author">Συγγραφέας Α–Ω</option></select></div></div><div id="active-filters"></div><div id="grid" class="book-grid"></div><div id="empty" hidden><span class="empty-mark" aria-hidden="true">∅</span><h3>Δεν βρέθηκε κάποιο βιβλίο.</h3><p>Δοκίμασε διαφορετικές λέξεις ή αφαίρεσε ένα φίλτρο.</p><button id="empty-reset" type="button">Εμφάνιση όλων των βιβλίων</button></div><div class="load-more"><button id="more" hidden type="button">Περισσότερα βιβλία</button><p id="shown"></p></div></section>
+  </div>
+</main>
+<footer><span>Η βιβλιοθήκη μου <span class="footer-dot">·</span> Κατάλογος 05.10.2026</span><p>Τα εξώφυλλα μπορεί να ανήκουν σε διαφορετική έκδοση. Οι αβέβαιες εγγραφές επισημαίνονται.</p></footer>
+<dialog id="book-dialog" aria-labelledby="detail-title"><button class="close-dialog" id="close-dialog" aria-label="Κλείσιμο λεπτομερειών" type="button">×</button><div id="detail-content"></div></dialog>
+<noscript><p class="noscript">Για την αναζήτηση και την προβολή της συλλογής χρειάζεται ενεργοποιημένη JavaScript.</p></noscript>
+</body></html>
