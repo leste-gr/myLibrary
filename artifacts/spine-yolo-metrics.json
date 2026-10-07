@@ -1,0 +1,10 @@
+{
+  "precision": 0.842,
+  "recall": 0.899,
+  "map50": 0.913,
+  "map50_95": 0.547,
+  "image_size": 640,
+  "test_images": 14,
+  "test_instances": 189,
+  "dataset": "BookDetection/book-spine-detector v4"
+}

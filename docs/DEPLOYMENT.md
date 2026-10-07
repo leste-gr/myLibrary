@@ -11,13 +11,12 @@ Set these private variables:
 ```text
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-SPINE_MODEL_URL=https://a-private-or-signed-url/spine-yolo.onnx
 SPINE_MODEL_SHA256=<sha256 of the exact ONNX file>
 POLL_SECONDS=10
 MAX_ATTEMPTS=3
 ```
 
-The model URL is read only when the model is absent. A checksum mismatch prevents processing. The worker deletes source photos after successful extraction or after its final failed attempt.
+The versioned model is baked into the worker image. `SPINE_MODEL_URL` is only needed when deploying an image without the bundled model. A checksum mismatch prevents processing. The worker deletes source photos after successful extraction or after its final failed attempt.
 
 ## Train and export the detector
 
