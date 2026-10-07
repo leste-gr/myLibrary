@@ -1,0 +1,9 @@
+.git
+.next
+node_modules
+covers
+public/covers
+training-runs
+datasets
+artifacts
+*.zip

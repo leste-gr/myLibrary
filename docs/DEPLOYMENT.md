@@ -1,8 +1,40 @@
 # Initial release deployment
 
-This release uses GitHub for source control, Vercel for the Next.js application, and Supabase for authentication and persistent catalogue data. Shelfie recognition runs in the owner's ChatGPT account, so no Railway service or OpenAI API key is required.
+This release uses GitHub for source control, Vercel for the Next.js application, Supabase for authentication and persistent catalogue data, and a Railway CPU worker for shelfie extraction. No LLM or OpenAI API key is used.
 
-The ChatGPT import endpoint uses a narrowly scoped, security-definer database function authenticated by the short-lived import-code hash. It requires no additional Vercel secret. The Custom GPT Action schema is available at `/api/chatgpt-import/openapi.json`.
+## Railway extraction worker
+
+Create a Railway service from this repository. `railway.toml` builds `worker/Dockerfile`; the service is a background worker and needs no public domain. Allocate at least 2 vCPU and 4 GB RAM because two PaddleOCR recognition models are kept warm.
+
+Set these private variables:
+
+```text
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SPINE_MODEL_URL=https://a-private-or-signed-url/spine-yolo.onnx
+SPINE_MODEL_SHA256=<sha256 of the exact ONNX file>
+POLL_SECONDS=10
+MAX_ATTEMPTS=3
+```
+
+The model URL is read only when the model is absent. A checksum mismatch prevents processing. The worker deletes source photos after successful extraction or after its final failed attempt.
+
+## Train and export the detector
+
+Training is intentionally separate from the CPU runtime. In a GPU-capable environment:
+
+```sh
+python -m venv .venv-train
+. .venv-train/bin/activate
+pip install -r worker/requirements-train.txt
+ROBOFLOW_API_KEY=... \
+ROBOFLOW_WORKSPACE=... \
+ROBOFLOW_PROJECT=... \
+ROBOFLOW_VERSION=... \
+python worker/train_spine_detector.py
+```
+
+The script fine-tunes `yolo11n.pt` and writes `artifacts/spine-yolo.onnx`. Upload that artifact to private object storage, calculate its SHA-256, and configure the Railway variables above.
 
 ## 1. Create the Supabase project
 

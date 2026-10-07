@@ -4,7 +4,7 @@ This document defines how a physical book becomes a published record in a user's
 
 The pipeline is:
 
-`shelfie in ChatGPT → structured JSON → book observations → ISBN candidates → selected edition → ISBN cover → owner review → published copy`
+`shelfie → YOLO spine detection → OpenCV preprocessing → PaddleOCR observations → ISBN candidates → selected edition → ISBN cover → owner review → published copy`
 
 Each stage must retain its inputs, outputs, evidence, confidence, and failures. A later stage must not erase the alternatives produced by an earlier stage.
 
@@ -12,7 +12,7 @@ Each stage must retain its inputs, outputs, evidence, confidence, and failures. 
 
 | Stage | Status | Current implementation |
 | --- | --- | --- |
-| 1. Extract book data from a shelfie | Implemented | The owner uploads the photo to ChatGPT, then sends or pastes structured JSON to myLibrary using a single-use code. myLibrary never receives the image. |
+| 1. Extract book data from a shelfie | Runtime implemented; model training required | A CPU worker detects spines with fine-tuned YOLO/ONNX Runtime, preprocesses crops with OpenCV, and runs Greek/English PaddleOCR. Production needs the selected Roboflow dataset and exported ONNX weights. |
 | 2. Identify an ISBN from book data | Implemented for existing metadata | The mapper ranks candidates and automatically publishes rank 1. Owner-confirmed overrides are protected from later algorithm runs. Shelfie-derived observations are not implemented yet. |
 | 3. Resolve a cover from ISBN | Implemented | `/api/covers/{isbn}` uses Open Library, Google Books, the existing bundled cover, then a generated placeholder. Successful results are cached at the Vercel edge. |
 | 4. Owner editing and selection | Implemented | A signed-in owner edits books from their public collection, can select any retained candidate, or can enter an ISBN-10/ISBN-13 manually and publish the draft. |
@@ -39,12 +39,13 @@ Status: **implemented**.
 
 ### Processing
 
-1. myLibrary generates a single-use code scoped to the owner's destination collection; it expires after 30 minutes.
-2. The owner uploads the shelfie in ChatGPT and supplies the extraction prompt and code.
-3. ChatGPT extracts readable title, author, publisher, language, visible ISBN, and confidence in shelf order.
-4. During the prototype, the owner pastes the JSON result into myLibrary. A Custom GPT Action can send it directly to the same endpoint.
-5. myLibrary validates the code and JSON, persists observations, creates physical copies automatically, and maps any checksum-valid visible ISBN.
-6. The code is consumed once. The image never enters myLibrary storage.
+1. The owner uploads one shelf photograph into a private Supabase bucket.
+2. A Railway worker atomically claims the queued job and downloads the image.
+3. A fine-tuned Ultralytics YOLO detector runs through ONNX Runtime on CPU and returns non-overlapping spine boxes in shelf reading order.
+4. Each spine is cropped with small padding, rotated +90° and -90°, upscaled with bicubic interpolation, and enhanced with CLAHE in LAB luminance space.
+5. Greek and English PaddleOCR models evaluate both rotations. The language and rotation with the best character-weighted confidence are retained.
+6. OCR lines, boxes, language, detector confidence, rotation, and aggregate confidence are persisted as observations and tokens. Crops are never stored.
+7. The source image is deleted before the job can be marked complete. After the final failed attempt, the worker also attempts deletion and records any deletion failure.
 
 ### Output
 
@@ -65,7 +66,7 @@ Each detected physical book should produce an observation record similar to:
 }
 ```
 
-Poor-quality or ambiguous structured detections remain reviewable rather than being silently discarded. Source photos are governed by the user's ChatGPT account and are never retained by myLibrary.
+Poor-quality or empty OCR results remain unresolved rather than being silently discarded. Source photos and transient crops are not retained after extraction.
 
 ## 2. Identify ISBN from book data
 
@@ -173,7 +174,7 @@ Future owner controls should add:
 
 | Failure | Required behavior |
 | --- | --- |
-| Shelfie is unreadable | ChatGPT reports weak or empty detections and the owner can attach a clearer image. |
+| Shelfie is unreadable | Retry transient failures, record a final quality error, delete the image, and request a clearer shelfie. |
 | OCR produces weak book data | Keep the detection unresolved and allow manual correction. |
 | No valid ISBN candidate | Continue with non-ISBN cover fallback and owner review. |
 | Providers disagree | Select rank 1 algorithmically, show confidence/evidence, and retain every alternative. |

@@ -1,0 +1,2 @@
+roboflow==1.2.11
+ultralytics==8.3.217

@@ -12,7 +12,7 @@ myLibrary is a Next.js catalogue and owner workspace for a physical book collect
 - Atomic catalogue publication with audit history.
 - Bundled fallback data for local development and deployment previews.
 
-Shelfie imports use the owner's ChatGPT account. myLibrary creates a short-lived, single-use import code and accepts only structured book JSON; the shelfie image is never uploaded to or stored by myLibrary. A copy/paste journey is available immediately, and the same endpoint exposes an OpenAPI schema for a Custom GPT Action.
+Shelfie extraction is a deterministic CPU pipeline with no LLM dependency. A fine-tuned Ultralytics YOLO model runs through ONNX Runtime to detect book spines; OpenCV rotates, upscales, and applies CLAHE to each crop; PaddleOCR evaluates Greek and English text in both ±90° orientations. Only structured OCR observations are retained after the source image is deleted.
 
 ## Local development
 
@@ -39,6 +39,7 @@ The service-role key is only for the local importer. Never expose it in browser 
 npm run typecheck
 npm run build
 npm run import:dry-run
+python3 -m unittest discover -s worker/tests -v
 ```
 
 See [Deployment](docs/DEPLOYMENT.md) for Supabase setup, catalogue import, and Vercel publication.
@@ -51,6 +52,7 @@ See [Deployment](docs/DEPLOYMENT.md) for Supabase setup, catalogue import, and V
 - `scripts/import-catalogue.mjs` imports the catalogue into Supabase.
 - `scripts/map_isbns.py` regenerates ISBN candidates.
 - `supabase/migrations/` contains the persistent schema and publish transaction.
+- `worker/` contains the CPU shelfie extraction runtime and YOLO training/export entry point.
 - `public/covers/` contains local cover assets.
 
 The stable `Bxxx` identifiers remain the IDs shown to users and used during migration.
