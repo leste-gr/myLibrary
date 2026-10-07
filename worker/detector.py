@@ -9,12 +9,15 @@ from .types import SpineDetection
 
 
 class YoloSpineDetector:
-    def __init__(self, model_path: str | Path, image_size: int = 960, confidence: float = 0.28, iou: float = 0.45, session: Any | None = None):
-        self.image_size = image_size
+    def __init__(self, model_path: str | Path, image_size: int | None = None, confidence: float = 0.28, iou: float = 0.45, session: Any | None = None):
         self.confidence = confidence
         self.iou = iou
         self.session = session or ort.InferenceSession(str(model_path), providers=["CPUExecutionProvider"])
-        self.input_name = self.session.get_inputs()[0].name
+        model_input = self.session.get_inputs()[0]
+        self.input_name = model_input.name
+        input_shape = getattr(model_input, "shape", None)
+        model_size = input_shape[-1] if input_shape and isinstance(input_shape[-1], int) else None
+        self.image_size = image_size or model_size or 960
 
     def _letterbox(self, image: np.ndarray) -> tuple[np.ndarray, float, int, int]:
         height, width = image.shape[:2]

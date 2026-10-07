@@ -12,7 +12,7 @@ Each stage must retain its inputs, outputs, evidence, confidence, and failures. 
 
 | Stage | Status | Current implementation |
 | --- | --- | --- |
-| 1. Extract book data from a shelfie | Runtime implemented; model training required | A CPU worker detects spines with fine-tuned YOLO/ONNX Runtime, preprocesses crops with OpenCV, and runs Greek/English PaddleOCR. Production needs the selected Roboflow dataset and exported ONNX weights. |
+| 1. Extract book data from a shelfie | Runtime and detector implemented; deployment required | A CPU worker detects spines with fine-tuned YOLO/ONNX Runtime, preprocesses crops with OpenCV, and runs Greek/English PaddleOCR. The selected checkpoint scored 0.913 mAP@50 and 0.547 mAP@50–95 on the held-out Roboflow test split. |
 | 2. Identify an ISBN from book data | Implemented for existing metadata | The mapper ranks candidates and automatically publishes rank 1. Owner-confirmed overrides are protected from later algorithm runs. Shelfie-derived observations are not implemented yet. |
 | 3. Resolve a cover from ISBN | Implemented | `/api/covers/{isbn}` uses Open Library, Google Books, the existing bundled cover, then a generated placeholder. Successful results are cached at the Vercel edge. |
 | 4. Owner editing and selection | Implemented | A signed-in owner edits books from their public collection, can select any retained candidate, or can enter an ISBN-10/ISBN-13 manually and publish the draft. |

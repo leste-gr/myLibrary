@@ -8,6 +8,7 @@ from worker.types import SpineDetection
 
 class _Input:
     name = "images"
+    shape = [1, 3, 640, 640]
 
 
 class FakeSession:
@@ -15,9 +16,9 @@ class FakeSession:
         return [_Input()]
 
     def run(self, _outputs, feed):
-        assert feed["images"].shape == (1, 3, 960, 960)
+        assert feed["images"].shape == (1, 3, 640, 640)
         output = np.zeros((1, 5, 10), dtype=np.float32)
-        output[0, :, 0] = [120, 480, 144, 384, 0.9]
+        output[0, :, 0] = [80, 320, 96, 256, 0.9]
         return [output]
 
 

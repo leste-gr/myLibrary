@@ -35,6 +35,8 @@ By default the script uses BookDetection’s public `book-spine-detector` versio
 
 The script fine-tunes `yolo11n.pt` and writes `artifacts/spine-yolo.onnx`. Upload that artifact to private object storage, calculate its SHA-256, and configure the Railway variables above.
 
+Training defaults to a fixed 640×640 input and records held-out test metrics in `artifacts/spine-yolo-metrics.json`. Set `YOLO_DATASET_PATH` to reuse an already downloaded dataset, or `YOLO_RESUME_FROM` to resume an interrupted run from an Ultralytics `last.pt` checkpoint.
+
 ## 1. Create the Supabase project
 
 Create one Supabase project in the region nearest the primary owner. Record:
