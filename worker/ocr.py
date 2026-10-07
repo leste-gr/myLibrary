@@ -11,8 +11,8 @@ class PaddleSpineOcr:
         if engines is None:
             from paddleocr import PaddleOCR
             engines = {
-                "el": PaddleOCR(lang="el", use_doc_orientation_classify=False, use_doc_unwarping=False, use_textline_orientation=False),
-                "en": PaddleOCR(lang="en", use_doc_orientation_classify=False, use_doc_unwarping=False, use_textline_orientation=False),
+                "el": PaddleOCR(lang="el", enable_mkldnn=False, use_doc_orientation_classify=False, use_doc_unwarping=False, use_textline_orientation=False),
+                "en": PaddleOCR(lang="en", enable_mkldnn=False, use_doc_orientation_classify=False, use_doc_unwarping=False, use_textline_orientation=False),
             }
         self.engines = engines
 
