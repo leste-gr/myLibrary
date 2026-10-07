@@ -28,11 +28,10 @@ python -m venv .venv-train
 . .venv-train/bin/activate
 pip install -r worker/requirements-train.txt
 ROBOFLOW_API_KEY=... \
-ROBOFLOW_WORKSPACE=... \
-ROBOFLOW_PROJECT=... \
-ROBOFLOW_VERSION=... \
 python worker/train_spine_detector.py
 ```
+
+By default the script uses BookDetection’s public `book-spine-detector` version 4: 311 generated images, 1,193 labeled spine boxes, and a 271/26/14 train/validation/test split. The dataset is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) and must be attributed to BookDetection/Roboflow. Override `ROBOFLOW_WORKSPACE`, `ROBOFLOW_PROJECT`, or `ROBOFLOW_VERSION` to use a different dataset.
 
 The script fine-tunes `yolo11n.pt` and writes `artifacts/spine-yolo.onnx`. Upload that artifact to private object storage, calculate its SHA-256, and configure the Railway variables above.
 

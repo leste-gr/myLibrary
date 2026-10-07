@@ -15,8 +15,8 @@ def required(name: str) -> str:
 
 def main() -> None:
     roboflow = Roboflow(api_key=required("ROBOFLOW_API_KEY"))
-    project = roboflow.workspace(required("ROBOFLOW_WORKSPACE")).project(required("ROBOFLOW_PROJECT"))
-    dataset = project.version(int(required("ROBOFLOW_VERSION"))).download("yolov8")
+    project = roboflow.workspace(os.getenv("ROBOFLOW_WORKSPACE", "bookdetection-lgtpa")).project(os.getenv("ROBOFLOW_PROJECT", "book-spine-detector"))
+    dataset = project.version(int(os.getenv("ROBOFLOW_VERSION", "4"))).download("yolov8")
     model = YOLO(os.getenv("YOLO_BASE_MODEL", "yolo11n.pt"))
     result = model.train(
         data=str(Path(dataset.location) / "data.yaml"),

@@ -17,6 +17,8 @@ Each stage must retain its inputs, outputs, evidence, confidence, and failures. 
 | 3. Resolve a cover from ISBN | Implemented | `/api/covers/{isbn}` uses Open Library, Google Books, the existing bundled cover, then a generated placeholder. Successful results are cached at the Vercel edge. |
 | 4. Owner editing and selection | Implemented | A signed-in owner edits books from their public collection, can select any retained candidate, or can enter an ISBN-10/ISBN-13 manually and publish the draft. |
 
+The default spine detector training source is BookDetection’s Roboflow `book-spine-detector` v4 dataset, licensed CC BY 4.0. Dataset provenance and licensing must remain attached to every trained detector artifact.
+
 ## Pipeline invariants
 
 1. A physical copy, work, and edition remain separate records.
