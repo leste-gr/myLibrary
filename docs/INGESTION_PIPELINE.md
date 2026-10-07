@@ -42,7 +42,7 @@ Status: **implemented**.
 ### Processing
 
 1. The owner uploads one shelf photograph into a private Supabase bucket.
-2. A Railway worker atomically claims the queued job and downloads the image.
+2. A finite GitHub Actions worker atomically claims queued jobs, processes the available queue, and exits.
 3. A fine-tuned Ultralytics YOLO detector runs through ONNX Runtime on CPU and returns non-overlapping spine boxes in shelf reading order.
 4. Each spine is cropped with small padding, rotated +90° and -90°, upscaled with bicubic interpolation, and enhanced with CLAHE in LAB luminance space.
 5. Greek and English PaddleOCR models evaluate both rotations. The language and rotation with the best character-weighted confidence are retained.

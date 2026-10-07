@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 import socket
-import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -35,6 +34,10 @@ def required(name: str) -> str:
 
 def database() -> Client:
     return create_client(required("SUPABASE_URL"), required("SUPABASE_SERVICE_ROLE_KEY"))
+
+
+def build_pipeline() -> ShelfieExtractionPipeline:
+    return ShelfieExtractionPipeline(YoloSpineDetector(ensure_model()), PaddleSpineOcr())
 
 
 def claim_next(client: Client) -> dict[str, Any] | None:
@@ -144,20 +147,27 @@ def handle_failure(client: Client, job: dict[str, Any], error: Exception) -> Non
 
 async def run() -> None:
     client = database()
-    pipeline = ShelfieExtractionPipeline(YoloSpineDetector(ensure_model()), PaddleSpineOcr())
-    LOG.info("worker started name=%s", WORKER_NAME)
-    run_once = os.getenv("RUN_ONCE", "false").lower() == "true"
+    pipeline: ShelfieExtractionPipeline | None = None
+    run_mode = os.getenv("RUN_MODE", "once" if os.getenv("RUN_ONCE", "false").lower() == "true" else "poll").lower()
+    if run_mode not in {"poll", "once", "drain"}:
+        raise RuntimeError("RUN_MODE must be poll, once, or drain")
+    LOG.info("worker started name=%s mode=%s", WORKER_NAME, run_mode)
     while True:
         job = claim_next(client)
         if job:
+            if pipeline is None:
+                pipeline = build_pipeline()
             try:
                 await asyncio.to_thread(process, client, pipeline, job)
             except Exception as error:
                 handle_failure(client, job, error)
-        if run_once:
+            if run_mode == "once":
+                return
+            continue
+        if run_mode in {"once", "drain"}:
+            LOG.info("queue empty; worker exiting")
             return
-        if not job:
-            time.sleep(POLL_SECONDS)
+        await asyncio.sleep(POLL_SECONDS)
 
 
 if __name__ == "__main__":

@@ -14,6 +14,8 @@ myLibrary is a Next.js catalogue and owner workspace for a physical book collect
 
 Shelfie extraction is a deterministic CPU pipeline with no LLM dependency. A fine-tuned Ultralytics YOLO model runs through ONNX Runtime to detect book spines; OpenCV rotates, upscales, and applies CLAHE to each crop; PaddleOCR evaluates Greek and English text in both ±90° orientations. Only structured OCR observations are retained after the source image is deleted.
 
+Queue processing runs as a finite GitHub Actions batch job, so no continuously hosted worker is required. It can be launched manually and also checks the queue every 30 minutes.
+
 ## Local development
 
 ```sh

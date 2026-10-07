@@ -23,4 +23,5 @@ RUN --mount=type=secret,id=proxy_ca \
     fi
 COPY worker ./worker
 COPY artifacts/spine-yolo.onnx ./models/spine-yolo.onnx
+RUN python -c "from worker.ocr import PaddleSpineOcr; PaddleSpineOcr()"
 CMD ["python", "-m", "worker.main"]

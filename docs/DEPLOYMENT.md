@@ -1,22 +1,21 @@
 # Initial release deployment
 
-This release uses GitHub for source control, Vercel for the Next.js application, Supabase for authentication and persistent catalogue data, and a Railway CPU worker for shelfie extraction. No LLM or OpenAI API key is used.
+This release uses GitHub for source control and batch processing, Vercel for the Next.js application, and Supabase for authentication and persistent catalogue data. No LLM or OpenAI API key is used.
 
-## Railway extraction worker
+## GitHub Actions extraction worker
 
-Create a Railway service from this repository. `railway.toml` builds `worker/Dockerfile`; the service is a background worker and needs no public domain. Allocate at least 2 vCPU and 4 GB RAM because two PaddleOCR recognition models are kept warm.
+The public repository runs `.github/workflows/shelfie-worker.yml` on demand, after worker changes, and every 30 minutes. It builds a cached worker image, processes every currently available queue item, and exits. This avoids an always-running paid service.
 
-Set these private variables:
+Add these repository secrets under **Settings → Secrets and variables → Actions**:
 
 ```text
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-SPINE_MODEL_SHA256=<sha256 of the exact ONNX file>
-POLL_SECONDS=10
-MAX_ATTEMPTS=3
 ```
 
-The versioned model is baked into the worker image. `SPINE_MODEL_URL` is only needed when deploying an image without the bundled model. A checksum mismatch prevents processing. The worker deletes source photos after successful extraction or after its final failed attempt.
+The versioned detector and Greek/English PaddleOCR models are baked into the cached worker image. Empty scheduled runs exit before OCR is initialized. Failed jobs use the existing retry schedule and are picked up by a later run. The worker deletes source photos after successful extraction or after its final failed attempt.
+
+Use **Actions → Process shelfie queue → Run workflow** to process a new upload immediately instead of waiting for the schedule.
 
 ## Train and export the detector
 
@@ -32,7 +31,7 @@ python worker/train_spine_detector.py
 
 By default the script uses BookDetection’s public `book-spine-detector` version 4: 311 generated images, 1,193 labeled spine boxes, and a 271/26/14 train/validation/test split. The dataset is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) and must be attributed to BookDetection/Roboflow. Override `ROBOFLOW_WORKSPACE`, `ROBOFLOW_PROJECT`, or `ROBOFLOW_VERSION` to use a different dataset.
 
-The script fine-tunes `yolo11n.pt` and writes `artifacts/spine-yolo.onnx`. Upload that artifact to private object storage, calculate its SHA-256, and configure the Railway variables above.
+The script fine-tunes `yolo11n.pt` and writes `artifacts/spine-yolo.onnx`. Commit the validated artifact when intentionally updating the detector bundled with the worker image.
 
 Training defaults to a fixed 640×640 input and records held-out test metrics in `artifacts/spine-yolo-metrics.json`. Set `YOLO_DATASET_PATH` to reuse an already downloaded dataset, or `YOLO_RESUME_FROM` to resume an interrupted run from an Ultralytics `last.pt` checkpoint.
 
