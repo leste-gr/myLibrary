@@ -10,3 +10,4 @@ node_modules/
 datasets/
 training-runs/
 *.pt
+artifacts/

@@ -12,7 +12,7 @@ myLibrary is a Next.js catalogue and owner workspace for a physical book collect
 - Atomic catalogue publication with audit history.
 - Bundled fallback data for local development and deployment previews.
 
-Shelfie extraction uses a provider-neutral manual handoff. myLibrary provides a versioned prompt for an owner to use in their own GenAI chat, then validates and imports the resulting JSON. The application has no AI-provider integration and never receives the shelf photograph.
+Shelfie extraction uses the owner's existing AI subscription. Owners can paste an AI response or upload JSON, review and edit the books, then import. An optional authenticated MCP connection lets a chat send private drafts directly for owner review. myLibrary never calls a paid model API or receives the shelf photograph. See [connected assistant setup](docs/CONNECTED_ASSISTANT_SETUP.md) for OAuth, the database migration, and plugin distribution. Try the browser-only review at `/shelfies/try`.
 
 ## Local development
 

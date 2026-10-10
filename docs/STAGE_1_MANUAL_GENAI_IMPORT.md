@@ -1,6 +1,7 @@
 # Stage 1 — manual GenAI shelfie extraction
 
-Status: implemented on `feature/manual-genai-stage1`  
+Status: superseded by the review flow on `feature/connected-shelfie-import`; the v1 payload contract below remains supported. See [connected assistant setup](CONNECTED_ASSISTANT_SETUP.md). The historical journey and non-goals below describe the previous implementation.
+
 Schema: `mylibrary.shelfie.v1`  
 Last updated: 10 October 2026
 
