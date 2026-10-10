@@ -8,3 +8,35 @@
 .genai-import-flow{display:flex;flex-direction:column;gap:24px}.genai-step{position:relative;padding:28px;background:var(--white);border:1px solid var(--line)}.genai-step h2{margin:0 0 8px;font-size:25px}.genai-step p{margin:0;color:var(--muted);line-height:1.55}.step-number{display:grid;place-items:center;width:34px;height:34px;margin-bottom:18px;border-radius:50%;background:var(--wine);color:var(--white);font:600 14px var(--sans)}.prompt-box{box-sizing:border-box;width:100%;margin:22px 0 12px;padding:16px;border:1px solid var(--line);background:var(--paper);color:var(--ink);font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;resize:vertical;white-space:pre}.genai-step.shelfie-form{display:flex}.genai-step code{color:var(--wine)}
 .match-retry{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap}.match-retry .secondary-button{padding:7px 12px}.match-retry .form-error{margin:0}
 @media(max-width:760px){.site-nav{gap:10px;flex-wrap:wrap;justify-content:flex-end}.site-nav a{font-size:11px}.admin-header{align-items:flex-start}.admin-header nav{flex-direction:column;align-items:flex-end}.admin-summary{grid-template-columns:1fr}.admin-row{grid-template-columns:60px minmax(0,1fr);gap:8px}.admin-row>:nth-child(n+3){grid-column:2}.admin-book-grid{grid-template-columns:1fr}.admin-book-cover{max-width:190px}.candidate-grid,.collection-grid{grid-template-columns:1fr}.directory-main{padding-top:50px}.directory-intro{margin-bottom:48px}}
+
+/* Catalogue usability: clear controls, stable cards and compact mobile filters. */
+.catalogue-search > label{display:block;margin-bottom:8px;font-size:14px;font-weight:600}
+.catalogue-search .searchbar{padding-right:8px}
+.clear-search{flex-shrink:0;width:44px;height:44px;border:0;background:transparent;color:var(--wine);font-size:26px}
+.filter-toggle{display:none}
+.filter-heading button{min-height:44px}
+.filter-heading button:disabled{opacity:.5;cursor:default;text-decoration:none}
+.active-filters{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 24px}
+.active-filters .filter-chip{min-height:44px;max-width:100%;overflow-wrap:anywhere;text-align:left;background:var(--white)}
+.active-filters .filter-chip:hover{background:var(--sand)}
+.book-card-shell{display:flex;flex-direction:column}
+.book-card-shell .book-card{height:auto;flex:1;display:flex;flex-direction:column;justify-content:flex-start}
+.book-card-shell .cover-wrap{width:100%;flex-shrink:0}
+.edit-book-link{min-height:44px;display:flex;align-items:center;justify-content:center}
+.close-dialog{width:44px;height:44px}
+.detail-copy h2,.brand,.intro h1,.collection-card h2{overflow-wrap:anywhere}
+.masthead{gap:24px}.brand{min-width:0}.monogram{flex-shrink:0}
+.site-nav a{min-height:44px;display:inline-flex;align-items:center}
+textarea:focus-visible{outline:2px solid var(--wine);outline-offset:5px}
+body:has(dialog[open]){overflow:hidden}
+@media(max-width:760px){
+  .masthead{flex-wrap:wrap;gap:14px}.site-nav{justify-content:flex-start}
+  .catalogue-search input{font-size:16px}
+  .filter-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:48px;padding:10px 14px;border:1px solid var(--line);background:var(--white);color:var(--wine);font-weight:600;margin-bottom:20px}
+  #catalogue-filters{display:none}#catalogue-filters.is-open{display:block;padding-top:0}
+  .catalogue-toolbar{flex-wrap:wrap;align-items:flex-start;gap:12px}
+  .sort-wrap{flex-wrap:wrap}.sort-wrap label{display:block}.sort-wrap select{font-size:16px;max-width:100%;min-height:44px}
+  .select-filters select{font-size:16px;min-height:44px;width:100%}
+  .intro>div:first-child{min-width:0}.collection-stats{flex-shrink:0}
+  .manual-isbn-row{flex-wrap:wrap}.manual-isbn-row input{flex-basis:100%}
+}

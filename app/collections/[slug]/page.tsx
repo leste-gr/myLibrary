@@ -3,6 +3,7 @@ import { Catalogue } from "@/components/catalogue";
 import { IsbnMatchRetry } from "@/components/isbn-match-retry";
 import { getPublicCatalogue, getPublicCollection } from "@/lib/catalogue";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 export const revalidate = 60;
 
@@ -14,11 +15,11 @@ export default async function CollectionPage({ params, searchParams }: { params:
     getPublicCatalogue(slug),
   ]);
   if (!collection) notFound();
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = isSupabaseConfigured() ? await createSupabaseServerClient() : null;
+  const user = supabase ? (await supabase.auth.getUser()).data.user : null;
   let viewerCollectionSlug: string | null = null;
   let canEdit = false;
-  if (user) {
+  if (user && supabase) {
     const { data: viewerCollections } = await supabase
       .from("collections")
       .select("slug")
