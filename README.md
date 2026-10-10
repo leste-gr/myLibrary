@@ -12,9 +12,7 @@ myLibrary is a Next.js catalogue and owner workspace for a physical book collect
 - Atomic catalogue publication with audit history.
 - Bundled fallback data for local development and deployment previews.
 
-Shelfie extraction is a deterministic CPU pipeline with no LLM dependency. A fine-tuned Ultralytics YOLO model runs through ONNX Runtime to detect book spines; OpenCV rotates, upscales, and applies CLAHE to each crop; PaddleOCR evaluates Greek and English text in both ±90° orientations. Only structured OCR observations are retained after the source image is deleted.
-
-Queue processing runs as a finite GitHub Actions batch job, so no continuously hosted worker is required. It can be launched manually and also checks the queue every 30 minutes.
+Shelfie extraction uses a provider-neutral manual handoff. myLibrary provides a versioned prompt for an owner to use in their own GenAI chat, then validates and imports the resulting JSON. The application has no AI-provider integration and never receives the shelf photograph.
 
 ## Local development
 
@@ -41,7 +39,7 @@ The service-role key is only for the local importer. Never expose it in browser 
 npm run typecheck
 npm run build
 npm run import:dry-run
-python3 -m unittest discover -s worker/tests -v
+npm run test
 ```
 
 See [Deployment](docs/DEPLOYMENT.md) for Supabase setup, catalogue import, and Vercel publication.
@@ -54,7 +52,8 @@ See [Deployment](docs/DEPLOYMENT.md) for Supabase setup, catalogue import, and V
 - `scripts/import-catalogue.mjs` imports the catalogue into Supabase.
 - `scripts/map_isbns.py` regenerates ISBN candidates.
 - `supabase/migrations/` contains the persistent schema and publish transaction.
-- `worker/` contains the CPU shelfie extraction runtime and YOLO training/export entry point.
+- `lib/manual-genai-import.ts` contains the versioned Stage 1 prompt and JSON validator.
+- `docs/STAGE_1_MANUAL_GENAI_IMPORT.md` specifies the manual GenAI ingestion contract.
 - `public/covers/` contains local cover assets.
 
 The stable `Bxxx` identifiers remain the IDs shown to users and used during migration.

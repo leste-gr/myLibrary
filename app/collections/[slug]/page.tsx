@@ -5,9 +5,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const revalidate = 60;
 
-export default async function CollectionPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ shelfie?: string }> }) {
+export default async function CollectionPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ imported?: string }> }) {
   const { slug } = await params;
-  const { shelfie } = await searchParams;
+  const { imported } = await searchParams;
   const [collection, books] = await Promise.all([
     getPublicCollection(slug),
     getPublicCatalogue(slug),
@@ -27,7 +27,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
     canEdit = viewerCollections?.some((item) => item.slug === collection.slug) ?? false;
   }
   return <>
-    {shelfie === "queued" && <div className="global-notice" role="status">Η shelfie ανέβηκε και περιμένει επεξεργασία. Η φωτογραφία θα διαγραφεί μόλις εξαχθούν τα δεδομένα των βιβλίων.</div>}
+    {imported && <div className="global-notice" role="status">Εισήχθησαν {imported} βιβλία από το αρχείο JSON.</div>}
     <Catalogue initialBooks={books} collection={collection} canEdit={canEdit} viewerCollectionSlug={viewerCollectionSlug} />
   </>;
 }

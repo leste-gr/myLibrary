@@ -1,7 +1,7 @@
 # myLibrary product roadmap
 
 Status: Draft for product discussion  
-Last updated: 6 October 2026  
+Last updated: 10 October 2026
 Working product name: **myLibrary**
 
 ## 1. Product direction
@@ -10,24 +10,15 @@ myLibrary should become a private-first tool for turning photographs of physical
 
 The central product promise is:
 
-> Take a shelfie, review a short list of suggestions, and publish accurate books and covers to your library.
+> Turn a shelfie into structured book data, then automatically find the most likely ISBN and cover while keeping every decision editable.
 
 The product should automate discovery without pretending that visual or bibliographic matches are certain. The owner remains in control of which physical book, edition, ISBN, and cover are published.
 
 ## 2. Current baseline
 
-The current product is a static, read-only website hosted from GitHub Pages:
+The product is a Next.js and Supabase application with per-user collections, public collection URLs, owner-aware editing on the public page, ranked edition candidates, manual ISBN entry, and ISBN-based cover resolution. The original catalogue remains available as bundled fallback data.
 
-- 166 physical-book records stored in `books.json`.
-- 145 locally stored cover images and 21 records without covers.
-- 145 cover provenance records in `cover-sources.json`.
-- 51 records have a publisher; none has an ISBN.
-- 5 records are explicitly uncertain or unreadable.
-- The existing catalogue supports search, filtering, sorting, incremental loading, and book details.
-- Updates require editing JSON and image files, committing them, and republishing the site.
-- There is no authentication, database, upload workflow, job processing, or admin interface.
-
-This is a good public presentation layer. It is not yet an application for maintaining the collection.
+Stage 1 shelfie ingestion uses a manual handoff: myLibrary gives the owner a versioned prompt; the owner attaches the photo in a GenAI chat of their choice and uploads only its JSON response. myLibrary has no model-provider integration and never receives the shelf photograph.
 
 ## 3. Product principles
 
@@ -35,7 +26,7 @@ This is a good public presentation layer. It is not yet an application for maint
 2. **Automation proposes; the owner confirms.** Low-confidence recognition must never silently overwrite catalogue data.
 3. **Prefer deterministic identifiers.** A valid ISBN or barcode is cheaper and more reliable than repeated image or language-model searches.
 4. **Reuse results.** Cache metadata, candidates, and cover assets by normalized ISBN so that the same work is never paid for twice.
-5. **Use expensive intelligence only where it adds value.** Run local image processing and OCR first, metadata APIs second, and a vision model only for unresolved cases.
+5. **Let owners choose the extraction provider.** Stage 1 uses the owner's external GenAI chat and a portable JSON contract; myLibrary itself spends no model tokens and stores no shelf photographs.
 6. **Preserve provenance and history.** Every selected edition, edited ISBN, and cover should record its source and be reversible.
 7. **Keep the public catalogue fast.** Generate static public assets from reviewed data even if the owner workflow uses a backend.
 8. **Make uncertainty visible.** Confidence, unresolved fields, and suspected duplicates belong in a review queue.
@@ -74,9 +65,9 @@ A published edition of a work: ISBN-10, ISBN-13, publisher, publication date, la
 
 The physical item owned by the user: stable internal ID, selected edition, shelf/location, acquisition and reading state, notes, condition, and visibility. Existing IDs such as `B001` remain stable copy IDs.
 
-### Shelfie and detection
+### Manual GenAI import and observation
 
-An uploaded source image plus ordered book-spine regions. Each detection keeps its crop, OCR text, confidence, candidate matches, review status, and link to an existing or new copy.
+A versioned JSON batch plus ordered book observations. Each observation retains extracted fields, confidence, candidate matches, review status, and a link to its copy. The source image remains with the external chat provider and is not part of the myLibrary data model.
 
 ### Cover asset
 
@@ -90,27 +81,26 @@ Who or what changed a field, the old and new values, the source, and the timesta
 
 ### US-1: Update the library from a shelfie
 
-**As the owner, I want to take or upload a new shelf photo so that I can add newly visible books and reconcile changes without re-entering my collection.**
+**As the owner, I want to use a supplied prompt with my own GenAI chat and upload the resulting JSON so that I can add books without re-entering my collection.**
 
 Acceptance criteria:
 
-- The owner can capture a photo on mobile or upload JPEG, PNG, HEIC, or WebP images.
-- The app checks image quality and gives useful feedback for blur, glare, orientation, distance, and unreadably small spines.
-- One upload may contain multiple shelf levels; the owner can rotate, crop, or split it before processing.
-- The system detects ordered spine regions and extracts visible title, author, publisher, series, and barcode text where possible.
-- Each region is compared with existing copies before proposing a new copy.
-- Results are saved as a draft batch; no public data changes before review and publish.
-- The owner can approve all high-confidence proposals, edit individual proposals, mark an object as “not a book,” merge a duplicate, or leave an item unresolved.
-- Reprocessing the same image is idempotent and does not create duplicate copies.
-- The original photo can be deleted independently after review, subject to the chosen retention policy.
+- The owner can copy a provider-neutral prompt from myLibrary.
+- The owner sends the photograph directly to a GenAI chat of their choice; myLibrary never receives it.
+- The response uses the versioned `mylibrary.shelfie.v1` JSON contract and preserves physical shelf order.
+- The app validates the entire file locally and in the database before creating any books.
+- One atomic import can target an existing collection or create a named collection with an optional description.
+- Re-uploading the same book array to a collection is idempotent and does not create duplicate copies.
+- Extracted title, author, publisher, language, edition clues, visible ISBN, confidence, and notes are retained as source observations.
+- Imported books are populated automatically; correction by the owner is an optional downstream override.
 
 Suggested experience:
 
-1. Capture one shelf straight-on, with overlapping photos allowed for long shelves.
-2. Run inexpensive preprocessing and OCR.
-3. Show the shelf image with numbered spine boxes and an ordered review list.
-4. Auto-group likely matches into “existing,” “new,” “uncertain,” and “not detected.”
-5. Publish only approved changes.
+1. Photograph the shelf clearly.
+2. Copy the myLibrary prompt into the owner's chosen GenAI chat and attach the photo there.
+3. Save the JSON-only response.
+4. Upload the JSON to an existing or new collection.
+5. Let ISBN matching and cover resolution run downstream, then optionally refine the result on the collection page.
 
 ### US-2: Select the correct edition
 
@@ -249,21 +239,18 @@ The canonical stage-by-stage contract is documented in [`INGESTION_PIPELINE.md`]
 
 ### Shelfie pipeline
 
-`upload → quality check → shelf/spine segmentation → crop normalization → OCR → existing-copy match → bibliographic candidates → edition ranking → cover resolution → review batch → publish`
+`external GenAI extraction → manual JSON upload → validated observations → bibliographic candidates → edition ranking → cover resolution → optional owner refinement`
 
-Each stage should persist its input, output, version, duration, and confidence. Failed stages can then retry without restarting the entire pipeline.
+The Stage 1 boundary is a versioned JSON file. See [`STAGE_1_MANUAL_GENAI_IMPORT.md`](STAGE_1_MANUAL_GENAI_IMPORT.md) for its prompt, validation, privacy, idempotency, and acceptance criteria.
 
 ### Cost controls
 
-- Hash uploads and crops to prevent duplicate processing.
-- Batch OCR regions from one shelf where supported.
-- Normalize OCR locally before any model call.
+- Hash normalized JSON book arrays to prevent duplicate imports.
+- Keep model images and tokens outside myLibrary by using the owner's chosen chat.
 - Query bibliographic APIs with compact identifiers, not full images.
 - Cache normalized provider results by ISBN and provider record ID.
 - Limit candidate sets before visual or language-model ranking.
-- Store prompts, model/version, token use, and cost per job.
-- Allow configurable per-batch budgets and stop for review when reached.
-- Process only new or changed shelf regions when comparing a later shelfie.
+- Version the portable prompt and response schema in the application.
 
 ### Cover provider strategy
 
@@ -324,18 +311,18 @@ Goal: make common additions fast and validate provider quality.
 
 Exit criterion: a clear-barcode book can be added and published in under one minute with no paid model call in the normal path.
 
-### Phase 3 — Shelfie ingestion beta
+### Phase 3 — Manual GenAI shelfie ingestion
 
-Goal: turn a shelf photo into a reviewable batch.
+Goal: turn an externally interpreted shelf photo into a validated collection import without an in-product AI integration.
 
-- Mobile upload, image-quality guidance, rotation, and crop.
-- Shelf/spine detection and editable bounding boxes.
-- OCR and ordered book-region review.
-- Existing-copy reconciliation and candidate ranking.
-- Resumable background jobs, batch budgets, and failure recovery.
-- Confidence-based review groups with no automatic public changes.
+- Versioned, provider-neutral extraction prompt and JSON schema.
+- Copy-prompt and manual JSON-upload journey.
+- Atomic import into an existing or newly named collection.
+- Structured source observations and duplicate-import protection.
+- Automatic handoff to ISBN candidate ranking and cover resolution.
+- Optional corrections on the owner's public collection page.
 
-Exit criterion: on an agreed test set of representative shelves, the workflow identifies most readable spines and materially reduces owner input compared with entering every book manually. Exact targets should be set after collecting the test set.
+Exit criterion: a conforming JSON response imports all detected books in shelf order with no image stored by myLibrary, and invalid or repeated files create no partial or duplicate data.
 
 ### Phase 4 — Incremental shelf reconciliation
 
@@ -369,9 +356,9 @@ Measure the product at the level where the owner experiences value:
 - Percentage of selected editions with validated ISBNs.
 - Correct-cover rate after owner review.
 - Duplicate proposal and duplicate-publication rates.
-- Unresolved detections per shelfie.
+- Low-confidence observations per import.
 - Cache hit rate and external provider requests per book.
-- Paid model calls, tokens, and estimated cost per correctly published book.
+- External GenAI usage is outside myLibrary; the application makes zero paid model calls in Stage 1.
 - Median shelfie processing time and publish time.
 - Rollback frequency and edits made within seven days of import.
 
@@ -380,10 +367,9 @@ Initial numerical targets should be set only after a small, labeled test set est
 ## 12. Security, privacy, and reliability requirements
 
 - Owner maintenance routes require authentication; public browsing remains read-only.
-- Shelf photos are private by default and excluded from public exports.
-- Strip image metadata such as GPS coordinates unless explicitly retained.
-- Define retention controls for originals, crops, and failed uploads.
-- Validate file type and size; isolate image decoding and processing.
+- Shelf photographs are never uploaded to myLibrary in the Stage 1 manual GenAI flow.
+- Clearly tell owners that the privacy and retention terms of their chosen chat provider apply.
+- Validate JSON file type, size, schema, and field limits before database writes.
 - Keep provider/API credentials server-side and out of browser bundles and generated static files.
 - Back up the database and selected cover assets; test restoration.
 - Use atomic publishing and immutable catalogue versions.
@@ -405,11 +391,11 @@ These decisions change implementation scope and should be resolved before Phase 
 
 1. Is myLibrary permanently for one owner, or should its design anticipate separate libraries for family or public users?
 2. Should the source database live in a hosted service, with GitHub as an export/deployment target, or should reviewed changes be committed directly to GitHub?
-3. Are shelf photos retained for later reconciliation, retained only until review, or deleted by default?
+3. Should a future direct-image workflow ever be added, or should the provider-neutral manual handoff remain the permanent trust boundary?
 4. Which book fields and reading information are private versus public?
 5. Should a shelfie represent evidence of ownership, shelf location, or both?
 6. Which Greek bibliographic and bookseller sources may be used under their access and image terms?
-7. What monthly budget and maximum processing time are acceptable for recognition and cover fetching?
+7. What monthly budget and maximum processing time are acceptable for ISBN metadata and cover fetching? Stage 1 itself has no application-paid model usage.
 8. Is exact edition matching required for every book, or can some records remain at work/title level?
 
 ## 15. Recommended next product slice

@@ -7,9 +7,6 @@ __pycache__/
 .next/
 node_modules/
 *.tsbuildinfo
-artifacts/*
-!artifacts/spine-yolo.onnx
-!artifacts/spine-yolo-metrics.json
 datasets/
 training-runs/
 *.pt

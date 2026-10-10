@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "tsx --test lib/*.test.ts",
     "typecheck": "tsc --noEmit",
     "import:catalogue": "node --env-file=.env.local scripts/import-catalogue.mjs",
     "import:dry-run": "node scripts/import-catalogue.mjs --dry-run"
@@ -21,6 +22,7 @@
     "@types/node": "24.10.1",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "tsx": "4.23.15",
     "typescript": "5.9.3"
   }
 }

@@ -1,8 +1,0 @@
-httpx==0.28.1
-numpy==1.26.4
-onnxruntime==1.20.1
-opencv-contrib-python==4.10.0.84
-paddleocr==3.7.0
-paddlepaddle==3.3.1
-pillow-heif==1.8.0
-supabase==2.32.0

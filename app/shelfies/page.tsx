@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ShelfieUploadForm } from "@/components/shelfie-upload-form";
+import { ManualGenaiImportForm } from "@/components/manual-genai-import-form";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -24,9 +24,9 @@ export default async function ShelfiePage({ searchParams }: { searchParams: Prom
   return <main className="shelfie-shell">
     <Link href={requestedSlug ? `/collections/${requestedSlug}` : "/"}>← Επιστροφή</Link>
     <p className="eyebrow">ΝΕΑ ΠΗΓΗ ΒΙΒΛΙΩΝ</p>
-    <h1>Ανέβασε μια shelfie</h1>
-    <p className="shelfie-lead">Η φωτογραφία επεξεργάζεται με ανίχνευση ραχών και OCR σε CPU—χωρίς LLM. Διατηρούνται μόνο τα κείμενα και οι βαθμολογίες εμπιστοσύνης.</p>
-    <ShelfieUploadForm userId={user.id} collections={ordered} />
-    <p className="privacy-note">Η φωτογραφία και τα προσωρινά crops διαγράφονται μόλις ολοκληρωθεί η αρχική εξαγωγή, ή μετά την τελευταία αποτυχημένη προσπάθεια.</p>
+    <h1>Εισαγωγή από shelfie</h1>
+    <p className="shelfie-lead">Χρησιμοποίησε το GenAI chat της επιλογής σου για την ανάγνωση της φωτογραφίας και ανέβασε χειροκίνητα μόνο το παραγόμενο JSON.</p>
+    <ManualGenaiImportForm userId={user.id} collections={ordered} />
+    <p className="privacy-note">Η φωτογραφία δεν αποστέλλεται ποτέ στο myLibrary. Ισχύουν οι όροι και η πολιτική απορρήτου του GenAI chat που επιλέγεις.</p>
   </main>;
 }
