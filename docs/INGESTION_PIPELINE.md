@@ -9,7 +9,7 @@ This is the canonical contract for turning a shelfie into published books. Detai
 | Stage | Status | Output |
 | --- | --- | --- |
 | 1. Extract visible book data | Implemented | The owner uses the supplied prompt in a GenAI chat of their choice and uploads schema-validated JSON. myLibrary does not receive the image or call the provider. |
-| 2. Identify ISBN | Partially implemented | Existing catalogue metadata produces ranked edition candidates. A valid ISBN visibly supplied in Stage 1 becomes a high-priority candidate; automatic candidate lookup for all newly imported observations is next. |
+| 2. Identify ISBN | Implemented | Every manual GenAI import automatically queries Open Library and Google Books, retains up to ten ranked ISBN candidates per book, and selects the leader. A valid ISBN visibly supplied in Stage 1 remains the strongest candidate. |
 | 3. Resolve cover | Implemented for mapped ISBNs | The selected ISBN is served through the cached `/api/covers/{isbn}` provider cascade. Non-ISBN fallback remains a future enhancement. |
 | 4. Owner refinement | Implemented | On their public collection page, the owner can inspect candidates, choose an edition, or enter an ISBN manually. |
 
@@ -41,4 +41,4 @@ Automation publishes its best result, while alternative edition candidates and t
 
 ## Next implementation priority
 
-Run the existing ISBN candidate generator for each new `manual_genai_json` observation, persist every viable candidate, automatically select the most likely candidate, and queue cover resolution for that ISBN. The owner can then correct the result from the collection page.
+Measure Stage 2 accuracy on owner corrections, improve edition-specific scoring when title-only metadata produces ties, and retain provider response caching so repeated imports avoid redundant lookups.

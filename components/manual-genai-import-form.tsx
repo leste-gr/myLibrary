@@ -16,6 +16,7 @@ export function ManualGenaiImportForm({ userId, collections }: { userId: string;
   const router = useRouter();
   const [destination, setDestination] = useState(collections[0]?.id ?? "new");
   const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState("Εισαγωγή…");
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,6 +42,7 @@ export function ManualGenaiImportForm({ userId, collections }: { userId: string;
     const supabase = createSupabaseBrowserClient();
     let target = collections.find((collection) => collection.id === destination) ?? null;
     let createdCollectionId: string | null = null;
+    let importCompleted = false;
     try {
       let decoded: unknown;
       try {
@@ -68,10 +70,23 @@ export function ManualGenaiImportForm({ userId, collections }: { userId: string;
       const result = imported.data as { imported?: number; duplicate?: boolean } | null;
       if (result?.duplicate) throw new Error("Αυτό το JSON έχει ήδη εισαχθεί σε αυτή τη συλλογή.");
       const importedCount = result?.imported ?? payload.books.length;
-      router.push(`/collections/${target.slug}?imported=${importedCount}`);
+      const importId = (imported.data as { importId?: string } | null)?.importId;
+      importCompleted = true;
+      setPhase("Αναζήτηση ISBN…");
+      let matchingQuery = "matching=retry";
+      if (importId) {
+        try {
+          const response = await fetch(`/api/imports/${importId}/match`, { method: "POST" });
+          const match = await response.json() as { matched?: number; unresolved?: number; retryable?: number };
+          if (response.ok) matchingQuery = `matched=${match.matched ?? 0}&unresolved=${match.unresolved ?? 0}&retryable=${match.retryable ?? 0}`;
+        } catch {
+          // The import is safe; the collection page offers a retry for Stage 2.
+        }
+      }
+      router.push(`/collections/${target.slug}?imported=${importedCount}&${matchingQuery}${importId ? `&matchImport=${importId}` : ""}`);
       router.refresh();
     } catch (reason) {
-      if (createdCollectionId) await supabase.from("collections").delete().eq("id", createdCollectionId);
+      if (createdCollectionId && !importCompleted) await supabase.from("collections").delete().eq("id", createdCollectionId);
       setError(reason instanceof Error ? reason.message : "Η εισαγωγή απέτυχε.");
       setBusy(false);
     }
@@ -92,7 +107,7 @@ export function ManualGenaiImportForm({ userId, collections }: { userId: string;
       {destination === "new" && <div className="new-collection-fields"><label htmlFor="collection-name">Όνομα συλλογής</label><input id="collection-name" name="collectionName" required maxLength={100} /><label htmlFor="collection-description">Περιγραφή <span>(προαιρετική)</span></label><textarea id="collection-description" name="collectionDescription" maxLength={500} rows={3} /></div>}
       <label className="shelfie-file" htmlFor="inventory-json"><strong>Αρχείο JSON</strong><span>mylibrary.shelfie.v1 · έως 100 βιβλία · έως 1 MB</span><input id="inventory-json" name="inventoryJson" type="file" accept="application/json,.json" required /></label>
       {error && <p className="form-error" role="alert">{error}</p>}
-      <button className="primary-button" type="submit" disabled={busy}>{busy ? "Εισαγωγή…" : "Έλεγχος και εισαγωγή βιβλίων"}</button>
+      <button className="primary-button" type="submit" disabled={busy}>{busy ? phase : "Έλεγχος και εισαγωγή βιβλίων"}</button>
     </form>
   </div>;
 }

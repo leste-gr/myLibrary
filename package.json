@@ -8,6 +8,7 @@
     "start": "next start",
     "test": "tsx --test lib/*.test.ts",
     "typecheck": "tsc --noEmit",
+    "match:import": "tsx scripts/match-manual-import.ts",
     "import:catalogue": "node --env-file=.env.local scripts/import-catalogue.mjs",
     "import:dry-run": "node scripts/import-catalogue.mjs --dry-run"
   },
