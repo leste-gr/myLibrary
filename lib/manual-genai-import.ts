@@ -25,6 +25,20 @@ export type ManualGenaiImport = {
   books: ManualGenaiBook[];
 };
 
+/** Accept JSON copied from a chat, including a single Markdown code block.
+ * Never guess at prose, repair malformed JSON, or discard invalid book fields. */
+export function parseManualGenaiText(text: string): ManualGenaiImport {
+  if (new TextEncoder().encode(text).byteLength > MAX_IMPORT_BYTES) {
+    throw new Error("Η απάντηση πρέπει να είναι μικρότερη από 1 MB.");
+  }
+  const trimmed = text.replace(/^\uFEFF/, "").trim();
+  const fenced = /^```(?:json)?\s*\n([\s\S]*?)\n```$/i.exec(trimmed);
+  let value: unknown;
+  try { value = JSON.parse(fenced ? fenced[1] : trimmed); }
+  catch { throw new Error("Δεν βρέθηκε έγκυρο JSON. Επικόλλησε ολόκληρη την απάντηση JSON του chat."); }
+  return parseManualGenaiImport(value);
+}
+
 function optionalText(value: unknown, field: string, index: number, maxLength = 300): string | null {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value !== "string") throw new Error(`Book ${index}: ${field} must be text or null.`);
