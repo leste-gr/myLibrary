@@ -12,10 +12,8 @@ create table public.manual_genai_imports (
 );
 
 alter table public.manual_genai_imports enable row level security;
-grant select, delete on public.manual_genai_imports to authenticated;
+grant select on public.manual_genai_imports to authenticated;
 create policy "Owners read manual GenAI imports" on public.manual_genai_imports for select to authenticated
-using (owner_id = auth.uid() and public.owns_collection(collection_id));
-create policy "Owners delete manual GenAI imports" on public.manual_genai_imports for delete to authenticated
 using (owner_id = auth.uid() and public.owns_collection(collection_id));
 
 alter table public.book_observations drop constraint if exists observation_source_type_check;
@@ -56,6 +54,9 @@ begin
   if target_import_id is null then
     raise exception 'target_import_id is required.';
   end if;
+  if octet_length(payload::text) > 1048576 then
+    raise exception 'The import payload must not exceed 1 MB.';
+  end if;
   if payload ->> 'schemaVersion' is distinct from 'mylibrary.shelfie.v1' then
     raise exception 'Unsupported schemaVersion.';
   end if;
@@ -67,7 +68,8 @@ begin
     raise exception 'books must contain between 1 and 100 items.';
   end if;
 
-  checksum := encode(digest((payload -> 'books')::text, 'sha256'), 'hex');
+  checksum := encode(extensions.digest((payload -> 'books')::text, 'sha256'), 'hex');
+  perform pg_advisory_xact_lock(hashtextextended(target_collection_id::text, 0));
   select * into existing_import from public.manual_genai_imports
   where collection_id = target_collection_id and payload_checksum = checksum;
   if found then

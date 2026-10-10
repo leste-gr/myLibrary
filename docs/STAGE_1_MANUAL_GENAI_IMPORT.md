@@ -18,7 +18,7 @@ This replaces the in-product YOLO, OpenCV, and PaddleOCR worker. It does not cre
 4. The chat returns JSON only. The owner saves that response as a `.json` file.
 5. In myLibrary, the owner chooses an existing collection or enters a name and optional description for a new collection.
 6. The owner uploads the JSON file. myLibrary validates the complete file before writing anything.
-7. A single authenticated database transaction creates the import record, works, copies, source observations, and any visible-ISBN candidates.
+7. A single authenticated database transaction creates the import record, works, copies, source observations, and any visible-ISBN candidates. Creating a new destination collection happens immediately before that transaction; the client removes it if the import reports an error.
 8. The owner lands on the collection page and can refine the imported books there.
 
 The shelf photograph is sent directly from the owner to their chosen chat. myLibrary never receives, stores, proxies, or deletes it. The provider's own privacy policy and retention settings apply.
