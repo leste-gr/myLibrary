@@ -34,6 +34,21 @@ class DetectorTests(unittest.TestCase):
         ordered = YoloSpineDetector._reading_order(items)
         self.assertEqual([(item.x1, item.y1) for item in ordered], [(50, 0), (10, 100), (80, 100)])
 
+    def test_separates_overlapping_neighboring_spines_at_center_midpoints(self):
+        items = [
+            SpineDetection(592, 1037, 778, 2614, .34),
+            SpineDetection(687, 645, 911, 2602, .32),
+            SpineDetection(786, 650, 1018, 2609, .33),
+        ]
+        separated = YoloSpineDetector._separate_overlapping_spines(items)
+        self.assertEqual([(item.x1, item.x2) for item in separated], [(592, 742), (742, 850), (850, 1018)])
+        self.assertTrue(all(left.x2 <= right.x1 for left, right in zip(separated, separated[1:])))
+
+    def test_does_not_expand_across_a_gap(self):
+        items = [SpineDetection(10, 0, 40, 100, .8), SpineDetection(80, 0, 110, 100, .8)]
+        separated = YoloSpineDetector._separate_overlapping_spines(items)
+        self.assertEqual([(item.x1, item.x2) for item in separated], [(10, 40), (80, 110)])
+
 
 if __name__ == "__main__":
     unittest.main()

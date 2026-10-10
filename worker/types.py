@@ -38,4 +38,5 @@ class SpineResult:
 
     @property
     def text(self) -> str:
-        return " ".join(line.text for line in self.lines if line.text).strip()
+        from .title import extract_title
+        return extract_title(self.lines)

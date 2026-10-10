@@ -68,10 +68,10 @@ class YoloSpineDetector:
 
         indices = cv2.dnn.NMSBoxes(boxes, scores, self.confidence, self.iou)
         detections = [SpineDetection(boxes[index][0], boxes[index][1], boxes[index][0] + boxes[index][2], boxes[index][1] + boxes[index][3], scores[index]) for index in np.array(indices).reshape(-1)] if len(indices) else []
-        return self._reading_order(detections)
+        return self._separate_overlapping_spines(detections)
 
     @staticmethod
-    def _reading_order(detections: list[SpineDetection]) -> list[SpineDetection]:
+    def _rows(detections: list[SpineDetection]) -> list[list[SpineDetection]]:
         rows: list[list[SpineDetection]] = []
         for detection in sorted(detections, key=lambda item: ((item.y1 + item.y2) / 2, item.x1)):
             center_y = (detection.y1 + detection.y2) / 2
@@ -81,4 +81,30 @@ class YoloSpineDetector:
             else:
                 matching.append(detection)
         rows.sort(key=lambda row: sum(item.y1 for item in row) / len(row))
-        return [item for row in rows for item in sorted(row, key=lambda item: item.x1)]
+        return [sorted(row, key=lambda item: item.x1) for row in rows]
+
+    @staticmethod
+    def _separate_overlapping_spines(detections: list[SpineDetection]) -> list[SpineDetection]:
+        """Turn overlapping YOLO proposals into non-overlapping spine crops.
+
+        The training data frequently predicts a box that includes part of each
+        neighboring spine. For vertically aligned books, the midpoint between
+        adjacent box centers is a more stable crop boundary than either box edge.
+        Gaps are retained so unrelated books are never stretched together.
+        """
+        separated: list[SpineDetection] = []
+        for row in YoloSpineDetector._rows(detections):
+            centers = [(item.x1 + item.x2) / 2 for item in row]
+            for index, item in enumerate(row):
+                left, right = item.x1, item.x2
+                if index and row[index - 1].x2 > item.x1:
+                    left = max(left, round((centers[index - 1] + centers[index]) / 2))
+                if index + 1 < len(row) and item.x2 > row[index + 1].x1:
+                    right = min(right, round((centers[index] + centers[index + 1]) / 2))
+                if right - left >= 8:
+                    separated.append(SpineDetection(left, item.y1, right, item.y2, item.confidence))
+        return separated
+
+    @staticmethod
+    def _reading_order(detections: list[SpineDetection]) -> list[SpineDetection]:
+        return [item for row in YoloSpineDetector._rows(detections) for item in row]

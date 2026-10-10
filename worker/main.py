@@ -63,7 +63,7 @@ def observation_payload(job: dict[str, Any], result: SpineResult, index: int) ->
             "ocr_confidence": result.confidence,
             "rotation": result.rotation,
             "ocr_lines": [{"text": line.text, "confidence": line.confidence, "language": line.language, "box": line.box} for line in result.lines],
-            "pipeline": "yolo-onnx-paddleocr-v1",
+            "pipeline": "yolo-onnx-paddleocr-v2",
         },
     }
 
