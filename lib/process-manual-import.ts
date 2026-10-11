@@ -33,7 +33,7 @@ async function updateStatuses(supabase: SupabaseClient, ids: string[], status: "
   if (error) throw new Error(error.message);
 }
 
-export async function processManualGenaiImport(supabase: SupabaseClient, importId: string) {
+async function runManualGenaiImportMatching(supabase: SupabaseClient, importId: string) {
   const { data: importRecord, error: importError } = await supabase
     .from("manual_genai_imports")
     .select("id,collection_id,book_count")
@@ -112,7 +112,7 @@ export async function processManualGenaiImport(supabase: SupabaseClient, importI
   await updateStatuses(supabase, unresolvedIds, "unresolved");
   await updateStatuses(supabase, retryIds, "ready_for_matching");
 
-  return {
+  const summary = {
     importId,
     books: observations.length,
     matched: matchedIds.length,
@@ -120,4 +120,35 @@ export async function processManualGenaiImport(supabase: SupabaseClient, importI
     retryable: retryIds.length,
     candidates: candidateRows.length,
   };
+  const { error: completionError } = await supabase.from("manual_genai_imports").update({
+    matching_status: retryIds.length ? "partial" : "completed",
+    matched_count: matchedIds.length,
+    unresolved_count: unresolvedIds.length,
+    retryable_count: retryIds.length,
+    matching_error: null,
+    matching_completed_at: new Date().toISOString(),
+  }).eq("id", importId);
+  if (completionError) throw new Error(completionError.message);
+  return summary;
+}
+
+export async function processManualGenaiImport(supabase: SupabaseClient, importId: string) {
+  const { error: startError } = await supabase.from("manual_genai_imports").update({
+    matching_status: "processing",
+    matching_error: null,
+    matching_started_at: new Date().toISOString(),
+    matching_completed_at: null,
+  }).eq("id", importId);
+  if (startError) throw new Error(startError.message);
+  try {
+    return await runManualGenaiImportMatching(supabase, importId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "ISBN matching failed.";
+    await supabase.from("manual_genai_imports").update({
+      matching_status: "failed",
+      matching_error: message.slice(0, 1000),
+      matching_completed_at: new Date().toISOString(),
+    }).eq("id", importId);
+    throw error;
+  }
 }
