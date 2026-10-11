@@ -98,17 +98,23 @@ OAuth, supplying the registered client credentials through the connection settin
 Enter the exact callback shown there in Supabase's client registration. Sign into
 myLibrary and approve the named application on the consent screen.
 
-Test with a small shelf photo:
+The connected server exposes `list_collections`, `list_collection_books`,
+`create_collection`, and `create_import_draft`. Collection creation requires an
+explicit user request. Imports always remain private drafts until browser review.
+
+Test with a small shelf photo or a JSON attachment:
 
 1. Ask to list your collections, then choose one.
-2. Ask to send the visible books for review. Confirm the assistant returns a review
+2. Ask to list the books in that collection. For a new destination, explicitly
+   ask it to create a collection with a name and optional description.
+3. Ask to send the visible books or attached JSON for review. Confirm the assistant returns a review
    link and does not claim the books have been published.
-3. Follow the link. Check titles, authors, uncertainty notes and visible ISBNs;
+4. Follow the link. Check titles, authors, uncertainty notes and visible ISBNs;
    uncheck one book and change another title.
-4. Import. Only selected books should appear, followed by automatic ISBN matching.
-5. Reopen the draft link: it must report that it was already imported.
-6. Repeat the same tool payload: the draft ID must be unchanged.
-7. Visit `/shelfies/connections` and revoke access. Further tool calls must fail,
+5. Import. Only selected books should appear, followed by automatic ISBN matching.
+6. Reopen the draft link: it must report that it was already imported.
+7. Repeat the same tool payload: the draft ID must be unchanged.
+8. Visit `/shelfies/connections` and revoke access. Further tool calls must fail,
    including with a previously issued access token. Reconnect through consent.
 
 The user's signed-in account owns every draft; collection IDs never grant access.

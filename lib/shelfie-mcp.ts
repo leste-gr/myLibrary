@@ -4,6 +4,8 @@ import { parseManualGenaiImport, SHELFIE_GENAI_PROMPT, MAX_IMPORT_BYTES, type Ma
 
 export type ShelfieTools = {
   listCollections: () => Promise<{ id: string; name: string; slug: string }[]>;
+  listCollectionBooks: (collectionId: string, limit: number, offset: number) => Promise<{ collectionId: string; total: number; offset: number; limit: number; hasMore: boolean; books: { id: string; title: string; author: string; isbn13: string | null; series: string | null; volume: string | null; language: string }[] }>;
+  createCollection: (name: string, description: string | null) => Promise<{ id: string; name: string; slug: string; description: string | null }>;
   createDraft: (collectionId: string, payload: ManualGenaiImport) => Promise<{ draftId: string; status: string; bookCount: number }>;
 };
 const optionalText = (max: number) => z.string().max(max).nullable().optional();
@@ -18,7 +20,7 @@ const bookSchema = z.object({
 
 export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
   const server = new McpServer({ name: "mylibrary-shelfie", version: "1.0.0" }, {
-    instructions: "Extract one record per physical spine from the user's photo. Preserve shelf order and duplicate copies. Never invent ISBNs or bibliographic facts. Ask for a clearer photo when needed. List collections and ask which destination the user wants before submitting. Submit private drafts only; return the review URL and explain that the owner must review and import in myLibrary. Never claim a draft is published.",
+    instructions: "You can list the owner's collections and books. Extract one record per physical spine or supplied JSON entry, preserving order and duplicate copies. Never invent ISBNs or bibliographic facts. Ask for a clearer photo when needed. Before importing, list collections and ask whether to use one or create a new collection. Create a collection only when the user explicitly requests it. Submit private drafts only; return the review URL and explain that the owner must review and import in myLibrary. Never claim a draft is published.",
   });
   const securitySchemes = [{ type: "oauth2", scopes: ["openid"] }];
   server.registerTool("list_collections", {
@@ -28,6 +30,24 @@ export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
   }, async () => {
     try { const collections = await tools.listCollections(); return { structuredContent: { collections }, content: [{ type: "text", text: JSON.stringify({ collections }) }] }; }
     catch { return { isError: true, content: [{ type: "text", text: "Unable to list collections. Check your connection and try again." }] }; }
+  });
+  server.registerTool("list_collection_books", {
+    title: "List books in a collection", description: "List the signed-in user's published books in shelf order. Use pagination until hasMore is false when the user asks for the complete collection.",
+    inputSchema: { collectionId: z.string().uuid(), limit: z.number().int().min(1).max(200).default(100), offset: z.number().int().min(0).max(100000).default(0) },
+    outputSchema: { collectionId: z.string(), total: z.number(), offset: z.number(), limit: z.number(), hasMore: z.boolean(), books: z.array(z.object({ id: z.string(), title: z.string(), author: z.string(), isbn13: z.string().nullable(), series: z.string().nullable(), volume: z.string().nullable(), language: z.string() })) },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }, _meta: { securitySchemes },
+  }, async ({ collectionId, limit, offset }) => {
+    try { const result = await tools.listCollectionBooks(collectionId, limit, offset); return { structuredContent: result, content: [{ type: "text", text: JSON.stringify(result) }] }; }
+    catch { return { isError: true, content: [{ type: "text", text: "Unable to list this collection. Check access and try again." }] }; }
+  });
+  server.registerTool("create_collection", {
+    title: "Create a library collection", description: "Create a new empty collection owned by the signed-in user. Call only after the user explicitly asks for a new collection, then use its id with create_import_draft.",
+    inputSchema: { name: z.string().trim().min(1).max(120), description: z.string().trim().max(1000).nullable().optional() },
+    outputSchema: { id: z.string(), name: z.string(), slug: z.string(), description: z.string().nullable() },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }, _meta: { securitySchemes },
+  }, async ({ name, description }) => {
+    try { const result = await tools.createCollection(name, description ?? null); return { structuredContent: result, content: [{ type: "text", text: JSON.stringify(result) }] }; }
+    catch (error) { return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : "Collection could not be created." }] }; }
   });
   server.registerTool("create_import_draft", {
     title: "Send books to myLibrary for review",

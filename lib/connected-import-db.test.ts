@@ -68,6 +68,12 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     assert.deepEqual(await rpc("confirm_shelfie_draft", [draft.draftId, payload]), imported);
     assert.equal((await db.query("select * from public.copies")).rows.length, 1);
     await claims(alice, true);
+    const listed = await rpc("assistant_list_collection_books", [a, 100, 0]);
+    assert.equal(listed.total, 1); assert.equal(listed.books[0].title, "The Hobbit"); assert.equal(listed.hasMore, false);
+    await assert.rejects(() => rpc("assistant_list_collection_books", [b, 100, 0]), /denied/);
+    const createdCollection = await rpc("assistant_create_collection", ["RPG", "Games"]);
+    assert.equal(createdCollection.name, "RPG");
+    assert.match(createdCollection.slug, /^collection-[a-f0-9]{12}$/);
     const otherPayload = { ...payload, books: [{ ...book, title: "Second book" }] };
     const discarded = await rpc("create_shelfie_draft", [a, otherPayload]);
     await claims(alice); await rpc("discard_shelfie_draft", [discarded.draftId]);

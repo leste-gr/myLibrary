@@ -39,15 +39,24 @@ test("assistant JWT requires correct signature, issuer, audience, expiry and OAu
   await assert.rejects(() => verifyAssistantToken(forged, key, issuer, resource));
 });
 
-test("MCP exposes draft-only tools and validates book data before calling the database", async () => {
+test("MCP exposes collection browsing and reviewed import tools", async () => {
   const id = "11111111-1111-4111-8111-111111111111";
   let writes = 0;
-  const server = createShelfieMcpServer({ listCollections: async () => [{ id, name: "My books", slug: "books" }], createDraft: async (_id, books) => { writes++; assert.equal(books.books[0].title, "The Hobbit"); return { draftId: id, status: "pending", bookCount: 1 }; } }, "https://library.test");
+  const server = createShelfieMcpServer({
+    listCollections: async () => [{ id, name: "My books", slug: "books" }],
+    listCollectionBooks: async () => ({ collectionId: id, total: 1, offset: 0, limit: 100, hasMore: false, books: [{ id: "B1", title: "The Hobbit", author: "Tolkien", isbn13: null, series: null, volume: null, language: "en" }] }),
+    createCollection: async (name, description) => ({ id, name, slug: "collection-test", description }),
+    createDraft: async (_id, books) => { writes++; assert.equal(books.books[0].title, "The Hobbit"); return { draftId: id, status: "pending", bookCount: 1 }; },
+  }, "https://library.test");
   const client = new Client({ name: "test", version: "1" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport); await client.connect(clientTransport);
   try {
-    assert.deepEqual((await client.listTools()).tools.map((tool) => tool.name).sort(), ["create_import_draft", "list_collections"]);
+    assert.deepEqual((await client.listTools()).tools.map((tool) => tool.name).sort(), ["create_collection", "create_import_draft", "list_collection_books", "list_collections"]);
+    const listed = await client.callTool({ name: "list_collection_books", arguments: { collectionId: id } });
+    assert.equal((listed.structuredContent as { total: number }).total, 1);
+    const created = await client.callTool({ name: "create_collection", arguments: { name: "RPG", description: "Games" } });
+    assert.equal((created.structuredContent as { name: string }).name, "RPG");
     const good = await client.callTool({ name: "create_import_draft", arguments: { collectionId: id, ...payload } });
     assert.equal(good.isError, undefined);
     assert.equal((good.structuredContent as { reviewUrl: string }).reviewUrl, `https://library.test/shelfies/review/${id}`);

@@ -20,6 +20,14 @@ export async function POST(request: Request) {
       const { data, error } = await auth.supabase.from("collections").select("id,name,slug").eq("owner_id", auth.userId).order("created_at");
       if (error) throw error; return data ?? [];
     },
+    async listCollectionBooks(collectionId, limit, offset) {
+      const { data, error } = await auth.supabase.rpc("assistant_list_collection_books", { target_collection_id: collectionId, page_limit: limit, page_offset: offset });
+      if (error) throw error; return data;
+    },
+    async createCollection(name, description) {
+      const { data, error } = await auth.supabase.rpc("assistant_create_collection", { collection_name: name, collection_description: description });
+      if (error) throw new Error(error.message); return data;
+    },
     async createDraft(collectionId, payload) {
       const { data, error } = await auth.supabase.rpc("create_shelfie_draft", { target_collection_id: collectionId, payload });
       if (error) throw new Error(error.message);
