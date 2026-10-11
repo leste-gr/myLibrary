@@ -15,6 +15,8 @@ This is the canonical contract for turning a shelfie into published books. Detai
 
 Stage 2 progress is stored on the import record. Interrupted, partial, and failed matches remain visible to the owner on later visits and can be retried without uploading the JSON again. A processing attempt older than ten minutes is treated as stale and becomes retryable.
 
+Stage handoffs use database statuses rather than direct calls between ingestion sources. Any Stage 1 producer finishes by writing an import with `matching_status = pending` and observations with `status = ready_for_matching`. The scheduled pipeline claims those records for Stage 2. Selecting an ISBN creates a `cover_resolution_jobs` record with `status = pending`; the independent Stage 3 processor resolves and warms the cached cover route, then records `completed`, `missing`, or `failed`. This choreography is identical for web uploads, MCP imports, and future ingestion workers.
+
 ## Stage handoffs
 
 ### Stage 1 → Stage 2
