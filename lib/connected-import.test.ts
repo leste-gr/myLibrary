@@ -46,7 +46,7 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     listCollections: async () => [{ id, name: "My books", slug: "books" }],
     listCollectionBooks: async () => ({ collectionId: id, total: 1, offset: 0, limit: 100, hasMore: false, books: [{ id: "B1", title: "The Hobbit", author: "Tolkien", isbn13: null, series: null, volume: null, language: "en" }] }),
     createCollection: async (name, description, books) => { writes++; assert.equal(books.books[0].title, "The Hobbit"); return { collectionId: id, name, slug: "collection-test", description, importId: id, imported: 1, duplicate: false }; },
-    updateCollection: async (_id, books) => { if (books.books[0].visibleIsbn) throw new Error("invalid ISBN"); writes++; assert.equal(books.books[0].title, "The Hobbit"); return { collectionId: id, slug: "books", importId: id, imported: 1, duplicate: false }; },
+    updateCollection: async (_id, books) => { if (books.books[0].visibleIsbn) throw new Error("invalid ISBN"); writes++; assert.equal(books.books[0].title, "The Hobbit"); return { collectionId: id, slug: "books", importId: id, imported: 1, ignoredExisting: 0, duplicate: false }; },
   }, "https://library.test");
   const client = new Client({ name: "test", version: "1" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

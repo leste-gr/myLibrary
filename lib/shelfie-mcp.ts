@@ -8,7 +8,7 @@ export type ShelfieTools = {
   createCollection: (name: string, description: string | null, payload: ManualGenaiImport) => Promise<ImportResult>;
   updateCollection: (collectionId: string, payload: ManualGenaiImport) => Promise<ImportResult>;
 };
-type ImportResult = { collectionId: string; slug: string; importId: string; imported: number; duplicate: boolean; name?: string; description?: string | null };
+type ImportResult = { collectionId: string; slug: string; importId: string | null; imported: number; ignoredExisting?: number; duplicate: boolean; name?: string; description?: string | null };
 const optionalText = (max: number) => z.string().max(max).nullable().optional();
 const bookSchema = z.object({
   position: z.number().int().min(1).max(100), title: z.string().min(1).max(300),
@@ -56,9 +56,9 @@ export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
   });
   server.registerTool("update_collection", {
     title: "Add books to an existing collection",
-    description: "Append books from the complete mylibrary.shelfie.v1 JSON to an owned collection. The backend validates and imports atomically. Existing books are retained; repeating the same payload does not create duplicates.",
+    description: "Add only new books from the complete mylibrary.shelfie.v1 JSON to an owned collection. The backend ignores books already present using ISBN when available, otherwise normalized title, authors, and volume. Existing books are retained and duplicates within the JSON are also ignored.",
     inputSchema: { collectionId: z.string().uuid(), schemaVersion: z.literal("mylibrary.shelfie.v1"), books: z.array(bookSchema).min(1).max(100) },
-    outputSchema: { collectionId: z.string(), slug: z.string(), importId: z.string(), imported: z.number(), duplicate: z.boolean(), collectionUrl: z.string() },
+    outputSchema: { collectionId: z.string(), slug: z.string(), importId: z.string().nullable(), imported: z.number(), ignoredExisting: z.number(), duplicate: z.boolean(), collectionUrl: z.string() },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }, _meta: { securitySchemes },
   }, async ({ collectionId, ...input }) => {
     try {

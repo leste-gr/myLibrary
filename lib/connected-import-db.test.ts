@@ -77,9 +77,11 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     assert.match(createdCollection.slug, /^collection-[a-f0-9]{12}$/);
     assert.equal(createdCollection.imported, 1);
     assert.equal((await rpc("assistant_list_collection_books", [createdCollection.collectionId, 100, 0])).total, 1);
-    const appendedPayload = { ...payload, books: [{ ...book, title: "Appended book" }] };
-    assert.equal((await rpc("assistant_update_collection", [a, appendedPayload])).imported, 1);
-    assert.equal((await rpc("assistant_update_collection", [a, appendedPayload])).duplicate, true);
+    const appendedPayload = { ...payload, books: [book, { ...book, position: 2, title: "Appended book" }] };
+    const appended = await rpc("assistant_update_collection", [a, appendedPayload]);
+    assert.equal(appended.imported, 1); assert.equal(appended.ignoredExisting, 1);
+    const repeated = await rpc("assistant_update_collection", [a, appendedPayload]);
+    assert.equal(repeated.duplicate, true); assert.equal(repeated.imported, 0); assert.equal(repeated.ignoredExisting, 2);
     assert.equal((await rpc("assistant_list_collection_books", [a, 100, 0])).total, 2);
     const otherPayload = { ...payload, books: [{ ...book, title: "Second book" }] };
     const discarded = await rpc("create_shelfie_draft", [a, otherPayload]);

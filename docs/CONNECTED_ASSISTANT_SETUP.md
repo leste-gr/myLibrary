@@ -102,7 +102,9 @@ myLibrary and approve the named application on the consent screen.
 The connected server exposes `list_collections`, `list_collection_books`,
 `create_collection`, and `update_collection`. Collection creation and imports
 require an explicit user request. `create_collection` receives the name and complete
-book JSON atomically; `update_collection` appends the JSON books to an owned collection.
+book JSON atomically; `update_collection` adds only books not already present in
+the owned collection. Existing-book identity uses ISBN when supplied, otherwise
+normalized title, authors, and volume. The result reports `ignoredExisting`.
 
 Test with a small shelf photo or a JSON attachment:
 
