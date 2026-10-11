@@ -83,6 +83,10 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     const repeated = await rpc("assistant_update_collection", [a, appendedPayload]);
     assert.equal(repeated.duplicate, true); assert.equal(repeated.imported, 0); assert.equal(repeated.ignoredExisting, 2);
     assert.equal((await rpc("assistant_list_collection_books", [a, 100, 0])).total, 2);
+    await claims(bob); await assert.rejects(() => rpc("delete_owned_collection", [createdCollection.collectionId]), /not found/);
+    await claims(alice); assert.equal(await rpc("delete_owned_collection", [createdCollection.collectionId]), true);
+    assert.equal((await db.query("select * from public.collections where id = $1", [createdCollection.collectionId])).rows.length, 0);
+    await claims(alice, true);
     const otherPayload = { ...payload, books: [{ ...book, title: "Second book" }] };
     const discarded = await rpc("create_shelfie_draft", [a, otherPayload]);
     await claims(alice); await rpc("discard_shelfie_draft", [discarded.draftId]);

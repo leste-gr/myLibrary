@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import type { CatalogueBook, PublicCollection } from "@/lib/types";
+import { DeleteCollectionButton } from "@/components/delete-collection-button";
 
 const normalize = (value: unknown) =>
   String(value ?? "")
@@ -76,7 +77,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerCol
       </header>
       <main>
         <section className="intro">
-          <div><p className="eyebrow">Ο ΚΑΤΑΛΟΓΟΣ</p><h1>{collection.name}</h1><p className="intro-copy">{collection.description ?? "Μια συλλογή, πολλοί κόσμοι."}</p></div>
+          <div><p className="eyebrow">Ο ΚΑΤΑΛΟΓΟΣ</p><h1>{collection.name}</h1><p className="intro-copy">{collection.description ?? "Μια συλλογή, πολλοί κόσμοι."}</p>{canEdit && <div className="collection-danger"><DeleteCollectionButton collectionId={collection.id} collectionName={collection.name} /></div>}</div>
           <div className="collection-stats"><div><strong>{initialBooks.length}</strong><span>βιβλία</span></div><div><strong>{authors.length}</strong><span>συγγραφείς</span></div><div><strong>{categories.length}</strong><span>κατηγορίες</span></div></div>
         </section>
         <div className="catalogue-search" role="search">

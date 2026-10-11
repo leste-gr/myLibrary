@@ -3,9 +3,11 @@ import { getPublicCollections } from "@/lib/catalogue";
 
 export const revalidate = 60;
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ deleted?: string }> }) {
+  const { deleted } = await searchParams;
   const collections = await getPublicCollections();
   return <div className="directory-shell">
+    {deleted === "1" && <div className="global-notice" role="status">Η συλλογή διαγράφηκε.</div>}
     <header className="masthead">
       <div className="brand"><span className="monogram" aria-hidden="true">Β.</span><span>myLibrary<small>ΔΗΜΟΣΙΕΣ ΣΥΛΛΟΓΕΣ</small></span></div>
       <nav className="site-nav"><Link href="/login">Η συλλογή μου</Link></nav>

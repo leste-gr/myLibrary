@@ -23,6 +23,19 @@ export async function signOut() {
   redirect("/");
 }
 
+export async function deleteCollection(formData: FormData) {
+  const collectionId = String(formData.get("collectionId") ?? "");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(collectionId)) throw new Error("Invalid collection.");
+  const { supabase, user } = await authenticatedClient();
+  const { data: collection } = await supabase.from("collections").select("id,slug").eq("id", collectionId).eq("owner_id", user.id).maybeSingle();
+  if (!collection) throw new Error("Collection not found.");
+  const { error } = await supabase.rpc("delete_owned_collection", { target_collection_id: collection.id });
+  if (error) throw new Error("Could not delete collection: " + error.message);
+  revalidatePath("/");
+  revalidatePath(`/collections/${collection.slug}`);
+  redirect("/?deleted=1");
+}
+
 export async function saveEditionDraft(formData: FormData) {
   const candidateId = String(formData.get("candidateId") ?? "");
   const copyId = String(formData.get("copyId") ?? "");
