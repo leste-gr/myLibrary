@@ -45,22 +45,22 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
   const server = createShelfieMcpServer({
     listCollections: async () => [{ id, name: "My books", slug: "books" }],
     listCollectionBooks: async () => ({ collectionId: id, total: 1, offset: 0, limit: 100, hasMore: false, books: [{ id: "B1", title: "The Hobbit", author: "Tolkien", isbn13: null, series: null, volume: null, language: "en" }] }),
-    createCollection: async (name, description) => ({ id, name, slug: "collection-test", description }),
-    createDraft: async (_id, books) => { writes++; assert.equal(books.books[0].title, "The Hobbit"); return { draftId: id, status: "pending", bookCount: 1 }; },
+    createCollection: async (name, description, books) => { writes++; assert.equal(books.books[0].title, "The Hobbit"); return { collectionId: id, name, slug: "collection-test", description, importId: id, imported: 1, duplicate: false }; },
+    updateCollection: async (_id, books) => { if (books.books[0].visibleIsbn) throw new Error("invalid ISBN"); writes++; assert.equal(books.books[0].title, "The Hobbit"); return { collectionId: id, slug: "books", importId: id, imported: 1, duplicate: false }; },
   }, "https://library.test");
   const client = new Client({ name: "test", version: "1" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport); await client.connect(clientTransport);
   try {
-    assert.deepEqual((await client.listTools()).tools.map((tool) => tool.name).sort(), ["create_collection", "create_import_draft", "list_collection_books", "list_collections"]);
+    assert.deepEqual((await client.listTools()).tools.map((tool) => tool.name).sort(), ["create_collection", "list_collection_books", "list_collections", "update_collection"]);
     const listed = await client.callTool({ name: "list_collection_books", arguments: { collectionId: id } });
     assert.equal((listed.structuredContent as { total: number }).total, 1);
-    const created = await client.callTool({ name: "create_collection", arguments: { name: "RPG", description: "Games" } });
+    const created = await client.callTool({ name: "create_collection", arguments: { name: "RPG", description: "Games", ...payload } });
     assert.equal((created.structuredContent as { name: string }).name, "RPG");
-    const good = await client.callTool({ name: "create_import_draft", arguments: { collectionId: id, ...payload } });
+    const good = await client.callTool({ name: "update_collection", arguments: { collectionId: id, ...payload } });
     assert.equal(good.isError, undefined);
-    assert.equal((good.structuredContent as { reviewUrl: string }).reviewUrl, `https://library.test/shelfies/review/${id}`);
-    const bad = await client.callTool({ name: "create_import_draft", arguments: { collectionId: id, ...payload, books: [{ ...payload.books[0], visibleIsbn: "9780000000000" }] } });
-    assert.equal(bad.isError, true); assert.equal(writes, 1);
+    assert.equal((good.structuredContent as { collectionUrl: string }).collectionUrl, "https://library.test/collections/books");
+    const bad = await client.callTool({ name: "update_collection", arguments: { collectionId: id, ...payload, books: [{ ...payload.books[0], visibleIsbn: "9780000000000" }] } });
+    assert.equal(bad.isError, true); assert.equal(writes, 2);
   } finally { await client.close(); await server.close(); }
 });

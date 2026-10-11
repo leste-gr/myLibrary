@@ -1,7 +1,7 @@
 # Connected shelfie import — setup and rollout
 
 The branch implements a ChatGPT-compatible MCP server, Supabase OAuth consent,
-private import drafts, owner review, and the provider-neutral paste/file fallback.
+backend-owned collection imports, and the provider-neutral paste/file fallback.
 The backend never calls an AI model. Users upload photographs to their own chat.
 Vercel/Supabase hosting and users' existing subscription limits still apply.
 
@@ -34,8 +34,9 @@ In Supabase SQL Editor, run the entire file as a single transaction:
 
 Prerequisite: migrations 001–009 already applied. The migration is one-time, not
 idempotent. Existing browser imports keep their RPC names. Their implementations
-move to the unexposed `private` schema so OAuth cannot bypass draft review by calling
-the old security-definer functions. Do not expose `private` in the Data API settings.
+move to the unexposed `private` schema. The narrowly scoped assistant import RPCs
+validate ownership and payloads before calling that implementation. Do not expose
+`private` in the Data API settings.
 
 The migration also restricts OAuth tokens at the table/RPC layer, adds a client
 allowlist, per-user connection consent/revocation, draft deduplication, and a quota
@@ -99,27 +100,24 @@ Enter the exact callback shown there in Supabase's client registration. Sign int
 myLibrary and approve the named application on the consent screen.
 
 The connected server exposes `list_collections`, `list_collection_books`,
-`create_collection`, and `create_import_draft`. Collection creation requires an
-explicit user request. Imports always remain private drafts until browser review.
+`create_collection`, and `update_collection`. Collection creation and imports
+require an explicit user request. `create_collection` receives the name and complete
+book JSON atomically; `update_collection` appends the JSON books to an owned collection.
 
 Test with a small shelf photo or a JSON attachment:
 
 1. Ask to list your collections, then choose one.
 2. Ask to list the books in that collection. For a new destination, explicitly
    ask it to create a collection with a name and optional description.
-3. Ask to send the visible books or attached JSON for review. Confirm the assistant returns a review
-   link and does not claim the books have been published.
-4. Follow the link. Check titles, authors, uncertainty notes and visible ISBNs;
-   uncheck one book and change another title.
-5. Import. Only selected books should appear, followed by automatic ISBN matching.
-6. Reopen the draft link: it must report that it was already imported.
-7. Repeat the same tool payload: the draft ID must be unchanged.
-8. Visit `/shelfies/connections` and revoke access. Further tool calls must fail,
+3. Ask it to construct the JSON and create or update the selected collection.
+4. Open the returned collection link and verify the imported books.
+5. Repeat the same tool payload: no duplicate books or collection should be created.
+6. Visit `/shelfies/connections` and revoke access. Further tool calls must fail,
    including with a previously issued access token. Reconnect through consent.
 
 The user's signed-in account owns every draft; collection IDs never grant access.
 Prompt injection in titles/notes cannot grant additional tools or SQL privileges.
-The review UI renders book fields as text, never HTML.
+The browser fallback review UI renders book fields as text, never HTML.
 
 ## 6. Package and distribute
 

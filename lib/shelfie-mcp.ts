@@ -1,13 +1,14 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { parseManualGenaiImport, SHELFIE_GENAI_PROMPT, MAX_IMPORT_BYTES, type ManualGenaiImport } from "./manual-genai-import";
+import { SHELFIE_GENAI_PROMPT, MAX_IMPORT_BYTES, type ManualGenaiImport } from "./manual-genai-import";
 
 export type ShelfieTools = {
   listCollections: () => Promise<{ id: string; name: string; slug: string }[]>;
   listCollectionBooks: (collectionId: string, limit: number, offset: number) => Promise<{ collectionId: string; total: number; offset: number; limit: number; hasMore: boolean; books: { id: string; title: string; author: string; isbn13: string | null; series: string | null; volume: string | null; language: string }[] }>;
-  createCollection: (name: string, description: string | null) => Promise<{ id: string; name: string; slug: string; description: string | null }>;
-  createDraft: (collectionId: string, payload: ManualGenaiImport) => Promise<{ draftId: string; status: string; bookCount: number }>;
+  createCollection: (name: string, description: string | null, payload: ManualGenaiImport) => Promise<ImportResult>;
+  updateCollection: (collectionId: string, payload: ManualGenaiImport) => Promise<ImportResult>;
 };
+type ImportResult = { collectionId: string; slug: string; importId: string; imported: number; duplicate: boolean; name?: string; description?: string | null };
 const optionalText = (max: number) => z.string().max(max).nullable().optional();
 const bookSchema = z.object({
   position: z.number().int().min(1).max(100), title: z.string().min(1).max(300),
@@ -20,7 +21,7 @@ const bookSchema = z.object({
 
 export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
   const server = new McpServer({ name: "mylibrary-shelfie", version: "1.0.0" }, {
-    instructions: "You can list the owner's collections and books. Extract one record per physical spine or supplied JSON entry, preserving order and duplicate copies. Never invent ISBNs or bibliographic facts. Ask for a clearer photo when needed. Before importing, list collections and ask whether to use one or create a new collection. Create a collection only when the user explicitly requests it. Submit private drafts only; return the review URL and explain that the owner must review and import in myLibrary. Never claim a draft is published.",
+    instructions: "You can list the owner's collections and books. Create the mylibrary.shelfie.v1 JSON from a shelf photo or other user-provided book information, preserving one record per physical book, order, and duplicate copies. Never invent ISBNs or bibliographic facts. Ask for a clearer photo when needed. Use create_collection with the complete JSON when the user requests a new collection. Use update_collection with the complete JSON and an existing collection id to append books. Never call a write tool without the user's explicit request.",
   });
   const securitySchemes = [{ type: "oauth2", scopes: ["openid"] }];
   server.registerTool("list_collections", {
@@ -41,29 +42,32 @@ export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
     catch { return { isError: true, content: [{ type: "text", text: "Unable to list this collection. Check access and try again." }] }; }
   });
   server.registerTool("create_collection", {
-    title: "Create a library collection", description: "Create a new empty collection owned by the signed-in user. Call only after the user explicitly asks for a new collection, then use its id with create_import_draft.",
-    inputSchema: { name: z.string().trim().min(1).max(120), description: z.string().trim().max(1000).nullable().optional() },
-    outputSchema: { id: z.string(), name: z.string(), slug: z.string(), description: z.string().nullable() },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }, _meta: { securitySchemes },
-  }, async ({ name, description }) => {
-    try { const result = await tools.createCollection(name, description ?? null); return { structuredContent: result, content: [{ type: "text", text: JSON.stringify(result) }] }; }
+    title: "Create and populate a library collection", description: "Create a collection and atomically import the supplied book JSON. The chat model must construct the complete mylibrary.shelfie.v1 payload before calling. Repeating the exact same name and payload returns the original import.",
+    inputSchema: { name: z.string().trim().min(1).max(120), description: z.string().trim().max(1000).nullable().optional(), schemaVersion: z.literal("mylibrary.shelfie.v1"), books: z.array(bookSchema).min(1).max(100) },
+    outputSchema: { collectionId: z.string(), slug: z.string(), importId: z.string(), imported: z.number(), duplicate: z.boolean(), name: z.string().optional(), description: z.string().nullable().optional(), collectionUrl: z.string() },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }, _meta: { securitySchemes },
+  }, async ({ name, description, ...input }) => {
+    try {
+      const result = await tools.createCollection(name, description ?? null, input as ManualGenaiImport);
+      const output = { ...result, collectionUrl: `${origin}/collections/${result.slug}` };
+      return { structuredContent: output, content: [{ type: "text", text: JSON.stringify(output) }] };
+    }
     catch (error) { return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : "Collection could not be created." }] }; }
   });
-  server.registerTool("create_import_draft", {
-    title: "Send books to myLibrary for review",
-    description: "Create a private, owner-only draft from visible book spines after the user requests it. No books are published. Use one record per physical book, retain repeated copies, preserve shelf order, and transcribe only visible information. visibleIsbn must be null unless read in full from the photo. Return the review URL to the user. Repeating the same payload returns the same draft.",
+  server.registerTool("update_collection", {
+    title: "Add books to an existing collection",
+    description: "Append books from the complete mylibrary.shelfie.v1 JSON to an owned collection. The backend validates and imports atomically. Existing books are retained; repeating the same payload does not create duplicates.",
     inputSchema: { collectionId: z.string().uuid(), schemaVersion: z.literal("mylibrary.shelfie.v1"), books: z.array(bookSchema).min(1).max(100) },
-    outputSchema: { draftId: z.string(), status: z.string(), bookCount: z.number(), reviewUrl: z.string() },
+    outputSchema: { collectionId: z.string(), slug: z.string(), importId: z.string(), imported: z.number(), duplicate: z.boolean(), collectionUrl: z.string() },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }, _meta: { securitySchemes },
   }, async ({ collectionId, ...input }) => {
     try {
       if (new TextEncoder().encode(JSON.stringify(input)).byteLength > MAX_IMPORT_BYTES) throw new Error("Payload exceeds 1 MB.");
-      const payload = parseManualGenaiImport(input);
-      const draft = await tools.createDraft(collectionId, payload);
-      const result = { ...draft, reviewUrl: `${origin}/shelfies/review/${draft.draftId}` };
-      return { structuredContent: result, content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) { return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : "Draft could not be created." }] }; }
+      const result = await tools.updateCollection(collectionId, input as ManualGenaiImport);
+      const output = { ...result, collectionUrl: `${origin}/collections/${result.slug}` };
+      return { structuredContent: output, content: [{ type: "text", text: JSON.stringify(output) }] };
+    } catch (error) { return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : "Collection could not be updated." }] }; }
   });
-  server.registerPrompt("read_shelf_photo", { title: "Read a shelf photo", description: "Extract books using your AI subscription and send a private draft to myLibrary." }, () => ({ messages: [{ role: "user", content: { type: "text", text: SHELFIE_GENAI_PROMPT.replace("Return ONLY valid JSON. Do not use Markdown fences and do not add commentary.", "Use these extraction rules with list_collections and create_import_draft. Ask for the destination collection. Return the draft review link; do not publish books.") } }] }));
+  server.registerPrompt("read_shelf_photo", { title: "Read a shelf photo", description: "Extract books using your AI subscription and add them to myLibrary." }, () => ({ messages: [{ role: "user", content: { type: "text", text: SHELFIE_GENAI_PROMPT.replace("Return ONLY valid JSON. Do not use Markdown fences and do not add commentary.", "Use these extraction rules to build the JSON input for create_collection or update_collection. Ask whether to create a new collection or append to an existing one before writing.") } }] }));
   return server;
 }

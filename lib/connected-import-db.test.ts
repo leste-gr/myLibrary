@@ -71,9 +71,16 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     const listed = await rpc("assistant_list_collection_books", [a, 100, 0]);
     assert.equal(listed.total, 1); assert.equal(listed.books[0].title, "The Hobbit"); assert.equal(listed.hasMore, false);
     await assert.rejects(() => rpc("assistant_list_collection_books", [b, 100, 0]), /denied/);
-    const createdCollection = await rpc("assistant_create_collection", ["RPG", "Games"]);
+    const rpgPayload = { ...payload, books: [{ ...book, title: "RPG Book" }] };
+    const createdCollection = await rpc("assistant_create_collection", ["RPG", "Games", rpgPayload]);
     assert.equal(createdCollection.name, "RPG");
     assert.match(createdCollection.slug, /^collection-[a-f0-9]{12}$/);
+    assert.equal(createdCollection.imported, 1);
+    assert.equal((await rpc("assistant_list_collection_books", [createdCollection.collectionId, 100, 0])).total, 1);
+    const appendedPayload = { ...payload, books: [{ ...book, title: "Appended book" }] };
+    assert.equal((await rpc("assistant_update_collection", [a, appendedPayload])).imported, 1);
+    assert.equal((await rpc("assistant_update_collection", [a, appendedPayload])).duplicate, true);
+    assert.equal((await rpc("assistant_list_collection_books", [a, 100, 0])).total, 2);
     const otherPayload = { ...payload, books: [{ ...book, title: "Second book" }] };
     const discarded = await rpc("create_shelfie_draft", [a, otherPayload]);
     await claims(alice); await rpc("discard_shelfie_draft", [discarded.draftId]);
