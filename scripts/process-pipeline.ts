@@ -62,7 +62,14 @@ async function runStage3() {
   return processed;
 }
 
-const stage2 = await runStage2();
-const stage3 = await runStage3();
-console.log(JSON.stringify({ stage2Imports: stage2, stage3Covers: stage3 }));
+async function main() {
+  const stage2 = await runStage2();
+  const stage3 = await runStage3();
+  console.log(JSON.stringify({ stage2Imports: stage2, stage3Covers: stage3 }));
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : error);
+  process.exitCode = 1;
+});
 
