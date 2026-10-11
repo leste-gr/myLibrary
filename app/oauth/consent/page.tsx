@@ -5,6 +5,9 @@ import { assistantConfigured } from "@/lib/assistant-config";
 
 export const dynamic = "force-dynamic";
 
+const allowedScopes = new Set(["openid", "email", "offline_access"]);
+const scopesAllowed = (scope: string) => scope.split(" ").every((item) => !item || allowedScopes.has(item));
+
 async function decide(form: FormData) {
   "use server";
   if (!assistantConfigured()) redirect("/shelfies/connect");
@@ -17,7 +20,7 @@ async function decide(form: FormData) {
   if (error || !data) redirect(`${back}&error=expired`);
   if (!("authorization_id" in data)) redirect(data.redirect_url);
   if (form.get("decision") === "approve") {
-    if (data.scope.split(" ").some((scope) => scope && scope !== "openid")) redirect(`${back}&error=scope`);
+    if (!scopesAllowed(data.scope)) redirect(`${back}&error=scope`);
     const enabled = await client.rpc("assistant_client_enabled", { target_client_id: data.client.id });
     if (enabled.error || enabled.data !== true) redirect(`${back}&error=client`);
     const grant = await client.rpc("set_assistant_connection", { target_client_id: data.client.id, allow_access: true });
@@ -42,7 +45,7 @@ export default async function ConsentPage({ searchParams }: { searchParams: Prom
   if (error || !data) return <main className="login-card"><h1>Το αίτημα έληξε</h1><p>Ξεκίνα ξανά τη σύνδεση από το AI chat.</p><Link href="/shelfies">Επιστροφή</Link></main>;
   if (!("authorization_id" in data)) redirect(data.redirect_url);
   const enabled = await client.rpc("assistant_client_enabled", { target_client_id: data.client.id });
-  const canApprove = !enabled.error && enabled.data === true && data.scope.split(" ").every((scope) => !scope || scope === "openid");
+  const canApprove = !enabled.error && enabled.data === true && scopesAllowed(data.scope);
   return <main className="login-card"><p className="eyebrow">MYLIBRARY</p><h1>Σύνδεση εφαρμογής</h1><p><strong>{data.client.name}</strong> ζητά σύνδεση με τη βιβλιοθήκη σου.</p>
     <p>Λογαριασμός: {user.email}</p><ul><li>Βλέπει τις συλλογές σου ως προορισμούς εισαγωγής.</li><li>Στέλνει στοιχεία βιβλίων σε ιδιωτικά πρόχειρα για έλεγχο.</li><li>Δεν μπορεί να δημοσιεύσει, να επεξεργαστεί ή να διαγράψει βιβλία.</li></ul>
     <p className="privacy-note">Η φωτογραφία μένει στο AI chat. Μπορείς να ανακαλέσεις τη σύνδεση από τη διαχείριση εφαρμογών.</p>
