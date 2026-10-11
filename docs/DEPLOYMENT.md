@@ -13,6 +13,8 @@ Apply every SQL file in `supabase/migrations/` in filename order using the Supab
 - the authenticated, atomic `import_manual_genai_books` function; and
 - ownership policies for import records.
 
+`202610110010_manual_genai_matching_status.sql` adds persistent Stage 2 progress, failure reporting, and owner-scoped retry state.
+
 Never expose `SUPABASE_SERVICE_ROLE_KEY` in a browser bundle.
 
 ## 2. Import the original catalogue

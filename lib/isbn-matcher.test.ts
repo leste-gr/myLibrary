@@ -50,10 +50,16 @@ test("ranks metadata agreement above a title-only candidate", () => {
 
 test("deduplicates ISBNs and applies the requested limit", () => {
   const records: ProviderCandidate[] = ["9780441172719", "9780261102217", "9780140328721"].flatMap((isbn13, index) => [
-    { isbn13, title: `Book ${index}`, authors: [], publishers: [], publishedDate: null, language: null, provider: "openlibrary" as const, providerId: `OL${index}` },
-    { isbn13, title: `Book ${index}`, authors: [], publishers: [], publishedDate: null, language: null, provider: "google-books" as const, providerId: `G${index}` },
+    { isbn13, title: "Book 0", authors: [], publishers: [], publishedDate: null, language: null, provider: "openlibrary" as const, providerId: `OL${index}` },
+    { isbn13, title: "Book 0", authors: [], publishers: [], publishedDate: null, language: null, provider: "google-books" as const, providerId: `G${index}` },
   ]);
   const ranked = rankIsbnCandidates({ title: "Book 0", authors: [], publisher: null, publicationYear: null, language: null, series: null }, records, 2);
   assert.equal(ranked.length, 2);
   assert.equal(new Set(ranked.map((item) => item.isbn13)).size, 2);
+});
+
+test("does not call providers for an explicitly unreadable title", async () => {
+  const { findIsbnCandidates } = await import("./isbn-matcher");
+  const result = await findIsbnCandidates({ title: "Unreadable", authors: [], publisher: null, publicationYear: null, language: null, series: null });
+  assert.deepEqual(result, { candidates: [], providerFailures: 0 });
 });

@@ -18,6 +18,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
   const { data: { user } } = await supabase.auth.getUser();
   let viewerCollectionSlug: string | null = null;
   let canEdit = false;
+  let unfinishedImport: { id: string; matching_status: string; matching_error: string | null; matching_started_at: string | null } | null = null;
   if (user) {
     const { data: viewerCollections } = await supabase
       .from("collections")
@@ -26,11 +27,26 @@ export default async function CollectionPage({ params, searchParams }: { params:
       .order("created_at", { ascending: true });
     viewerCollectionSlug = viewerCollections?.[0]?.slug ?? null;
     canEdit = viewerCollections?.some((item) => item.slug === collection.slug) ?? false;
+    if (canEdit) {
+      const { data: importData } = await supabase
+        .from("manual_genai_imports")
+        .select("id,matching_status,matching_error,matching_started_at")
+        .eq("collection_id", collection.id)
+        .in("matching_status", ["pending", "processing", "partial", "failed"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      unfinishedImport = importData;
+    }
   }
+  const matchingIsStale = unfinishedImport?.matching_status === "processing"
+    && (!unfinishedImport.matching_started_at || Date.now() - new Date(unfinishedImport.matching_started_at).getTime() > 10 * 60 * 1000);
   return <>
     {imported && <div className="global-notice" role="status">Εισήχθησαν {imported} βιβλία από το αρχείο JSON.</div>}
     {matched !== undefined && <div className="global-notice" role="status">Το Stage 2 αντιστοίχισε ISBN σε {matched} βιβλία. {unresolved !== "0" && `${unresolved} έμειναν χωρίς υποψήφιο ISBN.`} {retryable !== "0" && `${retryable} χρειάζονται νέα προσπάθεια.`}</div>}
     {matching === "retry" && matchImport && canEdit && <IsbnMatchRetry importId={matchImport} collectionSlug={collection.slug} />}
+    {matching !== "retry" && unfinishedImport && (unfinishedImport.matching_status !== "processing" || matchingIsStale) && <IsbnMatchRetry importId={unfinishedImport.id} collectionSlug={collection.slug} />}
+    {unfinishedImport?.matching_status === "processing" && !matchingIsStale && <div className="global-notice" role="status">Το Stage 2 επεξεργάζεται αυτή τη στιγμή την τελευταία εισαγωγή.</div>}
     <Catalogue initialBooks={books} collection={collection} canEdit={canEdit} viewerCollectionSlug={viewerCollectionSlug} />
   </>;
 }

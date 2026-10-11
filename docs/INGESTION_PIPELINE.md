@@ -13,6 +13,8 @@ This is the canonical contract for turning a shelfie into published books. Detai
 | 3. Resolve cover | Implemented for mapped ISBNs | The selected ISBN is served through the cached `/api/covers/{isbn}` provider cascade. Non-ISBN fallback remains a future enhancement. |
 | 4. Owner refinement | Implemented | On their public collection page, the owner can inspect candidates, choose an edition, or enter an ISBN manually. |
 
+Stage 2 progress is stored on the import record. Interrupted, partial, and failed matches remain visible to the owner on later visits and can be retried without uploading the JSON again. A processing attempt older than ten minutes is treated as stale and becomes retryable.
+
 ## Stage handoffs
 
 ### Stage 1 → Stage 2

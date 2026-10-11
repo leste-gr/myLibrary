@@ -198,7 +198,9 @@ export function rankIsbnCandidates(input: IsbnMatchInput, records: ProviderCandi
       scoreBreakdown: { ...best.breakdown, providerAgreement },
       providerCount: providers.size,
     };
-  }).sort((left, right) => right.score - left.score || left.isbn13.localeCompare(right.isbn13)).slice(0, limit);
+  }).filter((candidate) => candidate.scoreBreakdown.title >= 250)
+    .sort((left, right) => right.score - left.score || left.isbn13.localeCompare(right.isbn13))
+    .slice(0, limit);
 
   const leader = ranked[0]?.score ?? 0;
   const runnerUp = ranked[1]?.score ?? 0;
