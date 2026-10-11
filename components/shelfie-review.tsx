@@ -70,14 +70,8 @@ export function ShelfieReview({ userId, collections, initialDraft, canImport = t
         : await supabase.rpc("import_manual_genai_books", { target_collection_id: target.id, target_import_id: crypto.randomUUID(), payload });
       if (imported.error) throw new Error(imported.error.message);
       const result = imported.data as { imported: number; duplicate?: boolean; importId: string };
-      importCompleted = true; setPhase("Αναζήτηση ISBN…");
-      let matchingQuery = "matching=retry";
-      try {
-        const response = await fetch(`/api/imports/${result.importId}/match`, { method: "POST" });
-        const match = await response.json() as { matched?: number; unresolved?: number; retryable?: number };
-        if (response.ok) matchingQuery = `matched=${match.matched ?? 0}&unresolved=${match.unresolved ?? 0}&retryable=${match.retryable ?? 0}`;
-      } catch { /* Import is safe; matching can be retried on the collection page. */ }
-      router.push(`/collections/${target.slug}?imported=${result.imported}&${matchingQuery}&matchImport=${result.importId}`);
+      importCompleted = true; setPhase("Το ISBN matching μπήκε στην ουρά…");
+      router.push(`/collections/${target.slug}?imported=${result.imported}`);
       router.refresh();
     } catch (reason) {
       if (createdCollectionId && !importCompleted) await supabase.from("collections").delete().eq("id", createdCollectionId);

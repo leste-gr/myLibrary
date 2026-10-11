@@ -46,7 +46,8 @@ export default async function CollectionPage({ params, searchParams }: { params:
     {imported && <div className="global-notice" role="status">Εισήχθησαν {imported} βιβλία από το αρχείο JSON.</div>}
     {matched !== undefined && <div className="global-notice" role="status">Το Stage 2 αντιστοίχισε ISBN σε {matched} βιβλία. {unresolved !== "0" && `${unresolved} έμειναν χωρίς υποψήφιο ISBN.`} {retryable !== "0" && `${retryable} χρειάζονται νέα προσπάθεια.`}</div>}
     {matching === "retry" && matchImport && canEdit && <IsbnMatchRetry importId={matchImport} collectionSlug={collection.slug} />}
-    {matching !== "retry" && unfinishedImport && (unfinishedImport.matching_status !== "processing" || matchingIsStale) && <IsbnMatchRetry importId={unfinishedImport.id} collectionSlug={collection.slug} />}
+    {matching !== "retry" && unfinishedImport && (["partial", "failed"].includes(unfinishedImport.matching_status) || matchingIsStale) && <IsbnMatchRetry importId={unfinishedImport.id} collectionSlug={collection.slug} />}
+    {unfinishedImport?.matching_status === "pending" && <div className="global-notice" role="status">Το Stage 2 είναι στην ουρά και θα ξεκινήσει αυτόματα.</div>}
     {unfinishedImport?.matching_status === "processing" && !matchingIsStale && <div className="global-notice" role="status">Το Stage 2 επεξεργάζεται αυτή τη στιγμή την τελευταία εισαγωγή.</div>}
     <Catalogue initialBooks={books} collection={collection} canEdit={canEdit} viewerCollectionSlug={viewerCollectionSlug} />
   </>;
