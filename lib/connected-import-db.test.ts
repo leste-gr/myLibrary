@@ -61,9 +61,7 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     await claims(alice);
     assert.equal((await db.query("select * from public.shelfie_import_drafts")).rows.length, 1);
     assert.equal((await db.query("select * from public.copies")).rows.length, 0);
-    await assert.rejects(() => rpc("confirm_shelfie_draft", [draft.draftId, { ...payload, books: [book, { ...book, position: 2, title: "" }] }]), /requires a title/);
-    assert.equal((await db.query("select * from public.copies")).rows.length, 0, "a failed import rolls back all books");
-    const imported = await rpc("confirm_shelfie_draft", [draft.draftId, payload]);
+    const imported = await rpc("confirm_shelfie_draft", [draft.draftId, { ...payload, books: [book, { ...book, position: 2, title: "" }] }]);
     assert.equal(imported.imported, 1);
     assert.deepEqual(await rpc("confirm_shelfie_draft", [draft.draftId, payload]), imported);
     assert.equal((await db.query("select * from public.copies")).rows.length, 1);

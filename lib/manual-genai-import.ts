@@ -48,12 +48,6 @@ function optionalText(value: unknown, field: string, index: number, maxLength = 
   return result;
 }
 
-function requiredTitle(value: unknown, index: number): string {
-  const title = optionalText(value, "title", index);
-  if (!title) throw new Error(`Book ${index}: title is required.`);
-  return title;
-}
-
 export function parseManualGenaiImport(value: unknown): ManualGenaiImport {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("The JSON root must be an object.");
   const root = value as Record<string, unknown>;
@@ -62,10 +56,14 @@ export function parseManualGenaiImport(value: unknown): ManualGenaiImport {
     throw new Error(`books must contain between 1 and ${MAX_IMPORT_BOOKS} items.`);
   }
   const positions = new Set<number>();
-  const books = root.books.map((entry, offset): ManualGenaiBook => {
+  const books = root.books.flatMap((entry, offset): ManualGenaiBook[] => {
     const index = offset + 1;
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) throw new Error(`Book ${index} must be an object.`);
     const book = entry as Record<string, unknown>;
+    const title = optionalText(book.title, "title", index);
+    // A detected spine is not a book-information record until it has a title.
+    // Skip it before validating or persisting any of its other metadata.
+    if (!title) return [];
     const position = book.position;
     if (!Number.isInteger(position) || Number(position) < 1 || Number(position) > MAX_IMPORT_BOOKS) throw new Error(`Book ${index}: position must be a positive integer.`);
     if (positions.has(Number(position))) throw new Error(`Book ${index}: position ${position} is duplicated.`);
@@ -83,9 +81,9 @@ export function parseManualGenaiImport(value: unknown): ManualGenaiImport {
     const rawIsbn = optionalText(book.visibleIsbn, "visibleIsbn", index, 32);
     const visibleIsbn = rawIsbn ? canonicalIsbn(rawIsbn) : null;
     if (rawIsbn && !visibleIsbn) throw new Error(`Book ${index}: visibleIsbn is not a valid ISBN-10 or ISBN-13.`);
-    return {
+    return [{
       position: Number(position),
-      title: requiredTitle(book.title, index),
+      title,
       subtitle: optionalText(book.subtitle, "subtitle", index),
       authors: book.authors.map((author) => String(author).trim()),
       publisher: optionalText(book.publisher, "publisher", index, 200),
@@ -97,8 +95,9 @@ export function parseManualGenaiImport(value: unknown): ManualGenaiImport {
       visibleIsbn,
       confidence: book.confidence,
       notes: optionalText(book.notes, "notes", index, 500),
-    };
+    }];
   });
+  if (books.length === 0) throw new Error("At least one book with a title is required.");
   books.sort((left, right) => left.position - right.position);
   return { schemaVersion: MANUAL_GENAI_SCHEMA_VERSION, books };
 }
@@ -114,7 +113,7 @@ Rules:
 4. visibleIsbn must be null unless a complete ISBN-10 or ISBN-13 is visibly readable in the image. Never guess an ISBN from a title.
 5. Use [] when no author is visible. Use null for other unknown fields.
 6. confidence is your confidence that this item is one correctly separated physical book and that its title is correct, from 0 to 1.
-7. If a spine is unreadable, still include it with the best short title fragment and explain the uncertainty in notes.
+7. A title is required. Do not include a spine when no title or meaningful title fragment can be detected. Never use placeholders such as "Unknown", "Unreadable", or "Untitled".
 8. Include repeated copies as separate items.
 
 Use this exact schema and field names:

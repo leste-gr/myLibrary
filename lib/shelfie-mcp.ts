@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { SHELFIE_GENAI_PROMPT, MAX_IMPORT_BYTES, type ManualGenaiImport } from "./manual-genai-import";
+import { SHELFIE_GENAI_PROMPT, MAX_IMPORT_BYTES, parseManualGenaiImport, type ManualGenaiImport } from "./manual-genai-import";
 
 export type ShelfieTools = {
   listCollections: () => Promise<{ id: string; name: string; slug: string }[]>;
@@ -11,7 +11,7 @@ export type ShelfieTools = {
 type ImportResult = { collectionId: string; slug: string; importId: string | null; imported: number; ignoredExisting?: number; duplicate: boolean; name?: string; description?: string | null };
 const optionalText = (max: number) => z.string().max(max).nullable().optional();
 const bookSchema = z.object({
-  position: z.number().int().min(1).max(100), title: z.string().min(1).max(300),
+  position: z.number().int().min(1).max(100), title: z.string().max(300).nullable().optional(),
   authors: z.array(z.string().min(1).max(160)).max(10), confidence: z.number().min(0).max(1),
   subtitle: optionalText(300), publisher: optionalText(200), language: optionalText(40),
   publicationYear: z.number().int().min(1400).max(2100).nullable().optional(),
@@ -48,7 +48,7 @@ export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }, _meta: { securitySchemes },
   }, async ({ name, description, ...input }) => {
     try {
-      const result = await tools.createCollection(name, description ?? null, input as ManualGenaiImport);
+      const result = await tools.createCollection(name, description ?? null, parseManualGenaiImport(input));
       const output = { ...result, collectionUrl: `${origin}/collections/${result.slug}` };
       return { structuredContent: output, content: [{ type: "text", text: JSON.stringify(output) }] };
     }
@@ -63,7 +63,7 @@ export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
   }, async ({ collectionId, ...input }) => {
     try {
       if (new TextEncoder().encode(JSON.stringify(input)).byteLength > MAX_IMPORT_BYTES) throw new Error("Payload exceeds 1 MB.");
-      const result = await tools.updateCollection(collectionId, input as ManualGenaiImport);
+      const result = await tools.updateCollection(collectionId, parseManualGenaiImport(input));
       const output = { ...result, collectionUrl: `${origin}/collections/${result.slug}` };
       return { structuredContent: output, content: [{ type: "text", text: JSON.stringify(output) }] };
     } catch (error) { return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : "Collection could not be updated." }] }; }

@@ -58,11 +58,16 @@ test("rejects invalid confidence and ISBN values", () => {
   );
 });
 
-test("requires a title and an authors array", () => {
-  assert.throws(
-    () => parseManualGenaiImport({ schemaVersion: MANUAL_GENAI_SCHEMA_VERSION, books: [book({ title: "" })] }),
-    /title/,
-  );
+test("skips title-less records and requires at least one titled book", () => {
+  const parsed = parseManualGenaiImport({
+    schemaVersion: MANUAL_GENAI_SCHEMA_VERSION,
+    books: [book({ title: "" }), book({ position: 2, title: "Dune", visibleIsbn: null })],
+  });
+  assert.deepEqual(parsed.books.map((item) => item.title), ["Dune"]);
+  assert.throws(() => parseManualGenaiImport({ schemaVersion: MANUAL_GENAI_SCHEMA_VERSION, books: [book({ title: null })] }), /At least one book with a title/);
+});
+
+test("still requires an authors array for titled books", () => {
   assert.throws(
     () => parseManualGenaiImport({ schemaVersion: MANUAL_GENAI_SCHEMA_VERSION, books: [book({ authors: null })] }),
     /authors/,
