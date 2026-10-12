@@ -63,9 +63,28 @@ async function runStage3() {
 }
 
 async function main() {
-  const stage2 = await runStage2();
-  const stage3 = await runStage3();
-  console.log(JSON.stringify({ stage2Imports: stage2, stage3Covers: stage3 }));
+  const runner = process.env.GITHUB_RUN_ID ? `github-actions:${process.env.GITHUB_RUN_ID}` : "manual";
+  const { data: run, error: startError } = await supabase
+    .from("ingestion_pipeline_runs")
+    .insert({ runner })
+    .select("id")
+    .single();
+  if (startError) throw new Error(`Pipeline heartbeat failed: ${startError.message}`);
+  try {
+    const stage2 = await runStage2();
+    const stage3 = await runStage3();
+    const { error } = await supabase.from("ingestion_pipeline_runs").update({
+      status: "completed", stage2_imports: stage2, stage3_covers: stage3, completed_at: new Date().toISOString(),
+    }).eq("id", run.id);
+    if (error) throw new Error(`Pipeline heartbeat completion failed: ${error.message}`);
+    console.log(JSON.stringify({ stage2Imports: stage2, stage3Covers: stage3 }));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Pipeline failed.";
+    await supabase.from("ingestion_pipeline_runs").update({
+      status: "failed", error: message.slice(0, 1000), completed_at: new Date().toISOString(),
+    }).eq("id", run.id);
+    throw error;
+  }
 }
 
 main().catch((error) => {
