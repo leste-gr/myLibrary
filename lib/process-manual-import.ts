@@ -36,7 +36,7 @@ async function updateStatuses(supabase: SupabaseClient, ids: string[], status: "
 async function runManualGenaiImportMatching(supabase: SupabaseClient, importId: string) {
   const { data: importRecord, error: importError } = await supabase
     .from("manual_genai_imports")
-    .select("id,collection_id,book_count")
+    .select("id,collection_id,book_count,matching_attempts")
     .eq("id", importId)
     .single();
   if (importError || !importRecord) throw new Error(importError?.message || "Import not found.");
@@ -106,8 +106,8 @@ async function runManualGenaiImportMatching(supabase: SupabaseClient, importId: 
   }
 
   const matchedIds = processed.filter(({ result }) => result.candidates.length > 0).map(({ observation }) => observation.id);
-  const retryIds = processed.filter(({ result }) => !result.candidates.length && result.providerFailures === 2).map(({ observation }) => observation.id);
-  const unresolvedIds = processed.filter(({ result }) => !result.candidates.length && result.providerFailures < 2).map(({ observation }) => observation.id);
+  const retryIds = processed.filter(({ result }) => !result.candidates.length && result.providerFailures > 0).map(({ observation }) => observation.id);
+  const unresolvedIds = processed.filter(({ result }) => !result.candidates.length && result.providerFailures === 0).map(({ observation }) => observation.id);
   await updateStatuses(supabase, matchedIds, "matched");
   await updateStatuses(supabase, unresolvedIds, "unresolved");
   await updateStatuses(supabase, retryIds, "ready_for_matching");
@@ -120,12 +120,16 @@ async function runManualGenaiImportMatching(supabase: SupabaseClient, importId: 
     retryable: retryIds.length,
     candidates: candidateRows.length,
   };
+  const attempts = Number(importRecord.matching_attempts ?? 1);
+  const retryExhausted = retryIds.length > 0 && attempts >= 5;
+  const retryDelayMinutes = Math.min(60, 5 * (2 ** Math.max(0, attempts - 1)));
   const { error: completionError } = await supabase.from("manual_genai_imports").update({
-    matching_status: retryIds.length ? "partial" : "completed",
+    matching_status: retryIds.length ? (retryExhausted ? "failed" : "partial") : "completed",
     matched_count: matchedIds.length,
     unresolved_count: unresolvedIds.length,
     retryable_count: retryIds.length,
-    matching_error: null,
+    matching_error: retryExhausted ? "ISBN providers remained unavailable after 5 attempts." : null,
+    next_retry_at: retryIds.length && !retryExhausted ? new Date(Date.now() + retryDelayMinutes * 60_000).toISOString() : null,
     matching_completed_at: new Date().toISOString(),
   }).eq("id", importId);
   if (completionError) throw new Error(completionError.message);

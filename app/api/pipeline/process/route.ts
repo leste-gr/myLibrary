@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Cover resolution failed.";
         await supabase.from("cover_resolution_jobs").update({
-          status: "failed", error: message.slice(0, 1000), completed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+          status: "failed", error: message.slice(0, 1000), next_retry_at: new Date(Date.now() + Math.min(60, 5 * (2 ** Math.max(0, job.attempts - 1))) * 60_000).toISOString(), completed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
         }).eq("isbn13", job.isbn13);
       }
       stage3++;

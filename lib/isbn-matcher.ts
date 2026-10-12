@@ -1,4 +1,6 @@
 import { canonicalIsbn } from "./isbn";
+import books from "@/books.json";
+import acceptedIsbns from "@/isbn.json";
 
 export type IsbnMatchInput = {
   title: string;
@@ -26,7 +28,7 @@ export type RankedIsbnCandidate = {
 };
 
 export type ProviderCandidate = Omit<RankedIsbnCandidate, "score" | "confidence" | "rank" | "evidence" | "scoreBreakdown" | "providerCount"> & {
-  provider: "openlibrary" | "google-books";
+  provider: "openlibrary" | "google-books" | "legacy-catalogue";
 };
 
 type ProviderResult = { records: ProviderCandidate[]; failed: boolean };
@@ -34,6 +36,21 @@ type ProviderResult = { records: ProviderCandidate[]; failed: boolean };
 const UNKNOWN_AUTHORS = new Set(["", "άγνωστος", "unknown", "μη αναγνωσμένος", "συλλογικό έργο"]);
 const USER_AGENT = "myLibrary-isbn-matcher/1.0 (+https://github.com/leste-gr/myLibrary)";
 let googleRetryAfter = 0;
+
+const legacyRecords: ProviderCandidate[] = books.flatMap((book) => {
+  const isbn13 = (acceptedIsbns as Record<string, string>)[book.id];
+  if (!isbn13) return [];
+  return [{
+    isbn13,
+    title: book.title,
+    authors: book.author ? [book.author] : [],
+    publishers: book.publisher ? [book.publisher] : [],
+    publishedDate: null,
+    language: book.language ?? null,
+    provider: "legacy-catalogue" as const,
+    providerId: book.id,
+  }];
+});
 
 export function normalizedText(value: unknown) {
   return String(value ?? "")
@@ -131,6 +148,7 @@ async function googleBooksCandidates(input: IsbnMatchInput): Promise<ProviderRes
     url.searchParams.set("maxResults", "20");
     url.searchParams.set("printType", "books");
     url.searchParams.set("fields", "items(id,volumeInfo(title,authors,publisher,publishedDate,language,industryIdentifiers))");
+    if (process.env.GOOGLE_BOOKS_API_KEY) url.searchParams.set("key", process.env.GOOGLE_BOOKS_API_KEY);
     const payload = await fetchJson<{ items?: Array<{ id?: string; volumeInfo?: { title?: string; authors?: string[]; publisher?: string; publishedDate?: string; language?: string; industryIdentifiers?: Array<{ identifier?: string }> } }> }>(url);
     const records: ProviderCandidate[] = [];
     for (const item of payload.items ?? []) {
@@ -156,6 +174,12 @@ async function googleBooksCandidates(input: IsbnMatchInput): Promise<ProviderRes
     googleRetryAfter = Date.now() + 60_000;
     return { records: [], failed: true };
   }
+}
+
+export function legacyCatalogueCandidates(input: IsbnMatchInput) {
+  // This is previously reviewed local catalogue data, so it remains available
+  // when external providers are unavailable. Ranking still validates metadata.
+  return legacyRecords.filter((record) => textSimilarity(input.title, record.title) >= 0.5);
 }
 
 export function rankIsbnCandidates(input: IsbnMatchInput, records: ProviderCandidate[], limit = 10): RankedIsbnCandidate[] {
@@ -218,7 +242,7 @@ export async function findIsbnCandidates(input: IsbnMatchInput) {
   }
   const results = await Promise.all([openLibraryCandidates(input), googleBooksCandidates(input)]);
   return {
-    candidates: rankIsbnCandidates(input, results.flatMap((result) => result.records)),
+    candidates: rankIsbnCandidates(input, [...legacyCatalogueCandidates(input), ...results.flatMap((result) => result.records)]),
     providerFailures: results.filter((result) => result.failed).length,
   };
 }

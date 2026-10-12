@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizedText, rankIsbnCandidates, textSimilarity, type ProviderCandidate } from "./isbn-matcher";
+import { legacyCatalogueCandidates, normalizedText, rankIsbnCandidates, textSimilarity, type ProviderCandidate } from "./isbn-matcher";
 
 test("normalizes Greek accents and punctuation", () => {
   assert.equal(normalizedText("  Τά Τρία-Σώματα! "), "τα τρια σωματα");
@@ -62,4 +62,10 @@ test("does not call providers for an explicitly unreadable title", async () => {
   const { findIsbnCandidates } = await import("./isbn-matcher");
   const result = await findIsbnCandidates({ title: "Unreadable", authors: [], publisher: null, publicationYear: null, language: null, series: null });
   assert.deepEqual(result, { candidates: [], providerFailures: 0 });
+});
+
+test("reuses reviewed ISBN knowledge from the legacy catalogue", () => {
+  const records = legacyCatalogueCandidates({ title: "Dune", authors: ["Frank Herbert"], publisher: null, publicationYear: null, language: "en", series: null });
+  assert.ok(records.some((record) => record.isbn13));
+  assert.ok(records.every((record) => record.provider === "legacy-catalogue"));
 });
