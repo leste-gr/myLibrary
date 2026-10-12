@@ -3,11 +3,11 @@ import { processManualGenaiImport } from "../lib/process-manual-import";
 
 type CoverJob = { isbn13: string; attempts: number };
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const siteUrl = process.env.MYLIBRARY_SITE_URL?.replace(/\/$/, "");
 if (!url || !serviceRoleKey || !siteUrl) {
-  throw new Error("NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and MYLIBRARY_SITE_URL are required.");
+  throw new Error("SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL), SUPABASE_SERVICE_ROLE_KEY, and MYLIBRARY_SITE_URL are required.");
 }
 
 const supabase = createClient(url, serviceRoleKey, { auth: { persistSession: false } });

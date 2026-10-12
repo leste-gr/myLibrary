@@ -4,6 +4,14 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "*/5 * * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ingestion-pipeline.yml"
+      - "scripts/process-pipeline.ts"
+      - "lib/isbn-matcher.ts"
+      - "lib/process-manual-import.ts"
+      - "supabase/migrations/**"
 
 concurrency:
   group: mylibrary-ingestion-pipeline
@@ -22,7 +30,7 @@ jobs:
       - run: npm ci
       - run: npm run pipeline:process
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           MYLIBRARY_SITE_URL: https://mylibrary-leste-gr.vercel.app
 
