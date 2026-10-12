@@ -15,7 +15,22 @@ The 6 October 2026 batch processed all 166 catalogue records:
 - 1,007 ranked candidates are retained, with at most ten per copy and no lookup failures.
 - The production catalogue currently preserves 2 owner overrides and has 144 algorithm-selected copies.
 
-Google Books was excluded from this baseline because the environment's shared API consumer had zero daily query quota. Open Library and the existing source pages completed successfully.
+Google Books was excluded from this baseline because the environment's shared API consumer had zero daily query quota. The reviewed baseline is now also loaded as the local `legacy-catalogue` provider, so deleting and re-importing a collection does not discard known ISBN evidence.
+
+## Provider strategy
+
+| Provider | Access | Coverage/use | Decision |
+| --- | --- | --- | --- |
+| Reviewed myLibrary catalogue | Local, no quota | Previously reviewed editions and bundled covers | Enabled as the first resilient source; external providers still corroborate and rank it. |
+| Open Library | Free public API | Strong general/English coverage; uneven Greek-edition coverage | Enabled. |
+| Google Books | Free API with optional API key and quota | Best current source for translated and Greek editions, but anonymous shared traffic is frequently rate-limited | Enabled with transient-failure handling; configure `GOOGLE_BOOKS_API_KEY` for dependable quota. |
+| Crossref REST API | Free/polite public API | Useful additional ISBN evidence for publisher-registered books; incomplete for trade and older Greek books | Recommended next read-only metadata provider. Validate ISBN/title/author before ranking. |
+| Library of Congress SRU | Free public catalogue endpoint | Useful for English-language and older catalogued editions | Recommended secondary provider after Crossref. |
+| ISBNdb | Commercial API | Broad edition/cover metadata and direct ISBN search | Optional paid provider if free sources leave unacceptable gaps. |
+| WorldCat Search API | OCLC credentials/institutional terms | Broad library holdings and edition metadata | Defer unless eligible OCLC access is available. |
+| Biblionet / Greek publisher catalogues | No stable general public API confirmed | Potentially the best Greek-market authority | Investigate a licensed feed or partnership; do not scrape production pages without permission. |
+
+Provider responses must distinguish `not found` from temporary failures such as HTTP 429, timeouts, and 5xx responses. A book is only permanently unresolved when every responding provider returns a genuine empty result. Temporary failure keeps it retryable with exponential backoff.
 
 ## Mapping evidence
 
