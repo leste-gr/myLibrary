@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "match:import": "tsx scripts/match-manual-import.ts",
     "pipeline:process": "tsx scripts/process-pipeline.ts",
+    "covers:metadata": "tsx scripts/resolve-metadata-covers.ts",
     "import:catalogue": "node --env-file=.env.local scripts/import-catalogue.mjs",
     "import:dry-run": "node scripts/import-catalogue.mjs --dry-run"
   },

@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { processManualGenaiImport } from "../lib/process-manual-import";
+import { resolveMetadataCover, unresolvedMetadataCoverInputs } from "../lib/metadata-cover-resolver";
+import { mapWithConcurrency } from "../lib/isbn-matcher";
 
 type CoverJob = { isbn13: string; attempts: number };
 
@@ -21,6 +23,8 @@ async function runStage2() {
     if (error) throw new Error(`Stage 2 claim failed: ${error.message}`);
     if (!importId) break;
     await processManualGenaiImport(supabase, importId as string);
+    const coverInputs = await unresolvedMetadataCoverInputs(supabase, importId as string);
+    await mapWithConcurrency(coverInputs, 2, (input) => resolveMetadataCover(supabase, input));
     processed++;
   }
   return processed;
