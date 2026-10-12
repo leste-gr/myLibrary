@@ -11,6 +11,7 @@ function serviceRoleToken(request: Request) {
   const value = request.headers.get("authorization");
   if (!value?.startsWith("Bearer ")) return null;
   const token = value.slice(7);
+  if (token.startsWith("sb_secret_")) return token;
   try {
     const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()) as { role?: string };
     return payload.role === "service_role" ? token : null;
