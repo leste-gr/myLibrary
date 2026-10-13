@@ -54,11 +54,20 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
   try {
     assert.match(client.getInstructions() ?? "", /Different-language edition of the same work/);
     assert.match(client.getInstructions() ?? "", /Never report an import as fully verified/);
+    assert.match(client.getInstructions() ?? "", /MUST actively search for a cover image for EVERY book/);
     const listedTools = (await client.listTools()).tools;
     assert.deepEqual(listedTools.map((tool) => tool.name).sort(), ["create_collection", "list_collection_books", "list_collections", "update_collection"]);
     for (const name of ["create_collection", "update_collection"]) {
       const tool = listedTools.find((item) => item.name === name);
       const description = tool?.description ?? "";
+      assert.match(description, /MANDATORY CLIENT-SIDE COVER SEARCH/);
+      assert.match(description, /MUST actively search for a cover image for EVERY book/);
+      assert.match(description, /continue in batches until every book has been searched/);
+      assert.match(description, /Record the searches attempted and the specific unresolved issue in notes/);
+      assert.match(description, /FINAL COVER CHECK/);
+      assert.match(description, /number of cover URLs supplied by the client/);
+      assert.match(description, /Do not imply that backend fallback covers have been found or verified unless confirmed/);
+      assert.doesNotMatch(description, /Use web search .*when available/);
       assert.match(description, /Different-language edition of the same work/);
       assert.match(description, /Never assign an ISBN from a representative cover/);
       assert.match(description, /do not reduce book-identification confidence solely/);
@@ -74,6 +83,9 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     assert.deepEqual(prompts.prompts.map((prompt) => prompt.name), ["read_shelf_photo"]);
     const shelfiePrompt = await client.getPrompt({ name: "read_shelf_photo" });
     const promptText = shelfiePrompt.messages[0]?.content.type === "text" ? shelfiePrompt.messages[0].content.text : "";
+    assert.match(promptText, /MANDATORY CLIENT-SIDE COVER SEARCH/);
+    assert.match(promptText, /FINAL COVER CHECK/);
+    assert.match(promptText, /If search tools are unavailable, disclose the blocker before importing/);
     assert.match(promptText, /Different-language edition of the same work/);
     assert.match(promptText, /Never assign an ISBN from a representative cover/);
     assert.match(promptText, /Never report an import as fully verified/);

@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { BOOK_IDENTIFICATION_AND_COVER_RESOLUTION, SHELFIE_EXTRACTION_PROTOCOL, SHELFIE_GENAI_PROMPT, MAX_IMPORT_BYTES, parseManualGenaiImport, type ManualGenaiImport } from "./manual-genai-import";
+import { MANDATORY_CLIENT_COVER_SEARCH, BOOK_IDENTIFICATION_AND_COVER_RESOLUTION, SHELFIE_EXTRACTION_PROTOCOL, SHELFIE_GENAI_PROMPT, MAX_IMPORT_BYTES, parseManualGenaiImport, type ManualGenaiImport } from "./manual-genai-import";
 
 export type ShelfieTools = {
   listCollections: () => Promise<{ id: string; name: string; slug: string }[]>;
@@ -21,18 +21,20 @@ const bookSchema = z.object({
   editionStatement: optionalText(160), series: optionalText(200), volume: optionalText(80),
   visibleIsbn: optionalText(32).describe("Complete checksum-valid ISBN only when every digit is visible in the photo."),
   isbn: optionalText(32).describe("Canonical ISBN for the independently verified physical edition; null unless verified. Never assign an ISBN from a representative cover."),
-  coverUrl: optionalText(2048).describe("Direct public HTTPS cover-image URL for the same work and volume. Prefer exact edition, then same-language edition, then different-language edition; null only when no credible match exists."),
-  notes: optionalText(500).describe("Record representative-cover use and known edition/language differences, unresolved bibliographic validation, ambiguities, or corrections beyond literal transcription."),
+  coverUrl: optionalText(2048).describe("Direct public HTTPS cover-image URL for the same work and volume. Prefer exact edition, then same-language edition, then different-language edition; null only after a documented unsuccessful search or search/access blocker."),
+  notes: optionalText(500).describe("Record representative-cover use and known differences. For null coverUrl, record searches attempted and the specific unresolved issue or search/access blocker; a backend-resolution request alone is insufficient. Include bibliographic uncertainties or corrections."),
   rawVisibleText: optionalText(1000).describe("All meaningful literal spine text before normalization or bibliographic correction."),
   fieldConfidence: z.object({ title: optionalConfidence, authors: optionalConfidence, publisher: optionalConfidence, series: optionalConfidence, volume: optionalConfidence }).nullable().optional(),
 });
-const shelfieWriteProtocol = `When the source is one or more shelf photographs, you MUST apply the complete protocol below before constructing this tool call. Use web search for the verification pass when available. Do not rely on a separate MCP prompt.\n\n${SHELFIE_EXTRACTION_PROTOCOL}`;
+const shelfieWriteProtocol = `When the source is one or more shelf photographs, you MUST apply the complete protocol below before constructing this tool call. Do not rely on a separate MCP prompt.\n\n${SHELFIE_EXTRACTION_PROTOCOL}`;
 
 export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
-  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.3.0" }, {
+  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.4.0" }, {
     instructions: `You can list the owner's collections and books and import attached shelf photos. For a shelf photo, internally perform five passes before calling a write tool: (1) count and separate physical spines; (2) transcribe literal text; (3) resolve structured metadata from supported visual evidence; (4) verify the work and search for an independently verified physical-edition ISBN and a credible direct public cover image; (5) reconcile count, positions, overlapping photos, duplicates, titles, authors, series, volumes, ISBNs, and cover links. Preserve one item per physical book in shelf order. Never translate the photographed edition's catalogue title or invent bibliographic facts. visibleIsbn is only for a complete ISBN read from the photo. coverUrl must be a direct public HTTPS image. Omit spines without a meaningful title fragment. The complete protocol is available as the read_shelf_photo prompt and in the write-tool descriptions. Use create_collection for a requested new collection and update_collection for an existing collection. Never call a write tool without the user's explicit request.
 
-${BOOK_IDENTIFICATION_AND_COVER_RESOLUTION}`,
+${BOOK_IDENTIFICATION_AND_COVER_RESOLUTION}
+
+${MANDATORY_CLIENT_COVER_SEARCH}`,
   });
   const securitySchemes = [{ type: "oauth2", scopes: ["openid"] }];
   server.registerTool("list_collections", {

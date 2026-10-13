@@ -175,7 +175,32 @@ Primary goal: Identify the correct literary work and display a valid cover for i
 
 Success criterion: Maximize correct-work identification and cover coverage without introducing false bibliographic information.`;
 
+export const MANDATORY_CLIENT_COVER_SEARCH = `MANDATORY CLIENT-SIDE COVER SEARCH
+
+Before calling this tool, the client MUST actively search for a cover image for EVERY book in the import payload. Searching only selected books and leaving the rest to backend fallback does not satisfy this requirement.
+
+For each book:
+
+1. Search using its title, author, language, and series/volume where applicable.
+2. Seek the exact edition first. If unavailable, search for another edition of the same work in the same language, then another language. An exact-edition match or ISBN is NOT required to supply a cover.
+3. Verify that the image represents the correct work and volume. Submit a direct public HTTPS image URL in coverUrl.
+4. Record representative-cover use and known differences in notes. Never assign the representative edition’s ISBN to the photographed book.
+5. Set coverUrl: null only after actively searching and finding no credible cover, or encountering a search/access blocker. Record the searches attempted and the specific unresolved issue in notes. “Backend cover resolution requested” alone is insufficient.
+
+Backend cover resolution is a fallback AFTER client-side searching, never a substitute for it. Do not skip searches because the collection is large; continue in batches until every book has been searched. If search tools are unavailable, disclose the blocker before importing.
+
+FINAL COVER CHECK
+
+Before submitting, confirm that every book has either:
+
+- A verified cover URL for the correct work and volume; or
+- A documented unsuccessful search or access blocker.
+
+After importing, report the total number of books, the number of cover URLs supplied by the client, and the number left for backend fallback. Do not imply that backend fallback covers have been found or verified unless confirmed.`;
+
 export const SHELFIE_EXTRACTION_PROTOCOL = `${BOOK_IDENTIFICATION_AND_COVER_RESOLUTION}
+
+${MANDATORY_CLIENT_COVER_SEARCH}
 
 Complete these passes internally before constructing the import:
 

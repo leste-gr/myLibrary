@@ -120,3 +120,9 @@ The shared prompt prioritizes identifying the correct work and displaying a cred
 Preserve the photographed edition's catalogue language and literal spine text. Record representative-cover use and known differences in `notes`. Keep `isbn` null unless the physical edition is independently verified; never copy the representative cover's ISBN. Book-identification confidence is independent of cover-edition differences. Reconcile overlapping photos and bibliographic details before import, and do not claim full verification merely because the write succeeded.
 
 These rules appear in MCP initialization instructions, both write tools, and `read_shelf_photo`. Reconnect the MCP client after deploying prompt changes.
+
+## Mandatory client cover search
+
+Both `create_collection` and `update_collection` require active cover searching for every book before submission, in batches when needed. A null `coverUrl` requires notes documenting the attempted searches and specific unresolved issue or access blocker. Backend fallback alone is not a reason to skip searching. If search tools are unavailable, the client must disclose this before importing.
+
+Before submission, every book must have either a verified same-work/same-volume cover URL or a documented unsuccessful search or blocker. After importing, the client reports total books, client-supplied cover URLs, and books left for backend fallback without claiming unconfirmed backend results.
