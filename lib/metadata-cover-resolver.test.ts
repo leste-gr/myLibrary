@@ -40,3 +40,16 @@ test("reviewed covers recover a slightly incorrect title using a transliterated 
   assert.equal(recovered[0]?.providerId, "B108");
   assert.equal(recovered[0]?.title, "Ο μάγος της Γαιοθάλασσας");
 });
+
+test("accepts a translated-title representative cover from a distinctive contributor signature", () => {
+  const ranked = rankMetadataCovers(
+    { copyId: "G-62F607DF-001", title: "Sapiens: Τα θεμέλια του πολιτισμού", authors: ["Yuval Noah Harari", "Vandermeulen", "Casanave"], publisher: null, language: "el" },
+    [{ provider: "openlibrary", providerId: "15252176", sourceUrl: "https://covers.openlibrary.org/b/id/15252176-L.jpg", title: "Sapiens: A Graphic History, Volume 2: The Pillars of Civilization", authors: ["Yuval Noah Harari", "David VanderMeulen", "Daniel Casanave"], publisher: "National Geographic Books" }],
+  );
+  assert.equal(ranked.length, 1);
+  assert.ok(ranked[0].evidence.includes("matching contributor signature (3)"));
+  assert.equal(ranked[0].isbn13, undefined);
+  assert.ok(ranked[0].score > 500 && ranked[0].score <= 850);
+  assert.equal(ranked[0].editionConfidence, 0.3);
+  assert.equal(ranked[0].coverConfidence, 0.72);
+});

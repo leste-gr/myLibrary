@@ -11,6 +11,11 @@ const ALLOWED_COVER_HOSTS = new Set(["covers.openlibrary.org", "books.google.com
 function usefulAuthors(authors: string[]) { return authors.filter((author) => !UNKNOWN_AUTHORS.has(normalizedText(author))); }
 function bestSimilarity(expected: string[], candidates: string[]) { return expected.reduce((best, value) => Math.max(best, ...candidates.map((candidate) => textSimilarity(value, candidate)), 0), 0); }
 function bestNameSimilarity(expected: string[], candidates: string[]) { return expected.reduce((best, value) => Math.max(best, ...candidates.map((candidate) => nameSimilarity(value, candidate)), 0), 0); }
+function matchingNames(expected: string[], candidates: string[]) { return expected.filter((value) => candidates.some((candidate) => nameSimilarity(value, candidate) >= 0.85)).length; }
+function sharedDistinctiveTitleToken(left: string, right: string) {
+  const rightTokens = new Set(normalizedText(right).split(" ").filter((token) => token.length >= 5));
+  return normalizedText(left).split(" ").some((token) => token.length >= 5 && rightTokens.has(token));
+}
 
 function reviewedCatalogueCovers(input: MetadataCoverInput): Omit<MetadataCoverCandidate, "score" | "evidence">[] {
   return books.flatMap((book) => book.cover ? [{
@@ -50,12 +55,24 @@ export function rankMetadataCovers(input: MetadataCoverInput, candidates: Omit<M
     const title = Math.round(textSimilarity(input.title, candidate.title) * 700);
     const publisher = input.publisher && candidate.publisher ? Math.round(textSimilarity(input.publisher, candidate.publisher) * 180) : 0;
     const author = expectedAuthors.length ? Math.round(bestNameSimilarity(expectedAuthors, candidate.authors) * 120) : 0;
-    const score = title + publisher + author;
+    const contributorMatches = matchingNames(expectedAuthors, candidate.authors);
+    const contributorSignature = expectedAuthors.length >= 2 && contributorMatches >= 2 && sharedDistinctiveTitleToken(input.title, candidate.title);
+    const contributorScore = contributorSignature ? Math.min(300, contributorMatches * 100) : 0;
+    const rawScore = title + publisher + author + contributorScore;
+    const score = contributorSignature && normalizedText(input.title) !== normalizedText(candidate.title) ? Math.min(850, rawScore) : Math.min(1000, rawScore);
     const exactTitle = expectedTitle === normalizedText(candidate.title);
     const distinctiveExactTitle = exactTitle && expectedTitle.split(" ").length >= 4;
     const corroborated = publisher >= 150 || author >= 100;
-    const evidence = [exactTitle ? "exact normalized title" : title >= 630 ? "near-exact title" : title >= 450 ? "strong title match" : null, publisher >= 150 ? "matching publisher" : null, author >= 100 ? "matching author or transliteration" : null].filter((item): item is string => Boolean(item));
-    return { ...candidate, score, evidence, accepted: distinctiveExactTitle || (exactTitle && corroborated) || (title >= 630 && corroborated) || (title >= 450 && author >= 100) };
+    const evidence = [exactTitle ? "exact normalized title" : !contributorSignature && title >= 630 ? "near-exact title" : !contributorSignature && title >= 450 ? "strong title match" : null, publisher >= 150 ? "matching publisher" : null, author >= 100 ? "matching author or transliteration" : null, contributorSignature ? `matching contributor signature (${contributorMatches})` : null, contributorSignature ? "shared distinctive title token; representative cover" : null].filter((item): item is string => Boolean(item));
+    return {
+      ...candidate,
+      score,
+      evidence,
+      workConfidence: candidate.workConfidence ?? (contributorSignature ? 0.92 : null),
+      editionConfidence: candidate.editionConfidence ?? (contributorSignature ? 0.3 : null),
+      coverConfidence: candidate.coverConfidence ?? (contributorSignature ? 0.72 : null),
+      accepted: contributorSignature || distinctiveExactTitle || (exactTitle && corroborated) || (title >= 630 && corroborated) || (title >= 450 && author >= 100),
+    };
   }).filter((candidate) => candidate.accepted)
     .sort((left, right) => right.score - left.score || left.providerId.localeCompare(right.providerId))
     .slice(0, 5)
@@ -79,12 +96,17 @@ export async function findMetadataCoverCandidates(input: MetadataCoverInput) {
   if (reviewedMatches.length) return reviewedMatches;
 
   const raw: Omit<MetadataCoverCandidate, "score" | "evidence">[] = [];
-  const openLibrary = new URL("https://openlibrary.org/search.json");
-  openLibrary.searchParams.set("title", input.title);
-  openLibrary.searchParams.set("limit", "10");
-  openLibrary.searchParams.set("fields", "key,title,author_name,publisher,cover_i");
-  const openPayload = await fetchJson<{ docs?: { key?: string; title?: string; author_name?: string[]; publisher?: string[]; cover_i?: number }[] }>(openLibrary);
-  for (const doc of openPayload?.docs ?? []) if (doc.cover_i && doc.title) raw.push({ provider: "openlibrary", providerId: String(doc.cover_i), sourceUrl: `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`, title: doc.title, authors: doc.author_name ?? [], publisher: doc.publisher?.[0] ?? null });
+  const openLibraryQueries = [{ parameter: "title", value: input.title }];
+  const namedContributors = usefulAuthors(input.authors);
+  if (namedContributors.length >= 2) openLibraryQueries.push({ parameter: "q", value: `author:"${namedContributors[0]}" ${namedContributors.slice(1).map((name) => `"${name}"`).join(" ")}` });
+  for (const query of openLibraryQueries) {
+    const openLibrary = new URL("https://openlibrary.org/search.json");
+    openLibrary.searchParams.set(query.parameter, query.value);
+    openLibrary.searchParams.set("limit", "10");
+    openLibrary.searchParams.set("fields", "key,title,author_name,publisher,cover_i");
+    const openPayload = await fetchJson<{ docs?: { key?: string; title?: string; author_name?: string[]; publisher?: string[]; cover_i?: number }[] }>(openLibrary);
+    for (const doc of openPayload?.docs ?? []) if (doc.cover_i && doc.title) raw.push({ provider: "openlibrary", providerId: String(doc.cover_i), sourceUrl: `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`, sourcePageUrl: doc.key ? `https://openlibrary.org${doc.key}` : null, title: doc.title, authors: doc.author_name ?? [], publisher: doc.publisher?.[0] ?? null });
+  }
 
   const google = new URL("https://www.googleapis.com/books/v1/volumes");
   google.searchParams.set("q", `intitle:"${input.title.replaceAll('"', '')}"`);

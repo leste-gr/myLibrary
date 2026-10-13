@@ -18,6 +18,21 @@ export function parseBingRssLinks(xml: string) {
     });
 }
 
+export function parseDuckDuckGoLinks(html: string) {
+  return [...html.matchAll(/<a\b[^>]*class=["'][^"']*\bresult__a\b[^"']*["'][^>]*href=["']([^"']+)["'][^>]*>/gi)]
+    .map((match) => decodeXml(match[1]))
+    .map((value) => {
+      try {
+        const url = new URL(value, "https://duckduckgo.com");
+        if (url.hostname.endsWith("duckduckgo.com") && url.pathname === "/l/") return url.searchParams.get("uddg") ?? "";
+        return url.toString();
+      } catch { return ""; }
+    })
+    .filter((value, index, all) => {
+      try { const url = new URL(value); return url.protocol === "https:" && !url.hostname.endsWith("duckduckgo.com") && all.indexOf(value) === index; } catch { return false; }
+    });
+}
+
 async function search(query: string, fetcher: typeof fetch) {
   const url = new URL(SEARCH_ENDPOINT);
   url.searchParams.set("q", query);
@@ -28,10 +43,18 @@ async function search(query: string, fetcher: typeof fetch) {
   return parseBingRssLinks(await response.text());
 }
 
+async function searchDuckDuckGo(query: string, fetcher: typeof fetch) {
+  const url = new URL("https://html.duckduckgo.com/html/");
+  url.searchParams.set("q", query);
+  const response = await fetcher(url, { headers: { Accept: "text/html", "User-Agent": "Mozilla/5.0 (compatible; myLibrary-book-discovery/1.0)" }, signal: AbortSignal.timeout(10_000), cache: "no-store" });
+  if (!response.ok) return [];
+  return parseDuckDuckGoLinks(await response.text());
+}
+
 export async function findVerifiedBookPages(input: BookPageSearchInput, fetcher: typeof fetch = fetch) {
-  const queries = buildBookPageSearchQueries(input).slice(0, 3);
-  const resultLists = await Promise.all(queries.map((query) => search(query, fetcher).catch(() => [])));
-  const urls = [...new Set(resultLists.flat())].slice(0, 10);
+  const queries = buildBookPageSearchQueries(input).slice(0, 4);
+  const resultLists = await Promise.all(queries.flatMap((query) => [searchDuckDuckGo(query, fetcher).catch(() => []), search(query, fetcher).catch(() => [])]));
+  const urls = [...new Set(resultLists.flat())].slice(0, 16);
   const verified: VerifiedBookPage[] = [];
   for (const pageUrl of urls) {
     try {

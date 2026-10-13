@@ -6,7 +6,14 @@ const input = { title: "Room", authors: ["Emma Donoghue"], publisher: "Picador",
 
 test("builds progressively broader book-page searches", () => {
   const queries = buildBookPageSearchQueries(input);
-  assert.deepEqual(queries, ['"Room" ISBN', '"Room" "Emma Donoghue" "Picador"', '"Room" "Emma Donoghue" εξώφυλλο']);
+  assert.deepEqual(queries, ['"Room" ISBN', '"Room" "Emma Donoghue" "Picador"', '"Room" "Emma Donoghue" εξώφυλλο', 'Room "Emma Donoghue" "Picador"']);
+});
+
+test("accepts a plausible title correction only when strongly supported by the author", () => {
+  const greek = { title: "Ο μάγος της Δωδεκανήσου", authors: ["Ούρσουλα Λε Γκεν"], publisher: null, series: null, volume: null };
+  const verified = verifyBookPage(greek, "https://shop.test/earthsea", { title: "Ο μάγος της Γαιοθάλασσας", authors: ["Ursula Le Guin"], publisher: null, isbn13: "9789605212711", imageUrl: "https://shop.test/earthsea.jpg", structuredType: "Book" });
+  assert.equal(verified.accepted, true);
+  assert.ok(verified.evidence.includes("plausible title correction"));
 });
 
 test("extracts and verifies schema.org Book metadata with its image", () => {

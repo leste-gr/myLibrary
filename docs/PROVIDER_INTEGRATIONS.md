@@ -13,7 +13,7 @@ Web discovery must search for book pages, not images. The intended query sequenc
 
 `lib/book-page-extractor.ts` implements query construction, generic Schema.org `Book`/`Product` extraction, Open Graph fallback, and verification. A discovered page is accepted only when its title strongly matches and author or publisher evidence corroborates it. Conflicting authors are rejected. ISBN, image, and metadata are extracted from the same verified page; an image-search result by itself is never sufficient evidence.
 
-Discovery is active through Bing's RSS search output, which supplies page links rather than image results. Result pages pass strict URL validation, private-address blocking, redirect checks, response-size limits, and timeouts before generic extraction. Search failure is treated as an unavailable optional provider, not as proof that a cover does not exist. A supported credentialed search API can replace the discovery adapter later without changing page verification or cover selection.
+Discovery is active through DuckDuckGo's HTML results and Bing's RSS output, both of which supply page links rather than image results. Multiple indexes are used because Greek-title coverage varies substantially. Result pages pass strict URL validation, private-address blocking, redirect checks, response-size limits, and timeouts before generic extraction. Search failure is treated as an unavailable optional provider, not as proof that a cover does not exist. A supported credentialed search API can replace the discovery adapters later without changing page verification or cover selection.
 
 Start with the generic extractor. Add site-specific adapters only after benchmark evidence shows a domain repeatedly resolves books and its terms permit automated access.
 

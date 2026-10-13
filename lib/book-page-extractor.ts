@@ -1,5 +1,5 @@
 import { canonicalIsbn } from "./isbn";
-import { normalizedText, textSimilarity } from "./isbn-matcher";
+import { nameSimilarity, normalizedText, textSimilarity } from "./isbn-matcher";
 
 export type BookPageSearchInput = { title: string; authors: string[]; publisher: string | null; series: string | null; volume: string | null };
 export type ExtractedBookPage = { title: string | null; authors: string[]; publisher: string | null; isbn13: string | null; imageUrl: string | null; structuredType: string | null };
@@ -9,10 +9,12 @@ function quoted(value: string | null | undefined) { return value?.trim() ? `"${v
 
 export function buildBookPageSearchQueries(input: BookPageSearchInput) {
   const author = quoted(input.authors[0]);
+  const relaxedTitle = input.title.replace(/[":;,()[\]{}]/g, " ").replace(/\s+/g, " ").trim();
   const queries = [
     [quoted(input.title), "ISBN"],
     [quoted(input.title), author, quoted(input.publisher)],
     [quoted(input.title), author, "εξώφυλλο"],
+    [relaxedTitle, author, quoted(input.publisher)],
   ];
   if (input.series || input.volume) queries.push([quoted(input.series), quoted(input.volume), quoted(input.publisher)]);
   return queries.map((parts) => parts.filter(Boolean).join(" ")).filter((query, index, all) => query && all.indexOf(query) === index);
@@ -74,14 +76,15 @@ export function extractBookPage(html: string): ExtractedBookPage {
 
 export function verifyBookPage(input: BookPageSearchInput, pageUrl: string, extracted: ExtractedBookPage): VerifiedBookPage {
   const title = textSimilarity(input.title, extracted.title);
-  const author = input.authors.length && extracted.authors.length ? Math.max(...input.authors.flatMap((expected) => extracted.authors.map((candidate) => textSimilarity(expected, candidate)))) : 0;
+  const author = input.authors.length && extracted.authors.length ? Math.max(...input.authors.flatMap((expected) => extracted.authors.map((candidate) => nameSimilarity(expected, candidate)))) : 0;
   const publisher = input.publisher && extracted.publisher ? textSimilarity(input.publisher, extracted.publisher) : 0;
   const authorConflict = input.authors.length > 0 && extracted.authors.length > 0 && author < 0.35;
   const workConfidence = Number(Math.min(1, title * 0.75 + (input.authors.length ? author * 0.25 : title * 0.25)).toFixed(4));
   const editionConfidence = Number(Math.min(1, workConfidence * 0.65 + publisher * 0.2 + (extracted.isbn13 ? 0.15 : 0)).toFixed(4));
   const coverConfidence = Number(Math.min(1, workConfidence * 0.8 + (extracted.imageUrl ? 0.1 : 0) + (extracted.structuredType ? 0.1 : 0)).toFixed(4));
   const distinctiveExactTitle = title === 1 && normalizedText(input.title).split(" ").length >= 4;
-  const accepted = Boolean(extracted.imageUrl) && title >= 0.8 && !authorConflict && (author >= 0.7 || publisher >= 0.75 || distinctiveExactTitle);
-  const evidence = [title === 1 ? "exact normalized title" : title >= 0.8 ? "near-exact title" : null, author >= 0.7 ? "matching author" : null, publisher >= 0.75 ? "matching publisher" : null, extracted.structuredType ? `schema.org ${extracted.structuredType}` : null, extracted.isbn13 ? "structured ISBN" : null].filter((value): value is string => Boolean(value));
+  const authorBackedCorrection = title >= 0.6 && author >= 0.85;
+  const accepted = Boolean(extracted.imageUrl) && !authorConflict && (authorBackedCorrection || (title >= 0.8 && (author >= 0.7 || publisher >= 0.75 || distinctiveExactTitle)));
+  const evidence = [title === 1 ? "exact normalized title" : title >= 0.8 ? "near-exact title" : title >= 0.6 ? "plausible title correction" : null, author >= 0.85 ? "strong matching author or transliteration" : author >= 0.7 ? "matching author" : null, publisher >= 0.75 ? "matching publisher" : null, extracted.structuredType ? `schema.org ${extracted.structuredType}` : null, extracted.isbn13 ? "structured ISBN" : null].filter((value): value is string => Boolean(value));
   return { ...extracted, pageUrl, workConfidence, editionConfidence, coverConfidence, evidence, accepted };
 }
