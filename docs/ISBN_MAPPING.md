@@ -2,6 +2,8 @@
 
 This project treats the ISBN-13 as the identifier of a specific cover edition. `Bxxx` remains the identifier of the owned physical copy.
 
+The full ISBN and non-ISBN image cascade is documented in [COVER_RESOLUTION.md](COVER_RESOLUTION.md).
+
 The mapper writes review data to `data/isbn-mapping.json`; it never changes `books.json`. Ranked results are imported into Supabase, where rank 1 becomes the edition of record unless the owner has already overridden the algorithm.
 
 Each record stores the automatically selected `isbn13` and all retained alternatives. Candidate lists are ranked and capped at ten entries so optional owner review stays usable. Owner choices are stored in Supabase audit and feedback records rather than being overwritten by later mapper runs.

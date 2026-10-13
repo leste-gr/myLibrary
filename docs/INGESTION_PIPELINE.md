@@ -1,6 +1,6 @@
 # myLibrary ingestion pipeline
 
-This is the canonical contract for turning a shelfie into published books. Detailed Stage 1 behaviour is specified in [STAGE_1_MANUAL_GENAI_IMPORT.md](STAGE_1_MANUAL_GENAI_IMPORT.md).
+This is the canonical contract for turning a shelfie into published books. Detailed Stage 1 behaviour is specified in [STAGE_1_MANUAL_GENAI_IMPORT.md](STAGE_1_MANUAL_GENAI_IMPORT.md). ISBN and non-ISBN cover methods are specified in [COVER_RESOLUTION.md](COVER_RESOLUTION.md).
 
 `owner's shelfie → external GenAI chat → manual JSON upload → ISBN candidates → selected edition → ISBN cover → optional owner correction`
 
@@ -28,6 +28,8 @@ Stage 2 must always select its strongest ISBN candidate automatically while reta
 ### Stage 2 → Stage 3
 
 Cover resolution begins with a canonical ISBN-13. Results and negative lookups are cached by ISBN. The public catalogue uses the stable local cover route, not third-party URLs directly.
+
+When Stage 2 cannot select an ISBN, Stage 3 may instead select a conservative metadata cover using title, author, and publisher evidence. That fallback provides an image only and does not create an ISBN or edition mapping.
 
 ### Stage 3 → Stage 4
 
