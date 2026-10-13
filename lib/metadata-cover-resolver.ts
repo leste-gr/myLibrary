@@ -12,9 +12,17 @@ function usefulAuthors(authors: string[]) { return authors.filter((author) => !U
 function bestSimilarity(expected: string[], candidates: string[]) { return expected.reduce((best, value) => Math.max(best, ...candidates.map((candidate) => textSimilarity(value, candidate)), 0), 0); }
 function bestNameSimilarity(expected: string[], candidates: string[]) { return expected.reduce((best, value) => Math.max(best, ...candidates.map((candidate) => nameSimilarity(value, candidate)), 0), 0); }
 function matchingNames(expected: string[], candidates: string[]) { return expected.filter((value) => candidates.some((candidate) => nameSimilarity(value, candidate) >= 0.85)).length; }
+const TRANSLATED_TITLE_TOKENS: Record<string, string> = {
+  θεμελια: "pillars", πολιτισμου: "civilization", γεννηση: "birth", ανθρωπου: "humankind",
+  ανθρωποτητας: "humankind", αρχιτεκτονες: "architects", ιστοριας: "history",
+};
+const GENERIC_SERIES_TOKENS = new Set(["sapiens", "graphic", "history", "volume", "ιστορια", "ιστοριας", "τομος"]);
+function distinctiveTitleTokens(value: string) {
+  return new Set(normalizedText(value).split(" ").map((token) => TRANSLATED_TITLE_TOKENS[token] ?? token).filter((token) => token.length >= 5 && !GENERIC_SERIES_TOKENS.has(token)));
+}
 function sharedDistinctiveTitleToken(left: string, right: string) {
-  const rightTokens = new Set(normalizedText(right).split(" ").filter((token) => token.length >= 5));
-  return normalizedText(left).split(" ").some((token) => token.length >= 5 && rightTokens.has(token));
+  const rightTokens = distinctiveTitleTokens(right);
+  return [...distinctiveTitleTokens(left)].some((token) => rightTokens.has(token));
 }
 
 function reviewedCatalogueCovers(input: MetadataCoverInput): Omit<MetadataCoverCandidate, "score" | "evidence">[] {
@@ -103,9 +111,9 @@ export async function findMetadataCoverCandidates(input: MetadataCoverInput) {
     const openLibrary = new URL("https://openlibrary.org/search.json");
     openLibrary.searchParams.set(query.parameter, query.value);
     openLibrary.searchParams.set("limit", "10");
-    openLibrary.searchParams.set("fields", "key,title,author_name,publisher,cover_i");
-    const openPayload = await fetchJson<{ docs?: { key?: string; title?: string; author_name?: string[]; publisher?: string[]; cover_i?: number }[] }>(openLibrary);
-    for (const doc of openPayload?.docs ?? []) if (doc.cover_i && doc.title) raw.push({ provider: "openlibrary", providerId: String(doc.cover_i), sourceUrl: `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`, sourcePageUrl: doc.key ? `https://openlibrary.org${doc.key}` : null, title: doc.title, authors: doc.author_name ?? [], publisher: doc.publisher?.[0] ?? null });
+    openLibrary.searchParams.set("fields", "key,title,subtitle,author_name,publisher,cover_i");
+    const openPayload = await fetchJson<{ docs?: { key?: string; title?: string; subtitle?: string; author_name?: string[]; publisher?: string[]; cover_i?: number }[] }>(openLibrary);
+    for (const doc of openPayload?.docs ?? []) if (doc.cover_i && doc.title) raw.push({ provider: "openlibrary", providerId: String(doc.cover_i), sourceUrl: `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`, sourcePageUrl: doc.key ? `https://openlibrary.org${doc.key}` : null, title: doc.subtitle ? `${doc.title}: ${doc.subtitle}` : doc.title, authors: doc.author_name ?? [], publisher: doc.publisher?.[0] ?? null });
   }
 
   const google = new URL("https://www.googleapis.com/books/v1/volumes");

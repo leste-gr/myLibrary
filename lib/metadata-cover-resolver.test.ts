@@ -53,3 +53,11 @@ test("accepts a translated-title representative cover from a distinctive contrib
   assert.equal(ranked[0].editionConfidence, 0.3);
   assert.equal(ranked[0].coverConfidence, 0.72);
 });
+
+test("does not reuse a series cover when only the contributors and series title match", () => {
+  const ranked = rankMetadataCovers(
+    { copyId: "G-62F607DF-003", title: "Sapiens: Η γέννηση του ανθρώπου", authors: ["Yuval Noah Harari", "Vandermeulen", "Casanave"], publisher: null, language: "el" },
+    [{ provider: "openlibrary", providerId: "15252176", sourceUrl: "https://covers.openlibrary.org/b/id/15252176-L.jpg", title: "Sapiens: A Graphic History, Volume 2: The Pillars of Civilization", authors: ["Yuval Noah Harari", "David VanderMeulen", "Daniel Casanave"], publisher: "National Geographic Books" }],
+  );
+  assert.deepEqual(ranked, []);
+});
