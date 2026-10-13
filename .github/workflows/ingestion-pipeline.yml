@@ -10,6 +10,10 @@ on:
       - ".github/workflows/ingestion-pipeline.yml"
       - "scripts/process-pipeline.ts"
       - "lib/isbn-matcher.ts"
+      - "lib/metadata-cover-resolver.ts"
+      - "lib/web-book-search.ts"
+      - "lib/book-page-extractor.ts"
+      - "lib/safe-remote-fetch.ts"
       - "lib/process-manual-import.ts"
       - "supabase/migrations/**"
 
