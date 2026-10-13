@@ -118,14 +118,14 @@ export function ShelfieReview({ userId, collections, initialDraft, canImport = t
             <label>Συγγραφείς <small>(χωρισμένοι με ;)</small><input value={book.authorText} disabled={!book.included} onChange={(event) => edit(index, { authorText: event.target.value })} /></label>
           </div>
           <details className="import-disclosure"><summary>ISBN και άλλα στοιχεία</summary><div className="review-fields">
-            {([ ["subtitle", "Υπότιτλος"], ["publisher", "Εκδότης"], ["language", "Γλώσσα"], ["series", "Σειρά"], ["volume", "Τόμος"], ["editionStatement", "Έκδοση"], ["visibleIsbn", "ISBN που διαβάστηκε στη φωτογραφία"], ["notes", "Σημειώσεις"] ] as const).map(([field, label]) => <label key={field}>{label}<input value={book[field] ?? ""} disabled={!book.included} onChange={(event) => edit(index, { [field]: event.target.value || null })} /></label>)}
+            {([ ["subtitle", "Υπότιτλος"], ["publisher", "Εκδότης"], ["language", "Γλώσσα"], ["series", "Σειρά"], ["volume", "Τόμος"], ["editionStatement", "Έκδοση"], ["visibleIsbn", "ISBN που διαβάστηκε στη φωτογραφία"], ["isbn", "ISBN που επαληθεύτηκε online"], ["coverUrl", "Δημόσιος σύνδεσμος εξωφύλλου"], ["notes", "Σημειώσεις"] ] as const).map(([field, label]) => <label key={field}>{label}<input value={book[field] ?? ""} disabled={!book.included} onChange={(event) => edit(index, { [field]: event.target.value || null })} /></label>)}
             <label>Έτος<input type="number" min={1400} max={2100} value={book.publicationYear ?? ""} disabled={!book.included} onChange={(event) => edit(index, { publicationYear: event.target.value ? Number(event.target.value) : null })} /></label>
           </div></details>
         </article>)}
         {canImport && <section className="genai-step"><h2>Προορισμός</h2>
           <label htmlFor="destination">Συλλογή</label><select id="destination" value={destination} onChange={(event) => setDestination(event.target.value)} disabled={Boolean(initialDraft)}>{collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}{!initialDraft && <option value="new">Νέα συλλογή</option>}</select>
           {destination === "new" && <div className="new-collection-fields"><label htmlFor="collection-name">Όνομα συλλογής</label><input id="collection-name" name="collectionName" required maxLength={100} /><label htmlFor="collection-description">Περιγραφή (προαιρετική)</label><textarea id="collection-description" name="collectionDescription" maxLength={500} rows={2} /></div>}
-          <p className="privacy-note">Η εισαγωγή προσθέτει τα επιλεγμένα βιβλία στη συλλογή και ξεκινά την αναζήτηση ISBN.</p>
+          <p className="privacy-note">Η εισαγωγή χρησιμοποιεί το παρεχόμενο ISBN και εξώφυλλο. Η αναζήτηση backend ξεκινά μόνο για βιβλία χωρίς σύνδεσμο εξωφύλλου.</p>
           <button className="primary-button" type="submit" disabled={!includedCount}>{busy ? phase : `Εισαγωγή ${includedCount} βιβλίων`}</button>
         </section>}
       </fieldset>

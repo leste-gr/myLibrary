@@ -19,16 +19,18 @@ const bookSchema = z.object({
   subtitle: optionalText(300), publisher: optionalText(200), language: optionalText(40),
   publicationYear: z.number().int().min(1400).max(2100).nullable().optional(),
   editionStatement: optionalText(160), series: optionalText(200), volume: optionalText(80),
-  visibleIsbn: optionalText(32).describe("Complete visibly readable checksum-valid ISBN only; never inferred or looked up."),
+  visibleIsbn: optionalText(32).describe("Complete checksum-valid ISBN only when every digit is visible in the photo."),
+  isbn: optionalText(32).describe("Canonical ISBN for the verified physical edition, retrieved from a credible matching book page or catalogue record; never guessed."),
+  coverUrl: optionalText(2048).describe("Direct public HTTPS cover-image URL verified against the identified book; null when no credible image is found."),
   notes: optionalText(500).describe("Concise ambiguity, alternative readings, logo evidence, or correction beyond literal transcription."),
   rawVisibleText: optionalText(1000).describe("All meaningful literal spine text before normalization or bibliographic correction."),
   fieldConfidence: z.object({ title: optionalConfidence, authors: optionalConfidence, publisher: optionalConfidence, series: optionalConfidence, volume: optionalConfidence }).nullable().optional(),
 });
-const shelfieWriteProtocol = `When the source is one or more shelf photographs, you MUST apply the complete protocol below before constructing this tool call. Do not rely on a separate MCP prompt.\n\n${SHELFIE_EXTRACTION_PROTOCOL}`;
+const shelfieWriteProtocol = `When the source is one or more shelf photographs, you MUST apply the complete protocol below before constructing this tool call. Use web search for the verification pass when available. Do not rely on a separate MCP prompt.\n\n${SHELFIE_EXTRACTION_PROTOCOL}`;
 
 export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
-  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.1.0" }, {
-    instructions: "You can list the owner's collections and books and import attached shelf photos. For a shelf photo, internally perform four passes before calling a write tool: (1) count and separate physical spines across all photos; (2) transcribe literal text, including rotated text and logos; (3) resolve structured title, people, publisher, series, and volume only from supported evidence while preserving literal text in rawVisibleText; (4) reconcile the count, positions, and duplicates. Preserve one item per physical book in top-to-bottom, left-to-right order. Keep real duplicate copies separate and do not double-count overlapping photos. Never translate titles or invent bibliographic facts. visibleIsbn is allowed only when every digit is visibly readable and checksum-valid; never look one up. Use calibrated per-field confidence and record plausible alternatives in notes. Omit spines without a meaningful title fragment. The complete protocol is available as the read_shelf_photo prompt. Use create_collection for a requested new collection and update_collection for an existing collection. Never call a write tool without the user's explicit request.",
+  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.2.0" }, {
+    instructions: "You can list the owner's collections and books and import attached shelf photos. For a shelf photo, internally perform five passes before calling a write tool: (1) count and separate physical spines; (2) transcribe literal text; (3) resolve structured metadata from supported visual evidence; (4) search the web for a verified edition ISBN and direct public cover image; (5) reconcile count, positions, duplicates, ISBNs, and cover links. Preserve one item per physical book in shelf order. Never translate titles or invent bibliographic facts. visibleIsbn is only for a complete ISBN read from the photo; isbn may be retrieved from a credible matching edition page but never guessed. coverUrl must be a direct public HTTPS image verified against the identified book; use null when uncertain so the backend fallback can run. Omit spines without a meaningful title fragment. The complete protocol is available as the read_shelf_photo prompt. Use create_collection for a requested new collection and update_collection for an existing collection. Never call a write tool without the user's explicit request.",
   });
   const securitySchemes = [{ type: "oauth2", scopes: ["openid"] }];
   server.registerTool("list_collections", {

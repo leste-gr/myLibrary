@@ -15,6 +15,8 @@ function book(overrides: Record<string, unknown> = {}) {
     series: null,
     volume: null,
     visibleIsbn: "0-261-10221-4",
+    isbn: "9780261102217",
+    coverUrl: "https://images.example.test/the-hobbit.jpg",
     confidence: 0.92,
     notes: null,
     rawVisibleText: "THE HOBBIT TOLKIEN",
@@ -33,6 +35,8 @@ test("normalizes, canonicalizes, and sorts a valid import", () => {
   assert.equal(parsed.books[0].title, "The Hobbit");
   assert.deepEqual(parsed.books[0].authors, ["J. R. R. Tolkien"]);
   assert.equal(parsed.books[0].visibleIsbn, "9780261102217");
+  assert.equal(parsed.books[0].isbn, "9780261102217");
+  assert.equal(parsed.books[0].coverUrl, "https://images.example.test/the-hobbit.jpg");
   assert.equal(parsed.books[0].rawVisibleText, "THE HOBBIT TOLKIEN");
   assert.equal(parsed.books[0].fieldConfidence.title, 0.95);
 });
@@ -59,6 +63,14 @@ test("rejects invalid confidence and ISBN values", () => {
   assert.throws(
     () => parseManualGenaiImport({ schemaVersion: MANUAL_GENAI_SCHEMA_VERSION, books: [book({ visibleIsbn: "9780000000000" })] }),
     /visibleIsbn/,
+  );
+  assert.throws(
+    () => parseManualGenaiImport({ schemaVersion: MANUAL_GENAI_SCHEMA_VERSION, books: [book({ visibleIsbn: null, isbn: "9780000000000" })] }),
+    /isbn/,
+  );
+  assert.throws(
+    () => parseManualGenaiImport({ schemaVersion: MANUAL_GENAI_SCHEMA_VERSION, books: [book({ coverUrl: "http://localhost/cover.jpg" })] }),
+    /coverUrl/,
   );
 });
 

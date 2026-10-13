@@ -16,6 +16,8 @@ export type ManualGenaiBook = {
   series: string | null;
   volume: string | null;
   visibleIsbn: string | null;
+  isbn: string | null;
+  coverUrl: string | null;
   confidence: number;
   notes: string | null;
   rawVisibleText: string | null;
@@ -62,6 +64,26 @@ function optionalConfidence(value: unknown, field: string, index: number): numbe
   return value;
 }
 
+function optionalPublicCoverUrl(value: unknown, index: number): string | null {
+  const raw = optionalText(value, "coverUrl", index, 2048);
+  if (!raw) return null;
+  let url: URL;
+  try { url = new URL(raw); }
+  catch { throw new Error(`Book ${index}: coverUrl must be a valid public HTTPS URL.`); }
+  const hostname = url.hostname.toLowerCase();
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(hostname);
+  const privateIpv4 = ipv4 && (
+    Number(ipv4[1]) === 10 || Number(ipv4[1]) === 127 ||
+    (Number(ipv4[1]) === 169 && Number(ipv4[2]) === 254) ||
+    (Number(ipv4[1]) === 172 && Number(ipv4[2]) >= 16 && Number(ipv4[2]) <= 31) ||
+    (Number(ipv4[1]) === 192 && Number(ipv4[2]) === 168)
+  );
+  if (url.protocol !== "https:" || url.username || url.password || hostname === "localhost" || hostname.endsWith(".local") || privateIpv4 || hostname === "[::1]") {
+    throw new Error(`Book ${index}: coverUrl must be a valid public HTTPS URL.`);
+  }
+  return url.toString();
+}
+
 export function parseManualGenaiImport(value: unknown): ManualGenaiImport {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("The JSON root must be an object.");
   const root = value as Record<string, unknown>;
@@ -98,6 +120,10 @@ export function parseManualGenaiImport(value: unknown): ManualGenaiImport {
     const rawIsbn = optionalText(book.visibleIsbn, "visibleIsbn", index, 32);
     const visibleIsbn = rawIsbn ? canonicalIsbn(rawIsbn) : null;
     if (rawIsbn && !visibleIsbn) throw new Error(`Book ${index}: visibleIsbn is not a valid ISBN-10 or ISBN-13.`);
+    const rawResolvedIsbn = optionalText(book.isbn, "isbn", index, 32);
+    const isbn = rawResolvedIsbn ? canonicalIsbn(rawResolvedIsbn) : null;
+    if (rawResolvedIsbn && !isbn) throw new Error(`Book ${index}: isbn is not a valid ISBN-10 or ISBN-13.`);
+    if (visibleIsbn && isbn && visibleIsbn !== isbn) throw new Error(`Book ${index}: isbn and visibleIsbn must identify the same edition.`);
     return [{
       position: Number(position),
       title,
@@ -110,6 +136,8 @@ export function parseManualGenaiImport(value: unknown): ManualGenaiImport {
       series: optionalText(book.series, "series", index, 200),
       volume: optionalText(book.volume, "volume", index, 80),
       visibleIsbn,
+      isbn,
+      coverUrl: optionalPublicCoverUrl(book.coverUrl, index),
       confidence: book.confidence,
       notes: optionalText(book.notes, "notes", index, 500),
       rawVisibleText: optionalText(book.rawVisibleText, "rawVisibleText", index, 1000),
@@ -147,9 +175,16 @@ PASS 3 — BIBLIOGRAPHIC INTERPRETATION
 11. If several readings remain plausible, choose the most likely, lower that field's confidence, and put concise alternatives in notes. Do not invent a title from an author alone.
 12. publisher may be identified from an unmistakable logo. series and volume must be separate from the individual title. Preserve Roman numerals and meaningful issue labels.
 13. publicationYear is populated only when a four-digit year is visible. language is the likely language of this physical edition, not the author's nationality.
-14. visibleIsbn must be null unless every digit of a complete ISBN-10 or ISBN-13 is visibly readable and checksum-valid. Never retrieve, infer, or guess an ISBN from bibliographic knowledge.
+14. visibleIsbn must be null unless every digit of a complete ISBN-10 or ISBN-13 is visibly readable and checksum-valid.
 15. Use [] when no author is supported and null for other unknown fields. Never use placeholders such as "Unknown", "Unreadable", or "Untitled".
 16. A meaningful title or title fragment is required. Omit a spine if no such fragment can be detected; mention the omission nowhere outside the JSON.
+
+PASS 4 — WEB VERIFICATION AND COVER
+17. After identifying each book, search the web for the most likely edition. Prefer a publisher, author, library, or reputable bookshop page whose title, author, language, publisher, series/volume, and edition details agree with the photographed book.
+18. isbn is the canonical ISBN-13 for that edition. You may retrieve it from a verified book page or catalogue record; never guess it, copy it from a conflicting edition, or assign an edition ISBN merely because its cover looks similar. When a complete visibleIsbn is present, isbn must match it.
+19. coverUrl is a direct, public HTTPS URL for a cover image, not a search-results page or product page. Prefer the image declared in schema.org Book/Product data, then og:image or the page's primary product image. Reject placeholders, generic series art, thumbnails too small to identify, access-controlled URLs, data/blob URLs, and images from pages that describe a conflicting book.
+20. Prefer the exact physical edition. If the work is certain but the edition is not, a representative cover in the same language is allowed only when there is no contradictory author, volume, adaptation, or format evidence; leave isbn null and explain “representative cover” in notes. If the image association is not credible, leave coverUrl null so myLibrary can run its backend fallback.
+21. Check that the cover itself does not contradict the proposed title, author, language, series, or volume. Keep the source image URL stable and free of temporary authentication parameters when possible.
 
 CONFIDENCE CALIBRATION
 - 0.95–1.00: directly and completely readable.
@@ -159,9 +194,9 @@ CONFIDENCE CALIBRATION
 - Below 0.40: normally leave the optional field unknown rather than speculate.
 confidence represents confidence that the physical item was separated correctly and its title identifies the book. fieldConfidence scores each interpreted field; use null when that field is absent.
 
-PASS 4 — FINAL CHECK
-17. Reconcile the JSON count with the physical count, check that neighbors were not merged, remove accidental duplicate detections, retain genuine repeated copies, and verify consecutive positions.
-18. Confirm every item has a meaningful title, every visibleIsbn is complete and valid, and unknowns use [] or null correctly.`;
+PASS 5 — FINAL CHECK
+22. Reconcile the JSON count with the physical count, check that neighbors were not merged, remove accidental duplicate detections, retain genuine repeated copies, and verify consecutive positions.
+23. Confirm every item has a meaningful title, every ISBN is complete and checksum-valid, every coverUrl is a direct public HTTPS image linked to the correct book page, and unknowns use [] or null correctly.`;
 
 export const SHELFIE_GENAI_PROMPT = `You are extracting a physical book inventory from shelf photographs that I attach in this chat.
 
@@ -185,6 +220,8 @@ Use this exact schema and field names:
       "series": null,
       "volume": null,
       "visibleIsbn": null,
+      "isbn": null,
+      "coverUrl": null,
       "confidence": 0.9,
       "notes": null,
       "rawVisibleText": "Literal text visible on the spine",

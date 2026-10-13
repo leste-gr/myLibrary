@@ -6,7 +6,7 @@ This document is the canonical description of how myLibrary identifies an editio
 
 Stage 2 builds and ranks ISBN candidates from these sources:
 
-1. **Visible ISBN from Stage 1.** A complete ISBN visibly read from the physical book is validated, converted to canonical ISBN-13, and treated as the strongest automatic evidence.
+1. **Assistant-verified ISBN from Stage 1.** A complete ISBN read from the photo or verified on a matching edition page is checksum-validated and converted to canonical ISBN-13. Visible and researched provenance remain distinct.
 2. **Reviewed myLibrary catalogue.** The local `legacy-catalogue` provider exposes previously reviewed ISBN mappings without a network request or quota. This preserves known mappings across collection deletion and re-import.
 3. **Open Library Search API.** Searches by title, author, and, when present, series; ISBNs are extracted from matching records.
 4. **Google Books Volumes API.** Searches by title, author, and series and extracts ISBN-10/ISBN-13 identifiers. `GOOGLE_BOOKS_API_KEY` is optional but recommended because anonymous shared traffic is frequently rate-limited.
@@ -26,6 +26,8 @@ The highest-ranked candidate is selected automatically as `algorithm_selected` o
 Candidates separately store `work_confidence`, `edition_confidence`, and `cover_confidence`. Provider identifiers are structured data rather than a flattened label, so an Open Library cover ID/edition OLID or Google volume ID can be reused by later resolvers.
 
 ## 2. Cover resolution with an ISBN
+
+When Stage 1 supplies `coverUrl`, ingestion uses that public HTTPS image immediately and records `assistant-supplied` provenance. If an ISBN is also present, the edition is attached and its cover job is marked completed. The remaining provider cascade is a fallback only when `coverUrl` is absent.
 
 Each selected image has a stable `cover_assets.id`, provenance, evidence, confidence, verification status, and storage policy. `copy_cover_selections` records whether it represents the exact edition or only the work and whether automation or the owner selected it. Public copies use `/api/cover-assets/{id}`; the asset points to the appropriate controlled resolver. The ISBN resolver `/api/covers/{isbn}` remains the lookup route behind ISBN assets and tries these sources in order:
 
@@ -87,7 +89,7 @@ Rejecting an edition records durable feedback, removes an automatic selection wh
 ## Provider safety and operations
 
 - Only canonical, checksum-valid ISBNs reach ISBN cover resolution.
-- Third-party image URLs are proxied or redirected through controlled application routes.
+- Backend-discovered third-party images are proxied or redirected through controlled application routes. Assistant-supplied public HTTPS images are rendered directly and retain explicit source provenance.
 - Provider hosts are allowlisted and response content types and sizes are validated.
 - ISBN and ISBN-cover provider outages remain distinct from genuine `not found` results.
 - Covers and negative results are cached to control latency and provider usage.

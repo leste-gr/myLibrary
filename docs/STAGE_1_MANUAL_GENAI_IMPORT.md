@@ -1,9 +1,9 @@
 # Stage 1 — manual GenAI shelfie extraction
 
-Status: superseded by the review flow on `feature/connected-shelfie-import`; the v1 payload contract below remains supported. See [connected assistant setup](CONNECTED_ASSISTANT_SETUP.md). The historical journey and non-goals below describe the previous implementation.
+Status: active for both manual JSON upload and the connected MCP assistant. See [connected assistant setup](CONNECTED_ASSISTANT_SETUP.md).
 
 Schema: `mylibrary.shelfie.v1`  
-Last updated: 10 October 2026
+Last updated: 13 October 2026
 
 ## Purpose
 
@@ -20,7 +20,7 @@ This replaces the in-product YOLO, OpenCV, and PaddleOCR worker. It does not cre
 5. In myLibrary, the owner chooses an existing collection or enters a name and optional description for a new collection.
 6. The owner uploads the JSON file. myLibrary validates the complete file before writing anything.
 7. A single authenticated database transaction creates the import record, works, copies, source observations, and any visible-ISBN candidates. Creating a new destination collection happens immediately before that transaction; the client removes it if the import reports an error.
-8. Stage 2 queries bibliographic providers, stores its ranked ISBN candidates, and automatically selects the leader before the owner lands on the collection page. Provider failures can be retried there.
+8. When a verified public cover link is supplied, ingestion publishes it immediately. Stage 2 and Stage 3 remain fallbacks only for books whose `coverUrl` is `null`.
 
 The shelf photograph is sent directly from the owner to their chosen chat. myLibrary never receives, stores, proxies, or deletes it. The provider's own privacy policy and retention settings apply.
 
@@ -44,6 +44,8 @@ The root object must have exactly the supported schema version and a non-empty `
       "series": null,
       "volume": null,
       "visibleIsbn": null,
+      "isbn": null,
+      "coverUrl": null,
       "confidence": 0.9,
       "notes": null
     }
@@ -60,6 +62,8 @@ Validation rules:
 - `confidence` is a number from 0 through 1.
 - `publicationYear` is `null` or an integer from 1400 through 2100.
 - `visibleIsbn` is `null` or a valid ISBN-10/ISBN-13. ISBN-10 values are normalized to ISBN-13 before import.
+- `isbn` is `null` or a checksum-valid ISBN identified from the photo or a credible matching edition page. It is normalized to ISBN-13 and must agree with `visibleIsbn` when both exist.
+- `coverUrl` is `null` or a direct public HTTPS image URL. Local, private-network, credential-bearing, and non-HTTPS URLs are rejected.
 - Invalid input creates no books. The client and database both validate critical constraints.
 
 ## Import semantics
@@ -69,15 +73,17 @@ Validation rules:
 - Imported copies are immediately visible, consistent with automatic Stage 1 population. Owner fine-tuning remains optional.
 - Each book creates a `manual_genai_json` observation containing the submitted fields, confidence, schema version, and import ID.
 - A valid `visibleIsbn` creates a high-priority edition candidate. It does not masquerade as an owner-confirmed ISBN.
+- A supplied `isbn` and `coverUrl` attach the edition and image during ingestion. A supplied cover marks that observation `cover_provided`, so downstream matching does not process it.
+- Mixed imports enqueue fallback matching only for books without `coverUrl`.
 - The import record stores the JSON checksum and book count, not the source photograph.
 
 ## Prompt requirements
 
-The shipped prompt uses four internal passes: physical spine inventory, literal transcription, evidence-backed bibliographic interpretation, and final count/consistency checking. It preserves `rawVisibleText`, distinguishes title/subtitle/series/volume, calibrates field confidence, retains repeated physical copies, omits spines without a meaningful title fragment, and permits only complete visibly readable ISBNs.
+The shipped prompt uses five internal passes: physical spine inventory, literal transcription, evidence-backed bibliographic interpretation, web verification and cover discovery, and final consistency checking. It preserves `rawVisibleText`, separates visible ISBN evidence from a researched ISBN, and accepts a cover only from a page verified to describe the same book or edition.
 
 The MCP server exposes the complete protocol as the `read_shelf_photo` prompt. A condensed version is also supplied automatically in the MCP server instructions and reinforced in the `create_collection` and `update_collection` tool descriptions and field schemas. Clients must reconnect after an instruction or prompt update because server instructions are delivered during MCP initialization.
 
-The prompt is product code in `lib/manual-genai-import.ts`. Any field or meaning change requires a new schema version and compatible database importer.
+The prompt is product code in `lib/manual-genai-import.ts`. Breaking field or meaning changes require a new schema version; backward-compatible nullable fields may be added to v1 when old payloads remain valid.
 
 ## Failure states
 
@@ -104,6 +110,5 @@ The prompt is product code in `lib/manual-genai-import.ts`. Any field or meaning
 - OAuth, account linking, browser extensions, chat actions, or provider APIs.
 - Verifying the external model's identity or accuracy.
 - Storing, annotating, or reprocessing shelf photographs.
-- Treating generated ISBNs as trustworthy when they were not visibly read.
-- Completing edition selection or cover ranking in Stage 1; those remain downstream stages.
+- Accepting guessed ISBNs, image-search thumbnails, placeholders, or covers tied to conflicting book pages.
 

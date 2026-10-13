@@ -45,6 +45,7 @@ async function runManualGenaiImportMatching(supabase: SupabaseClient, importId: 
     .from("book_observations")
     .select("id,copy_id,title_text,author_text,publisher_text,language_hint,raw_payload")
     .eq("manual_genai_import_id", importId)
+    .eq("status", "ready_for_matching")
     .order("detection_index", { ascending: true });
   if (observationsError) throw new Error(observationsError.message);
   const observations = (data ?? []) as ObservationRow[];
