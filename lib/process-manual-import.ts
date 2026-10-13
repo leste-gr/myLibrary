@@ -55,9 +55,20 @@ async function runManualGenaiImportMatching(supabase: SupabaseClient, importId: 
     result: await findIsbnCandidates(observationInput(observation)),
   }));
 
+  const copyIds = observations.flatMap((observation) => observation.copy_id ? [observation.copy_id] : []);
+  const { data: rejectedFeedback, error: feedbackError } = copyIds.length
+    ? await supabase.from("candidate_feedback").select("copy_id,replacement_isbn13").eq("action", "rejected").in("copy_id", copyIds)
+    : { data: [], error: null };
+  if (feedbackError) throw new Error(feedbackError.message);
+  const rejectedByCopy = new Map<string, Set<string>>();
+  for (const feedback of rejectedFeedback ?? []) {
+    if (!feedback.replacement_isbn13) continue;
+    rejectedByCopy.set(feedback.copy_id, new Set([...(rejectedByCopy.get(feedback.copy_id) ?? []), feedback.replacement_isbn13]));
+  }
+
   const candidateRows = processed.flatMap(({ observation, result }) => {
     if (!observation.copy_id) return [];
-    return result.candidates.map((candidate) => ({
+    return result.candidates.filter((candidate) => !rejectedByCopy.get(observation.copy_id as string)?.has(candidate.isbn13)).map((candidate) => ({
       copy_id: observation.copy_id,
       isbn13: candidate.isbn13,
       title: candidate.title,
@@ -75,11 +86,15 @@ async function runManualGenaiImportMatching(supabase: SupabaseClient, importId: 
       algorithm_version: "isbn-ranker-v3",
       score_breakdown: candidate.scoreBreakdown,
       provider_count: candidate.providerCount,
+      provider_identifiers: candidate.providerIdentifiers,
+      work_confidence: candidate.workConfidence,
+      edition_confidence: candidate.editionConfidence,
+      cover_confidence: candidate.coverConfidence,
+      auto_accept: candidate.autoAccept,
       last_evaluated_at: new Date().toISOString(),
     }));
   });
 
-  const copyIds = observations.flatMap((observation) => observation.copy_id ? [observation.copy_id] : []);
   if (copyIds.length) {
     const { data: priorSelections, error: selectionError } = await supabase
       .from("edition_candidates")
@@ -105,9 +120,10 @@ async function runManualGenaiImportMatching(supabase: SupabaseClient, importId: 
     if (candidateError) throw new Error(candidateError.message);
   }
 
-  const matchedIds = processed.filter(({ result }) => result.candidates.length > 0).map(({ observation }) => observation.id);
-  const retryIds = processed.filter(({ result }) => !result.candidates.length && result.providerFailures > 0).map(({ observation }) => observation.id);
-  const unresolvedIds = processed.filter(({ result }) => !result.candidates.length && result.providerFailures === 0).map(({ observation }) => observation.id);
+  const hasAcceptedCandidate = ({ observation, result }: (typeof processed)[number]) => result.candidates.some((candidate) => candidate.autoAccept && (!observation.copy_id || !rejectedByCopy.get(observation.copy_id)?.has(candidate.isbn13)));
+  const matchedIds = processed.filter(hasAcceptedCandidate).map(({ observation }) => observation.id);
+  const retryIds = processed.filter((item) => !hasAcceptedCandidate(item) && item.result.providerFailures > 0).map(({ observation }) => observation.id);
+  const unresolvedIds = processed.filter((item) => !hasAcceptedCandidate(item) && item.result.providerFailures === 0).map(({ observation }) => observation.id);
   await updateStatuses(supabase, matchedIds, "matched");
   await updateStatuses(supabase, unresolvedIds, "unresolved");
   await updateStatuses(supabase, retryIds, "ready_for_matching");

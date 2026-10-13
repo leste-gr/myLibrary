@@ -10,6 +10,7 @@ export type ShelfieTools = {
 };
 type ImportResult = { collectionId: string; slug: string; importId: string | null; imported: number; ignoredExisting?: number; duplicate: boolean; name?: string; description?: string | null };
 const optionalText = (max: number) => z.string().max(max).nullable().optional();
+const optionalConfidence = z.number().min(0).max(1).nullable().optional();
 const bookSchema = z.object({
   position: z.number().int().min(1).max(100), title: z.string().max(300).nullable().optional(),
   authors: z.array(z.string().min(1).max(160)).max(10), confidence: z.number().min(0).max(1),
@@ -17,6 +18,8 @@ const bookSchema = z.object({
   publicationYear: z.number().int().min(1400).max(2100).nullable().optional(),
   editionStatement: optionalText(160), series: optionalText(200), volume: optionalText(80),
   visibleIsbn: optionalText(32), notes: optionalText(500),
+  rawVisibleText: optionalText(1000),
+  fieldConfidence: z.object({ title: optionalConfidence, authors: optionalConfidence, publisher: optionalConfidence, series: optionalConfidence, volume: optionalConfidence }).nullable().optional(),
 });
 
 export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {

@@ -17,6 +17,8 @@ function book(overrides: Record<string, unknown> = {}) {
     visibleIsbn: "0-261-10221-4",
     confidence: 0.92,
     notes: null,
+    rawVisibleText: "THE HOBBIT TOLKIEN",
+    fieldConfidence: { title: 0.95, authors: 0.8, publisher: null, series: null, volume: null },
     ...overrides,
   };
 }
@@ -31,6 +33,8 @@ test("normalizes, canonicalizes, and sorts a valid import", () => {
   assert.equal(parsed.books[0].title, "The Hobbit");
   assert.deepEqual(parsed.books[0].authors, ["J. R. R. Tolkien"]);
   assert.equal(parsed.books[0].visibleIsbn, "9780261102217");
+  assert.equal(parsed.books[0].rawVisibleText, "THE HOBBIT TOLKIEN");
+  assert.equal(parsed.books[0].fieldConfidence.title, 0.95);
 });
 
 test("rejects an unsupported schema", () => {

@@ -21,11 +21,13 @@ Candidates are grouped by canonical ISBN-13, retained up to a maximum of ten, an
 - matching language: 25 points;
 - agreement by more than one provider: 100 points.
 
-The highest-ranked candidate is selected automatically as `algorithm_selected`. Alternatives remain available to the owner. A provider failure does not count as a negative result: when no candidate is found and at least one provider timed out, returned HTTP 429, or returned a 5xx response, the observation remains `ready_for_matching` and the import becomes `partial` for retry with exponential backoff.
+The highest-ranked candidate is selected automatically as `algorithm_selected` only when it scores at least 500 points and leads the next edition by at least 50 points. A close edition race remains unresolved for owner review even when the work match is strong. Alternatives remain available to the owner. A provider failure does not count as a negative result: when no accepted candidate is found and at least one provider timed out, returned HTTP 429, or returned a 5xx response, the observation remains `ready_for_matching` and the import becomes `partial` for retry with exponential backoff.
+
+Candidates separately store `work_confidence`, `edition_confidence`, and `cover_confidence`. Provider identifiers are structured data rather than a flattened label, so an Open Library cover ID/edition OLID or Google volume ID can be reused by later resolvers.
 
 ## 2. Cover resolution with an ISBN
 
-The public application always uses the stable route `/api/covers/{isbn}` rather than storing a third-party image URL in presentation code. The resolver tries these sources in order:
+Each selected image has a stable `cover_assets.id`, provenance, evidence, confidence, verification status, and storage policy. `copy_cover_selections` records whether it represents the exact edition or only the work and whether automation or the owner selected it. Public copies use `/api/cover-assets/{id}`; the asset points to the appropriate controlled resolver. The ISBN resolver `/api/covers/{isbn}` remains the lookup route behind ISBN assets and tries these sources in order:
 
 1. **Bundled legacy cover.** If the selected ISBN has a reviewed local image in `books.json`/`isbn.json`, the route redirects to that asset. This is quota-free and is preferred over network providers.
 2. **Open Library Covers API.** Requests the large image with `default=false` and validates that the response is a non-empty image no larger than 8 MB.
@@ -74,6 +76,8 @@ On an owned collection page, the owner can:
 
 Owner decisions retain separate provenance and are not silently overwritten by subsequent automatic matching.
 
+Rejecting an edition records durable feedback, removes an automatic selection when necessary, and prevents the same ISBN from being proposed again for that physical copy.
+
 ## Provider safety and operations
 
 - Only canonical, checksum-valid ISBNs reach ISBN cover resolution.
@@ -84,3 +88,4 @@ Owner decisions retain separate provenance and are not silently overwritten by s
 - The original shelf photograph is not required or retained by cover resolution.
 
 See [ISBN_MAPPING.md](ISBN_MAPPING.md) for the provider roadmap and edition-review rules, and [INGESTION_PIPELINE.md](INGESTION_PIPELINE.md) for the full Stage 1–4 choreography.
+Credential-dependent and web-page providers are tracked in [PROVIDER_INTEGRATIONS.md](PROVIDER_INTEGRATIONS.md).

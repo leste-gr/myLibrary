@@ -68,13 +68,30 @@ export async function resolveMetadataCover(supabase: SupabaseClient, input: Meta
   await supabase.from("metadata_cover_candidates").update({ selected: false, updated_at: new Date().toISOString() }).eq("copy_id", input.copyId);
   if (!candidates.length) {
     await supabase.from("metadata_cover_candidates").delete().eq("copy_id", input.copyId);
-    await supabase.from("copies").update({ cover_url: null, cover_source: null, updated_at: new Date().toISOString() }).eq("id", input.copyId).eq("cover_source", "metadata-resolver");
+    await supabase.from("copy_cover_selections").delete().eq("copy_id", input.copyId).eq("usage_scope", "representative").eq("decision_source", "algorithm");
+    await supabase.from("copies").update({ cover_url: null, cover_source: null, updated_at: new Date().toISOString() }).eq("id", input.copyId).is("edition_id", null).eq("edition_verification_state", "unresolved");
     return false;
   }
   const rows = candidates.map((candidate, index) => ({ copy_id: input.copyId, provider: candidate.provider, provider_id: candidate.providerId, source_url: candidate.sourceUrl, title: candidate.title, authors: candidate.authors, publisher: candidate.publisher, score: candidate.score, evidence: candidate.evidence, selected: index === 0, updated_at: new Date().toISOString() }));
   const { error } = await supabase.from("metadata_cover_candidates").upsert(rows, { onConflict: "copy_id,provider,provider_id" });
   if (error) throw new Error(error.message);
-  const { error: copyError } = await supabase.from("copies").update({ cover_url: `/api/covers/metadata/${input.copyId}`, cover_source: "metadata-resolver", updated_at: new Date().toISOString() }).eq("id", input.copyId).is("cover_url", null).eq("edition_verification_state", "unresolved");
+  const selected = candidates[0];
+  const coverConfidence = Number(Math.min(1, selected.score / 1000).toFixed(4));
+  const { data: asset, error: assetError } = await supabase.from("cover_assets").upsert({
+    canonical_key: `metadata:${input.copyId}:${selected.provider}:${selected.providerId}`,
+    source_type: "metadata",
+    source_url: `/api/covers/metadata/${input.copyId}`,
+    provider: selected.provider,
+    provider_record_id: selected.providerId,
+    evidence: selected.evidence,
+    work_confidence: coverConfidence,
+    cover_confidence: coverConfidence,
+    verification_status: "provisional",
+  }, { onConflict: "canonical_key" }).select("id").single();
+  if (assetError || !asset) throw new Error(assetError?.message || "Could not create cover asset.");
+  const { error: selectionError } = await supabase.from("copy_cover_selections").upsert({ copy_id: input.copyId, cover_asset_id: asset.id, usage_scope: "representative", decision_source: "algorithm", selected_at: new Date().toISOString() }, { onConflict: "copy_id" });
+  if (selectionError) throw new Error(selectionError.message);
+  const { error: copyError } = await supabase.from("copies").update({ cover_url: `/api/cover-assets/${asset.id}`, cover_source: "cover-asset", updated_at: new Date().toISOString() }).eq("id", input.copyId).is("edition_id", null).eq("edition_verification_state", "unresolved");
   if (copyError) throw new Error(copyError.message);
   return true;
 }

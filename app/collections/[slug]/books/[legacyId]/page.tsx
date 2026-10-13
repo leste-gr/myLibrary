@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { discardEditionDraft, publishEditionDraft, saveEditionDraft, saveManualIsbnDraft, signOut } from "@/app/admin/actions";
+import { discardEditionDraft, publishEditionDraft, rejectEditionCandidate, saveEditionDraft, saveManualIsbnDraft, signOut } from "@/app/admin/actions";
 
 type Relation<T> = T | T[] | null;
 type Work = { title: string; author: string };
 type Edition = { isbn13: string | null; title: string | null; publishers: string[]; published_date: string | null; cover_url: string | null };
 type Draft = { edition_id: string; cover_url: string | null; edition: Relation<Edition> };
 type Copy = { id: string; legacy_id: string; category: string; language: string; cover_url: string | null; edition_verification_state: string; work: Relation<Work>; edition: Relation<Edition>; copy_drafts: Relation<Draft> };
-type Candidate = { id: string; isbn13: string; title: string | null; publishers: string[]; published_date: string | null; cover_url: string | null; provider: string; score: number; suggested: boolean; rank: number; selection_state: string; confidence: number | null; algorithm_version: string };
+type Candidate = { id: string; isbn13: string; title: string | null; publishers: string[]; published_date: string | null; cover_url: string | null; provider: string; score: number; suggested: boolean; rank: number; selection_state: string; confidence: number | null; work_confidence: number | null; edition_confidence: number | null; cover_confidence: number | null; auto_accept: boolean; algorithm_version: string };
 
 function first<T>(value: Relation<T>): T | null {
   return Array.isArray(value) ? value[0] ?? null : value;
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 export default async function CollectionBookEditPage({ params, searchParams }: {
   params: Promise<{ slug: string; legacyId: string }>;
-  searchParams: Promise<{ saved?: string; published?: string; error?: string }>;
+  searchParams: Promise<{ saved?: string; published?: string; rejected?: string; error?: string }>;
 }) {
   const { slug, legacyId } = await params;
   const messages = await searchParams;
@@ -33,7 +33,7 @@ export default async function CollectionBookEditPage({ params, searchParams }: {
   if (error || !data) notFound();
   const copy = data as Copy;
   const { data: candidateData, error: candidateError } = await supabase.from("edition_candidates").select(
-    "id,isbn13,title,publishers,published_date,cover_url,provider,score,suggested,rank,selection_state,confidence,algorithm_version"
+    "id,isbn13,title,publishers,published_date,cover_url,provider,score,suggested,rank,selection_state,confidence,work_confidence,edition_confidence,cover_confidence,auto_accept,algorithm_version"
   ).eq("copy_id", copy.id).order("rank");
   if (candidateError) throw new Error(candidateError.message);
   const candidates = (candidateData ?? []) as Candidate[];
@@ -47,6 +47,7 @@ export default async function CollectionBookEditPage({ params, searchParams }: {
     {messages.error && <p className="form-error">{messages.error}</p>}
     {messages.saved && <p className="draft-banner">Η επιλογή αποθηκεύτηκε ως πρόχειρη. Έλεγξέ την και δημοσίευσέ την όταν είσαι έτοιμος.</p>}
     {messages.published && <p className="draft-banner">Η έκδοση δημοσιεύτηκε στη συλλογή.</p>}
+    {messages.rejected && <p className="draft-banner">Η υποψήφια έκδοση απορρίφθηκε και δεν θα προταθεί ξανά για αυτό το αντίτυπο.</p>}
     <section className="admin-book-grid">
       <div className="admin-book-cover">{copy.cover_url ? <img src={copy.cover_url} alt="" /> : <div className="missing-cover">Χωρίς εξώφυλλο</div>}</div>
       <div className="admin-book-meta"><p className="eyebrow">{copy.legacy_id}</p><h2>{work?.title}</h2><p>{work?.author}</p><dl><dt>Κατηγορία</dt><dd>{copy.category}</dd><dt>Γλώσσα</dt><dd>{copy.language}</dd><dt>Δημοσιευμένο ISBN</dt><dd>{edition?.isbn13 ?? "—"}</dd><dt>Κατάσταση αντιστοίχισης</dt><dd>{copy.edition_verification_state === "algorithm_selected" ? "Αυτόματη επιλογή" : copy.edition_verification_state === "owner_overridden" ? "Διόρθωση ιδιοκτήτη" : copy.edition_verification_state}</dd></dl>
@@ -58,6 +59,6 @@ export default async function CollectionBookEditPage({ params, searchParams }: {
     </section>
     <section className="manual-isbn"><h2>Χειροκίνητη εισαγωγή ISBN</h2><p>Πληκτρολόγησε το ISBN-10 ή ISBN-13 που βλέπεις στο βιβλίο. Θα μετατραπεί και θα ελεγχθεί πριν αποθηκευτεί ως πρόχειρο.</p><form action={saveManualIsbnDraft} className="manual-isbn-row"><input type="hidden" name="copyId" value={copy.id} /><input type="hidden" name="legacyId" value={copy.legacy_id} /><input type="hidden" name="collectionSlug" value={slug} /><label className="sr-only" htmlFor="manual-isbn">ISBN</label><input id="manual-isbn" name="isbn" inputMode="numeric" autoComplete="off" placeholder="978…" required /><button className="primary-button" type="submit">Αποθήκευση ISBN</button></form></section>
     <h2>Πιθανές εκδόσεις</h2>
-    {!candidates.length ? <p className="empty-admin">Δεν υπάρχουν ακόμη υποψήφιες εκδόσεις.</p> : <div className="candidate-grid">{candidates.map((candidate) => <article className={"candidate-card " + (candidate.selection_state !== "alternative" ? "suggested" : "")} key={candidate.id}><div>{candidate.cover_url ? <img src={candidate.cover_url} alt="" loading="lazy" /> : <div className="missing-cover">Χωρίς εξώφυλλο</div>}</div><div>{candidate.selection_state === "algorithm_selected" && <span className="edition-suggested">Αυτόματη επιλογή</span>}{candidate.selection_state === "owner_selected" && <span className="edition-suggested">Επιλογή ιδιοκτήτη</span>}<h3>{candidate.title ?? work?.title}</h3><p>{candidate.publishers.join(", ") || "Άγνωστος εκδότης"}</p><p>{candidate.published_date}</p><p>Βαθμολογία {candidate.score}{candidate.confidence !== null ? ` · ${Math.round(candidate.confidence * 100)}%` : ""}</p><code>{candidate.isbn13}</code><form action={saveEditionDraft}><input type="hidden" name="candidateId" value={candidate.id} /><input type="hidden" name="copyId" value={copy.id} /><input type="hidden" name="legacyId" value={copy.legacy_id} /><input type="hidden" name="collectionSlug" value={slug} /><button className="secondary-button" type="submit">Παράκαμψη με αυτή την έκδοση</button></form></div></article>)}</div>}
+    {!candidates.length ? <p className="empty-admin">Δεν υπάρχουν ακόμη υποψήφιες εκδόσεις.</p> : <div className="candidate-grid">{candidates.map((candidate) => <article className={"candidate-card " + (candidate.selection_state !== "alternative" ? "suggested" : "")} key={candidate.id}><div>{candidate.cover_url ? <img src={candidate.cover_url} alt="" loading="lazy" /> : <div className="missing-cover">Χωρίς εξώφυλλο</div>}</div><div>{candidate.selection_state === "algorithm_selected" && <span className="edition-suggested">Αυτόματη επιλογή</span>}{candidate.selection_state === "owner_selected" && <span className="edition-suggested">Επιλογή ιδιοκτήτη</span>}{candidate.selection_state === "owner_rejected" && <span className="edition-suggested">Απορρίφθηκε</span>}<h3>{candidate.title ?? work?.title}</h3><p>{candidate.publishers.join(", ") || "Άγνωστος εκδότης"}</p><p>{candidate.published_date}</p><p>Έργο {candidate.work_confidence === null ? "—" : `${Math.round(candidate.work_confidence * 100)}%`} · Έκδοση {candidate.edition_confidence === null ? "—" : `${Math.round(candidate.edition_confidence * 100)}%`} · Εξώφυλλο {candidate.cover_confidence === null ? "μη επαληθευμένο" : `${Math.round(candidate.cover_confidence * 100)}%`}</p><p>{candidate.auto_accept ? "Πληροί το όριο αυτόματης αποδοχής" : "Απαιτεί επιλογή ιδιοκτήτη"}</p><code>{candidate.isbn13}</code><div className="publish-actions"><form action={saveEditionDraft}><input type="hidden" name="candidateId" value={candidate.id} /><input type="hidden" name="copyId" value={copy.id} /><input type="hidden" name="legacyId" value={copy.legacy_id} /><input type="hidden" name="collectionSlug" value={slug} /><button className="secondary-button" type="submit">Αυτό είναι το αντίτυπό μου</button></form>{candidate.selection_state !== "owner_rejected" && <form action={rejectEditionCandidate}><input type="hidden" name="candidateId" value={candidate.id} /><input type="hidden" name="legacyId" value={copy.legacy_id} /><input type="hidden" name="collectionSlug" value={slug} /><button className="danger-button" type="submit">Απόρριψη</button></form>}</div></div></article>)}</div>}
   </main>;
 }

@@ -21,7 +21,7 @@ Stage handoffs use database statuses rather than direct calls between ingestion 
 
 ### Stage 1 → Stage 2
 
-Every imported physical spine creates a published copy, a work, and a `manual_genai_json` observation containing normalized title, authors, publisher, language, edition clues, confidence, notes, position, and any visibly read ISBN. The original JSON is represented by an import checksum; the shelf photograph remains outside myLibrary.
+Every imported physical spine creates a published copy, a work, and a `manual_genai_json` observation containing normalized title, authors, publisher, language, edition clues, confidence, notes, position, and any visibly read ISBN. New Stage 1 payloads also preserve `rawVisibleText` and per-field confidence so a speculative interpretation remains distinguishable from the literal spine reading. The original JSON is represented by an import checksum; the shelf photograph remains outside myLibrary.
 
 Stage 2 must always select its strongest ISBN candidate automatically while retaining the remaining candidates for owner selection. A valid, visibly read ISBN is stronger evidence than a bibliographic text match but remains distinguishable from an owner override.
 

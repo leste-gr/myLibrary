@@ -73,10 +73,13 @@ export async function saveEditionDraft(formData: FormData) {
     .single();
   if (editionError || !edition) throw new Error("Could not save edition.");
 
+  const { data: coverAssetId, error: coverAssetError } = await supabase.rpc("prepare_candidate_cover_asset", { target_candidate_id: candidateId });
+  if (coverAssetError || !coverAssetId) throw new Error("Could not prepare cover asset.");
+
   const { error: draftError } = await supabase.from("copy_drafts").upsert({
     copy_id: copyId,
     edition_id: edition.id,
-    cover_url: candidate.cover_url,
+    cover_url: `/api/cover-assets/${coverAssetId}`,
     created_by: user.id,
     updated_at: new Date().toISOString(),
   }, { onConflict: "copy_id" });
@@ -86,6 +89,19 @@ export async function saveEditionDraft(formData: FormData) {
   revalidatePath("/admin/books/" + legacyId);
   if (collectionSlug) revalidatePath("/collections/" + collectionSlug);
   redirect(editPath(collectionSlug, legacyId, "?saved=1"));
+}
+
+export async function rejectEditionCandidate(formData: FormData) {
+  const candidateId = String(formData.get("candidateId") ?? "");
+  const legacyId = String(formData.get("legacyId") ?? "");
+  const collectionSlug = String(formData.get("collectionSlug") ?? "");
+  if (!candidateId || !legacyId || !collectionSlug) throw new Error("Missing candidate rejection.");
+  const { supabase } = await authenticatedClient();
+  const { error } = await supabase.rpc("reject_edition_candidate", { target_candidate_id: candidateId, rejection_reason: "Rejected from collection page" });
+  if (error) throw new Error("Could not reject edition candidate: " + error.message);
+  revalidatePath("/collections/" + collectionSlug);
+  revalidatePath(editPath(collectionSlug, legacyId));
+  redirect(editPath(collectionSlug, legacyId, "?rejected=1"));
 }
 
 export async function saveManualIsbnDraft(formData: FormData) {
@@ -129,7 +145,7 @@ export async function saveManualIsbnDraft(formData: FormData) {
   }
 
   await supabase.from("edition_candidates").update({ suggested: false }).eq("copy_id", copyId);
-  const { error: candidateError } = await supabase.from("edition_candidates").upsert({
+  const { data: manualCandidate, error: candidateError } = await supabase.from("edition_candidates").upsert({
     copy_id: copyId,
     isbn13,
     title: work?.title ?? null,
@@ -147,13 +163,16 @@ export async function saveManualIsbnDraft(formData: FormData) {
     score_breakdown: { manual_isbn: 1000 },
     provider_count: 1,
     last_evaluated_at: new Date().toISOString(),
-  }, { onConflict: "copy_id,isbn13" });
-  if (candidateError) throw new Error("Could not save ISBN candidate.");
+  }, { onConflict: "copy_id,isbn13" }).select("id").single();
+  if (candidateError || !manualCandidate) throw new Error("Could not save ISBN candidate.");
+
+  const { data: coverAssetId, error: coverAssetError } = await supabase.rpc("prepare_candidate_cover_asset", { target_candidate_id: manualCandidate.id });
+  if (coverAssetError || !coverAssetId) throw new Error("Could not prepare ISBN cover asset.");
 
   const { error: draftError } = await supabase.from("copy_drafts").upsert({
     copy_id: copyId,
     edition_id: edition.id,
-    cover_url: coverUrl,
+    cover_url: `/api/cover-assets/${coverAssetId}`,
     created_by: user.id,
     updated_at: new Date().toISOString(),
   }, { onConflict: "copy_id" });

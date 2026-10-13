@@ -46,6 +46,18 @@ test("ranks metadata agreement above a title-only candidate", () => {
   assert.equal(ranked[0].providerCount, 2);
   assert.ok(ranked[0].score > ranked[1].score);
   assert.ok(ranked[0].evidence.includes("multiple providers agree on ISBN"));
+  assert.equal(ranked[0].autoAccept, true);
+  assert.ok(ranked[0].workConfidence > 0.9);
+  assert.ok(ranked[0].editionConfidence > 0.5);
+});
+
+test("does not auto-assign an ISBN when competing editions are too close", () => {
+  const records: ProviderCandidate[] = ["9780441172719", "9780593099322"].map((isbn13, index) => ({
+    isbn13, title: "Dune", authors: ["Frank Herbert"], publishers: [index ? "Ace Books" : "Ace"], publishedDate: null, language: "en", provider: "openlibrary", providerId: `OL${index}`,
+  }));
+  const ranked = rankIsbnCandidates({ title: "Dune", authors: ["Frank Herbert"], publisher: null, publicationYear: null, language: "en", series: null }, records);
+  assert.equal(ranked[0].score, ranked[1].score);
+  assert.equal(ranked[0].autoAccept, false);
 });
 
 test("deduplicates ISBNs and applies the requested limit", () => {

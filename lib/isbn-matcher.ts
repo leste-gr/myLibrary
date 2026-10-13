@@ -25,10 +25,16 @@ export type RankedIsbnCandidate = {
   evidence: string[];
   scoreBreakdown: Record<string, number>;
   providerCount: number;
+  providerIdentifiers: Record<string, string[]>;
+  workConfidence: number;
+  editionConfidence: number;
+  coverConfidence: number | null;
+  autoAccept: boolean;
 };
 
-export type ProviderCandidate = Omit<RankedIsbnCandidate, "score" | "confidence" | "rank" | "evidence" | "scoreBreakdown" | "providerCount"> & {
+export type ProviderCandidate = Omit<RankedIsbnCandidate, "score" | "confidence" | "rank" | "evidence" | "scoreBreakdown" | "providerCount" | "providerIdentifiers" | "workConfidence" | "editionConfidence" | "coverConfidence" | "autoAccept"> & {
   provider: "openlibrary" | "google-books" | "legacy-catalogue";
+  providerIdentifiers?: Record<string, string[]>;
 };
 
 type ProviderResult = { records: ProviderCandidate[]; failed: boolean };
@@ -49,6 +55,7 @@ const legacyRecords: ProviderCandidate[] = books.flatMap((book) => {
     language: book.language ?? null,
     provider: "legacy-catalogue" as const,
     providerId: book.id,
+    providerIdentifiers: { legacyCopyId: [book.id] },
   }];
 });
 
@@ -111,8 +118,8 @@ async function openLibraryCandidates(input: IsbnMatchInput): Promise<ProviderRes
     const authors = usefulAuthors(input.authors);
     if (authors[0]) url.searchParams.set("author", authors[0]);
     url.searchParams.set("limit", "10");
-    url.searchParams.set("fields", "key,title,author_name,isbn,publisher,first_publish_year,language");
-    const payload = await fetchJson<{ docs?: Array<{ key?: string; title?: string; author_name?: string[]; isbn?: string[]; publisher?: string[]; first_publish_year?: number; language?: string[] }> }>(url);
+    url.searchParams.set("fields", "key,title,author_name,isbn,publisher,first_publish_year,language,cover_i,cover_edition_key,edition_key");
+    const payload = await fetchJson<{ docs?: Array<{ key?: string; title?: string; author_name?: string[]; isbn?: string[]; publisher?: string[]; first_publish_year?: number; language?: string[]; cover_i?: number; cover_edition_key?: string; edition_key?: string[] }> }>(url);
     const records: ProviderCandidate[] = [];
     for (const document of payload.docs ?? []) {
       for (const rawIsbn of (document.isbn ?? []).slice(0, 40)) {
@@ -127,6 +134,11 @@ async function openLibraryCandidates(input: IsbnMatchInput): Promise<ProviderRes
           language: document.language?.[0] ?? null,
           provider: "openlibrary",
           providerId: document.key?.split("/").pop() ?? isbn13,
+          providerIdentifiers: {
+            workOlid: document.key ? [document.key.split("/").pop() ?? document.key] : [],
+            editionOlid: [...new Set([document.cover_edition_key, ...(document.edition_key ?? [])].filter((value): value is string => Boolean(value)))],
+            coverId: document.cover_i ? [String(document.cover_i)] : [],
+          },
         });
       }
     }
@@ -166,6 +178,7 @@ async function googleBooksCandidates(input: IsbnMatchInput): Promise<ProviderRes
           language: info.language ?? null,
           provider: "google-books",
           providerId: item.id ?? isbn13,
+          providerIdentifiers: { googleVolumeId: item.id ? [item.id] : [] },
         });
       }
     }
@@ -207,6 +220,15 @@ export function rankIsbnCandidates(input: IsbnMatchInput, records: ProviderCandi
       best.breakdown.publicationYear ? "matching publication year" : null,
       providerAgreement ? "multiple providers agree on ISBN" : null,
     ].filter((value): value is string => Boolean(value));
+    const providerIdentifiers = isbnRecords.reduce<Record<string, string[]>>((identifiers, record) => {
+      for (const [kind, values] of Object.entries(record.providerIdentifiers ?? {})) {
+        identifiers[kind] = [...new Set([...(identifiers[kind] ?? []), ...values])];
+      }
+      return identifiers;
+    }, {});
+    const workConfidence = Number(Math.min(1, expectedAuthors.length
+      ? (best.breakdown.title / 500) * 0.7 + (best.breakdown.author / 250) * 0.3
+      : best.breakdown.title / 500).toFixed(4));
     return {
       isbn13,
       title: best.record.title,
@@ -221,6 +243,11 @@ export function rankIsbnCandidates(input: IsbnMatchInput, records: ProviderCandi
       evidence,
       scoreBreakdown: { ...best.breakdown, providerAgreement },
       providerCount: providers.size,
+      providerIdentifiers,
+      workConfidence,
+      editionConfidence: 0,
+      coverConfidence: null,
+      autoAccept: false,
     };
   }).filter((candidate) => candidate.scoreBreakdown.title >= 250)
     .sort((left, right) => right.score - left.score || left.isbn13.localeCompare(right.isbn13))
@@ -228,11 +255,17 @@ export function rankIsbnCandidates(input: IsbnMatchInput, records: ProviderCandi
 
   const leader = ranked[0]?.score ?? 0;
   const runnerUp = ranked[1]?.score ?? 0;
-  return ranked.map((candidate, index) => ({
-    ...candidate,
-    rank: index + 1,
-    confidence: Number(Math.min(1, Math.max(0, (candidate.score / 950) * 0.75 + (index === 0 ? Math.max(0, leader - runnerUp) / 500 * 0.25 : 0))).toFixed(4)),
-  }));
+  return ranked.map((candidate, index) => {
+    const separation = index === 0 ? Math.max(0, leader - runnerUp) : 0;
+    const editionConfidence = Number(Math.min(1, Math.max(0, (candidate.score / 950) * 0.75 + separation / 500 * 0.25)).toFixed(4));
+    return {
+      ...candidate,
+      rank: index + 1,
+      confidence: editionConfidence,
+      editionConfidence,
+      autoAccept: index === 0 && candidate.score >= 500 && separation >= 50,
+    };
+  });
 }
 
 export async function findIsbnCandidates(input: IsbnMatchInput) {

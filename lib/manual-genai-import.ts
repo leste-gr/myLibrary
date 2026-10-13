@@ -18,6 +18,14 @@ export type ManualGenaiBook = {
   visibleIsbn: string | null;
   confidence: number;
   notes: string | null;
+  rawVisibleText: string | null;
+  fieldConfidence: {
+    title: number | null;
+    authors: number | null;
+    publisher: number | null;
+    series: number | null;
+    volume: number | null;
+  };
 };
 
 export type ManualGenaiImport = {
@@ -48,6 +56,12 @@ function optionalText(value: unknown, field: string, index: number, maxLength = 
   return result;
 }
 
+function optionalConfidence(value: unknown, field: string, index: number): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) throw new Error(`Book ${index}: fieldConfidence.${field} must be between 0 and 1 or null.`);
+  return value;
+}
+
 export function parseManualGenaiImport(value: unknown): ManualGenaiImport {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("The JSON root must be an object.");
   const root = value as Record<string, unknown>;
@@ -64,6 +78,9 @@ export function parseManualGenaiImport(value: unknown): ManualGenaiImport {
     // A detected spine is not a book-information record until it has a title.
     // Skip it before validating or persisting any of its other metadata.
     if (!title) return [];
+    const fieldConfidence = book.fieldConfidence === null || book.fieldConfidence === undefined ? {} : book.fieldConfidence;
+    if (!fieldConfidence || typeof fieldConfidence !== "object" || Array.isArray(fieldConfidence)) throw new Error(`Book ${index}: fieldConfidence must be an object or null.`);
+    const confidence = fieldConfidence as Record<string, unknown>;
     const position = book.position;
     if (!Number.isInteger(position) || Number(position) < 1 || Number(position) > MAX_IMPORT_BOOKS) throw new Error(`Book ${index}: position must be a positive integer.`);
     if (positions.has(Number(position))) throw new Error(`Book ${index}: position ${position} is duplicated.`);
@@ -95,6 +112,14 @@ export function parseManualGenaiImport(value: unknown): ManualGenaiImport {
       visibleIsbn,
       confidence: book.confidence,
       notes: optionalText(book.notes, "notes", index, 500),
+      rawVisibleText: optionalText(book.rawVisibleText, "rawVisibleText", index, 1000),
+      fieldConfidence: {
+        title: optionalConfidence(confidence.title, "title", index),
+        authors: optionalConfidence(confidence.authors, "authors", index),
+        publisher: optionalConfidence(confidence.publisher, "publisher", index),
+        series: optionalConfidence(confidence.series, "series", index),
+        volume: optionalConfidence(confidence.volume, "volume", index),
+      },
     }];
   });
   if (books.length === 0) throw new Error("At least one book with a title is required.");
@@ -115,6 +140,7 @@ Rules:
 6. confidence is your confidence that this item is one correctly separated physical book and that its title is correct, from 0 to 1.
 7. A title is required. Do not include a spine when no title or meaningful title fragment can be detected. Never use placeholders such as "Unknown", "Unreadable", or "Untitled".
 8. Include repeated copies as separate items.
+9. rawVisibleText must preserve the literal spine text before any suggested correction. Use fieldConfidence to score each interpreted field independently. Low-confidence text must broaden later searches rather than becoming a hard constraint.
 
 Use this exact schema and field names:
 {
@@ -133,7 +159,9 @@ Use this exact schema and field names:
       "volume": null,
       "visibleIsbn": null,
       "confidence": 0.9,
-      "notes": null
+      "notes": null,
+      "rawVisibleText": "Literal text visible on the spine",
+      "fieldConfidence": { "title": 0.9, "authors": 0.8, "publisher": null, "series": null, "volume": null }
     }
   ]
 }`;
