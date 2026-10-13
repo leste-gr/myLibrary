@@ -16,7 +16,7 @@ The product should automate discovery without pretending that visual or bibliogr
 
 ## 2. Current baseline
 
-The product is a Next.js and Supabase application with per-user collections, public collection URLs, owner-aware editing on the public page, ranked edition candidates, manual ISBN entry, and ISBN-based cover resolution. The original catalogue remains available as bundled fallback data.
+The product is a Next.js and Supabase application with per-user collections, public collection URLs, owner-aware editing on the public page, ranked edition candidates, manual ISBN entry, and ISBN-based cover resolution. Supabase is the single source of truth; there is no bundled catalogue fallback.
 
 Stage 1 shelfie ingestion uses a manual handoff: myLibrary gives the owner a versioned prompt; the owner attaches the photo in a GenAI chat of their choice and uploads only its JSON response. myLibrary has no model-provider integration and never receives the shelf photograph.
 
@@ -51,7 +51,7 @@ A trusted collaborator may help review matches and metadata. This is a later rol
 
 ## 5. Core domain model
 
-The present `books.json` record mixes physical-copy data, work metadata, edition metadata, recognition results, and cover data. Separate these concerns before building the editing workflow.
+Keep physical-copy data, work metadata, edition metadata, recognition results, and cover data separate in the database.
 
 ### Work
 
@@ -267,7 +267,7 @@ Before adding shelfie ingestion:
 3. Create provisional work and edition records from existing fields.
 4. Treat all current cover-to-edition links as unverified until an edition is selected; retain their existing provenance.
 5. Add nullable `isbn10` and `isbn13` edition fields. Do not invent ISBN values during migration.
-6. Generate the current public `books.json` format during a compatibility period.
+6. Serve the public catalogue directly from Supabase views.
 7. Add schema validation and a migration test using all 166 current records.
 
 ## 10. Roadmap

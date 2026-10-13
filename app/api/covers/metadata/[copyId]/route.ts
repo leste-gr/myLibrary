@@ -11,6 +11,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ copy
   const { data } = await supabase.from("metadata_cover_candidates").select("source_url,provider").eq("copy_id", (await params).copyId).eq("selected", true).maybeSingle();
   if (!data) return new Response("Cover unavailable", { status: 404, headers: { "Cache-Control": "public, s-maxage=300" } });
   try {
+    // Serve a local image only when the database explicitly selected it.
     if (/^\/covers\/[A-Za-z0-9._-]+\.(?:avif|jpe?g|png|webp)$/i.test(data.source_url)) {
       return new Response(null, { status: 307, headers: { Location: new URL(data.source_url, request.url).toString(), "Cache-Control": "public, max-age=86400, s-maxage=2592000", "X-Cover-Source": data.provider } });
     }

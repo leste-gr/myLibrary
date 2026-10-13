@@ -44,7 +44,7 @@ Every candidate now keeps structured provider identifiers separately from the di
 - Open Library edition OLIDs, including the cover edition when supplied;
 - Open Library cover ID;
 - Google Books volume ID;
-- reviewed legacy copy ID.
+- provider identifiers supplied by external catalogue APIs.
 
 These identifiers allow future cover resolution to use an edition OLID or cover ID instead of combining a work-level cover with an arbitrary ISBN. Open Library ISBN requests already use `default=false`; cover-ID/OLID routing is the next provider-specific resolver improvement and also avoids the ISBN-cover-specific request limit.
 

@@ -1,6 +1,4 @@
 import { canonicalIsbn } from "./isbn";
-import books from "@/books.json";
-import acceptedIsbns from "@/isbn.json";
 
 export type IsbnMatchInput = {
   title: string;
@@ -33,7 +31,7 @@ export type RankedIsbnCandidate = {
 };
 
 export type ProviderCandidate = Omit<RankedIsbnCandidate, "score" | "confidence" | "rank" | "evidence" | "scoreBreakdown" | "providerCount" | "providerIdentifiers" | "workConfidence" | "editionConfidence" | "coverConfidence" | "autoAccept"> & {
-  provider: "openlibrary" | "google-books" | "legacy-catalogue";
+  provider: "openlibrary" | "google-books";
   providerIdentifiers?: Record<string, string[]>;
 };
 
@@ -42,22 +40,6 @@ type ProviderResult = { records: ProviderCandidate[]; failed: boolean };
 const UNKNOWN_AUTHORS = new Set(["", "άγνωστος", "unknown", "μη αναγνωσμένος", "συλλογικό έργο"]);
 const USER_AGENT = "myLibrary-isbn-matcher/1.0 (+https://github.com/leste-gr/myLibrary)";
 let googleRetryAfter = 0;
-
-const legacyRecords: ProviderCandidate[] = books.flatMap((book) => {
-  const isbn13 = (acceptedIsbns as Record<string, string>)[book.id];
-  if (!isbn13) return [];
-  return [{
-    isbn13,
-    title: book.title,
-    authors: book.author ? [book.author] : [],
-    publishers: book.publisher ? [book.publisher] : [],
-    publishedDate: null,
-    language: book.language ?? null,
-    provider: "legacy-catalogue" as const,
-    providerId: book.id,
-    providerIdentifiers: { legacyCopyId: [book.id] },
-  }];
-});
 
 export function normalizedText(value: unknown) {
   return String(value ?? "")
@@ -220,12 +202,6 @@ async function googleBooksCandidates(input: IsbnMatchInput): Promise<ProviderRes
   }
 }
 
-export function legacyCatalogueCandidates(input: IsbnMatchInput) {
-  // This is previously reviewed local catalogue data, so it remains available
-  // when external providers are unavailable. Ranking still validates metadata.
-  return legacyRecords.filter((record) => textSimilarity(input.title, record.title) >= 0.5);
-}
-
 export function rankIsbnCandidates(input: IsbnMatchInput, records: ProviderCandidate[], limit = 10): RankedIsbnCandidate[] {
   const grouped = new Map<string, ProviderCandidate[]>();
   for (const record of records) grouped.set(record.isbn13, [...(grouped.get(record.isbn13) ?? []), record]);
@@ -308,7 +284,7 @@ export async function findIsbnCandidates(input: IsbnMatchInput) {
   }
   const results = await Promise.all([openLibraryCandidates(input), googleBooksCandidates(input)]);
   return {
-    candidates: rankIsbnCandidates(input, [...legacyCatalogueCandidates(input), ...results.flatMap((result) => result.records)]),
+    candidates: rankIsbnCandidates(input, results.flatMap((result) => result.records)),
     providerFailures: results.filter((result) => result.failed).length,
   };
 }

@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { mapWithConcurrency } from "./isbn-matcher";
 
 const MIN_REPRESENTATIVE_WORK_CONFIDENCE = 0.85;
-const VERIFIED_SOURCES = new Set(["legacy-library", "openlibrary", "google-books"]);
+const VERIFIED_SOURCES = new Set(["openlibrary", "google-books"]);
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 type CandidateRow = {
@@ -38,14 +38,6 @@ export async function probeCandidateCover(siteUrl: string, isbn13: string, fetch
     const response = await fetcher(endpoint, { redirect: "manual", signal: AbortSignal.timeout(20_000), cache: "no-store" });
     const source = response.headers.get("x-cover-source");
     if (!source || !VERIFIED_SOURCES.has(source)) return null;
-    if (response.status === 307) {
-      const location = response.headers.get("location");
-      if (!location) return null;
-      const target = new URL(location, endpoint);
-      if (source !== "legacy-library" || target.origin !== endpoint.origin || !target.pathname.startsWith("/covers/")) return null;
-      const image = await fetcher(target, { signal: AbortSignal.timeout(20_000), cache: "no-store" });
-      return await validImage(image) ? source : null;
-    }
     return await validImage(response) ? source : null;
   } catch {
     return null;

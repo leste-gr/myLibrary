@@ -112,3 +112,11 @@ The prompt is product code in `lib/manual-genai-import.ts`. Breaking field or me
 - Storing, annotating, or reprocessing shelf photographs.
 - Accepting guessed ISBNs, image-search thumbnails, placeholders, or covers tied to conflicting book pages.
 
+
+## Work identification and representative covers
+
+The shared prompt prioritizes identifying the correct work and displaying a credible cover. Search in order for the exact physical edition, another edition in the same language, then an edition in another language. Publisher, year, format, or language differences alone do not disqualify a representative cover; another volume, adaptation, or unrelated work does.
+
+Preserve the photographed edition's catalogue language and literal spine text. Record representative-cover use and known differences in `notes`. Keep `isbn` null unless the physical edition is independently verified; never copy the representative cover's ISBN. Book-identification confidence is independent of cover-edition differences. Reconcile overlapping photos and bibliographic details before import, and do not claim full verification merely because the write succeeded.
+
+These rules appear in MCP initialization instructions, both write tools, and `read_shelf_photo`. Reconnect the MCP client after deploying prompt changes.

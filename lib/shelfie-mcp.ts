@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { SHELFIE_EXTRACTION_PROTOCOL, SHELFIE_GENAI_PROMPT, MAX_IMPORT_BYTES, parseManualGenaiImport, type ManualGenaiImport } from "./manual-genai-import";
+import { BOOK_IDENTIFICATION_AND_COVER_RESOLUTION, SHELFIE_EXTRACTION_PROTOCOL, SHELFIE_GENAI_PROMPT, MAX_IMPORT_BYTES, parseManualGenaiImport, type ManualGenaiImport } from "./manual-genai-import";
 
 export type ShelfieTools = {
   listCollections: () => Promise<{ id: string; name: string; slug: string }[]>;
@@ -15,22 +15,24 @@ const bookSchema = z.object({
   position: z.number().int().min(1).max(100).describe("Consecutive physical shelf order, top-to-bottom then left-to-right."),
   title: z.string().max(300).nullable().optional().describe("Best-supported work or volume title; omit the spine if no meaningful title fragment is readable."),
   authors: z.array(z.string().min(1).max(160)).max(10).describe("Supported person names only; use [] when none can be identified."),
-  confidence: z.number().min(0).max(1).describe("Confidence that the spine is correctly separated and the title identifies the book."),
+  confidence: z.number().min(0).max(1).describe("Confidence that the spine is correctly separated and the title identifies the work; do not reduce it solely because the cover is representative."),
   subtitle: optionalText(300), publisher: optionalText(200), language: optionalText(40),
   publicationYear: z.number().int().min(1400).max(2100).nullable().optional(),
   editionStatement: optionalText(160), series: optionalText(200), volume: optionalText(80),
   visibleIsbn: optionalText(32).describe("Complete checksum-valid ISBN only when every digit is visible in the photo."),
-  isbn: optionalText(32).describe("Canonical ISBN for the verified physical edition, retrieved from a credible matching book page or catalogue record; never guessed."),
-  coverUrl: optionalText(2048).describe("Direct public HTTPS cover-image URL verified against the identified book; null when no credible image is found."),
-  notes: optionalText(500).describe("Concise ambiguity, alternative readings, logo evidence, or correction beyond literal transcription."),
+  isbn: optionalText(32).describe("Canonical ISBN for the independently verified physical edition; null unless verified. Never assign an ISBN from a representative cover."),
+  coverUrl: optionalText(2048).describe("Direct public HTTPS cover-image URL for the same work and volume. Prefer exact edition, then same-language edition, then different-language edition; null only when no credible match exists."),
+  notes: optionalText(500).describe("Record representative-cover use and known edition/language differences, unresolved bibliographic validation, ambiguities, or corrections beyond literal transcription."),
   rawVisibleText: optionalText(1000).describe("All meaningful literal spine text before normalization or bibliographic correction."),
   fieldConfidence: z.object({ title: optionalConfidence, authors: optionalConfidence, publisher: optionalConfidence, series: optionalConfidence, volume: optionalConfidence }).nullable().optional(),
 });
 const shelfieWriteProtocol = `When the source is one or more shelf photographs, you MUST apply the complete protocol below before constructing this tool call. Use web search for the verification pass when available. Do not rely on a separate MCP prompt.\n\n${SHELFIE_EXTRACTION_PROTOCOL}`;
 
 export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
-  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.2.0" }, {
-    instructions: "You can list the owner's collections and books and import attached shelf photos. For a shelf photo, internally perform five passes before calling a write tool: (1) count and separate physical spines; (2) transcribe literal text; (3) resolve structured metadata from supported visual evidence; (4) search the web for a verified edition ISBN and direct public cover image; (5) reconcile count, positions, duplicates, ISBNs, and cover links. Preserve one item per physical book in shelf order. Never translate titles or invent bibliographic facts. visibleIsbn is only for a complete ISBN read from the photo; isbn may be retrieved from a credible matching edition page but never guessed. coverUrl must be a direct public HTTPS image verified against the identified book; use null when uncertain so the backend fallback can run. Omit spines without a meaningful title fragment. The complete protocol is available as the read_shelf_photo prompt. Use create_collection for a requested new collection and update_collection for an existing collection. Never call a write tool without the user's explicit request.",
+  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.3.0" }, {
+    instructions: `You can list the owner's collections and books and import attached shelf photos. For a shelf photo, internally perform five passes before calling a write tool: (1) count and separate physical spines; (2) transcribe literal text; (3) resolve structured metadata from supported visual evidence; (4) verify the work and search for an independently verified physical-edition ISBN and a credible direct public cover image; (5) reconcile count, positions, overlapping photos, duplicates, titles, authors, series, volumes, ISBNs, and cover links. Preserve one item per physical book in shelf order. Never translate the photographed edition's catalogue title or invent bibliographic facts. visibleIsbn is only for a complete ISBN read from the photo. coverUrl must be a direct public HTTPS image. Omit spines without a meaningful title fragment. The complete protocol is available as the read_shelf_photo prompt and in the write-tool descriptions. Use create_collection for a requested new collection and update_collection for an existing collection. Never call a write tool without the user's explicit request.
+
+${BOOK_IDENTIFICATION_AND_COVER_RESOLUTION}`,
   });
   const securitySchemes = [{ type: "oauth2", scopes: ["openid"] }];
   server.registerTool("list_collections", {
@@ -77,6 +79,6 @@ export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
       return { structuredContent: output, content: [{ type: "text", text: JSON.stringify(output) }] };
     } catch (error) { return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : "Collection could not be updated." }] }; }
   });
-  server.registerPrompt("read_shelf_photo", { title: "Import a shelf photo into myLibrary", description: "Apply the complete four-pass shelf extraction protocol and prepare a reviewed myLibrary import." }, () => ({ messages: [{ role: "user", content: { type: "text", text: SHELFIE_GENAI_PROMPT.replace("Return ONLY valid JSON. Do not use Markdown fences and do not add commentary.", "Apply all rules below to the attached shelf photos and build the complete tool input for create_collection or update_collection. If the destination is not already clear, ask whether to create a named collection or append to an existing one. Show a concise count and uncertainty summary, then obtain explicit confirmation before calling a write tool.") } }] }));
+  server.registerPrompt("read_shelf_photo", { title: "Import a shelf photo into myLibrary", description: "Apply the complete five-pass shelf extraction protocol and prepare a reviewed myLibrary import." }, () => ({ messages: [{ role: "user", content: { type: "text", text: SHELFIE_GENAI_PROMPT.replace("Return ONLY valid JSON. Do not use Markdown fences and do not add commentary.", "Apply all rules below to the attached shelf photos and build the complete tool input for create_collection or update_collection. If the destination is not already clear, ask whether to create a named collection or append to an existing one. Show a concise count and uncertainty summary, then obtain explicit confirmation before calling a write tool.") } }] }));
   return server;
 }

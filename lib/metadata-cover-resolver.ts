@@ -1,10 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { nameSimilarity, normalizedText, textSimilarity } from "./isbn-matcher";
-import books from "@/books.json";
 import { findVerifiedBookPages } from "./web-book-search";
 
 export type MetadataCoverInput = { copyId: string; title: string; authors: string[]; publisher: string | null; language: string | null; series?: string | null; volume?: string | null };
-export type MetadataCoverCandidate = { provider: "legacy-library" | "openlibrary" | "google-books" | "web-page"; providerId: string; sourceUrl: string; sourcePageUrl?: string | null; isbn13?: string | null; title: string; authors: string[]; publisher: string | null; score: number; evidence: string[]; workConfidence?: number | null; editionConfidence?: number | null; coverConfidence?: number | null };
+export type MetadataCoverCandidate = { provider: "openlibrary" | "google-books" | "web-page"; providerId: string; sourceUrl: string; sourcePageUrl?: string | null; isbn13?: string | null; title: string; authors: string[]; publisher: string | null; score: number; evidence: string[]; workConfidence?: number | null; editionConfidence?: number | null; coverConfidence?: number | null };
 const UNKNOWN_AUTHORS = new Set(["", "αγνωστος", "unknown", "μη αναγνωσμενος", "συλλογικο εργο"]);
 const ALLOWED_COVER_HOSTS = new Set(["covers.openlibrary.org", "books.google.com", "books.googleusercontent.com"]);
 
@@ -23,37 +22,6 @@ function distinctiveTitleTokens(value: string) {
 function sharedDistinctiveTitleToken(left: string, right: string) {
   const rightTokens = distinctiveTitleTokens(right);
   return [...distinctiveTitleTokens(left)].some((token) => rightTokens.has(token));
-}
-
-function reviewedCatalogueCovers(input: MetadataCoverInput): Omit<MetadataCoverCandidate, "score" | "evidence">[] {
-  return books.flatMap((book) => book.cover ? [{
-    provider: "legacy-library" as const,
-    providerId: book.id,
-    sourceUrl: `/${book.cover}`,
-    title: book.title,
-    authors: book.author ? [book.author] : [],
-    publisher: book.publisher ?? null,
-  }] : []);
-}
-
-export function findReviewedCoverCandidates(input: MetadataCoverInput) {
-  const reviewed = reviewedCatalogueCovers(input);
-  const titleMatches = rankMetadataCovers(input, reviewed.filter((candidate) => textSimilarity(input.title, candidate.title) >= 0.5));
-  if (titleMatches.length) return titleMatches;
-
-  // Stage 1 can confidently transcribe the wrong title from a difficult spine.
-  // Recover only when one useful author was read and exactly one reviewed cover
-  // in this catalogue belongs to that author. The result remains representative:
-  // it does not assign the reviewed record's ISBN or overwrite the imported title.
-  const expectedAuthors = usefulAuthors(input.authors);
-  if (expectedAuthors.length !== 1) return [];
-  const authorMatches = reviewed.filter((candidate) => candidate.authors.some((author) => nameSimilarity(expectedAuthors[0], author) >= 0.85));
-  if (authorMatches.length !== 1) return [];
-  return [{
-    ...authorMatches[0],
-    score: 600,
-    evidence: ["unique phonetic author match in reviewed catalogue", "representative cover; imported title differs"],
-  }];
 }
 
 export function rankMetadataCovers(input: MetadataCoverInput, candidates: Omit<MetadataCoverCandidate, "score" | "evidence">[]) {
@@ -100,9 +68,6 @@ async function fetchJson<T>(url: URL, attempts = 3): Promise<T | null> {
 }
 
 export async function findMetadataCoverCandidates(input: MetadataCoverInput) {
-  const reviewedMatches = findReviewedCoverCandidates(input);
-  if (reviewedMatches.length) return reviewedMatches;
-
   const raw: Omit<MetadataCoverCandidate, "score" | "evidence">[] = [];
   const openLibraryQueries = [{ parameter: "title", value: input.title }];
   const namedContributors = usefulAuthors(input.authors);
@@ -164,7 +129,7 @@ export async function resolveMetadataCover(supabase: SupabaseClient, input: Meta
   const titleSimilarity = textSimilarity(input.title, selected.title);
   const authorSimilarity = bestNameSimilarity(usefulAuthors(input.authors), selected.authors);
   const correctionConfidence = Number((1 - (1 - titleSimilarity) * (1 - authorSimilarity)).toFixed(4));
-  if (["legacy-library", "web-page"].includes(selected.provider) && normalizedText(input.title) !== normalizedText(selected.title) && titleSimilarity >= 0.6 && authorSimilarity >= 0.85 && correctionConfidence >= 0.9) {
+  if (selected.provider === "web-page" && normalizedText(input.title) !== normalizedText(selected.title) && titleSimilarity >= 0.6 && authorSimilarity >= 0.85 && correctionConfidence >= 0.9) {
     const { data: copy } = await supabase.from("copies").select("work_id,work:works(title,observed_title,title_resolution_confidence)").eq("id", input.copyId).maybeSingle();
     const work = Array.isArray(copy?.work) ? copy.work[0] : copy?.work;
     if (copy?.work_id && work?.title === input.title && (!work.observed_title || Number(work.title_resolution_confidence ?? 0) < correctionConfidence)) {

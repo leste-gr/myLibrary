@@ -17,24 +17,11 @@ Apply every SQL file in `supabase/migrations/` in filename order using the Supab
 
 Never expose `SUPABASE_SERVICE_ROLE_KEY` in a browser bundle.
 
-## 2. Import the original catalogue
+## 2. Configure the application
 
-Create `.env.local`:
+Create `.env.local` with `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`, then run `npm install`. Supabase is required for catalogue reads; there is no bundled catalogue or seed import. Create collections through the application or connected assistant.
 
-```text
-NEXT_PUBLIC_SUPABASE_URL=https://PROJECT.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_ROLE_KEY=...
-```
-
-Then run:
-
-```sh
-npm install
-npm run import:catalogue
-```
-
-The importer is idempotent and preserves the stable `Bxxx` identifiers. Remove the service-role key from environments that do not run trusted import tooling.
+Use `SUPABASE_SERVICE_ROLE_KEY` only in trusted server-side pipeline tooling. Never expose it to the browser.
 
 ## 3. Verify locally
 

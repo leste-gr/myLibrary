@@ -28,17 +28,14 @@ test("rejects placeholders and unlabelled images", async () => {
   assert.equal(unlabelled, null);
 });
 
-test("validates a bundled legacy redirect before accepting it", async () => {
-  const requests: string[] = [];
-  const source = await probeCandidateCover("https://library.test", "9789602489987", async (input) => {
-    const url = String(input);
-    requests.push(url);
-    if (url.includes("/api/covers/")) return new Response(null, {
-      status: 307,
-      headers: { Location: "https://library.test/covers/B074.webp", "X-Cover-Source": "legacy-library" },
-    });
-    return new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "Content-Type": "image/webp" } });
+test("rejects removed legacy cover redirects without following them", async () => {
+  let requests = 0;
+  const source = await probeCandidateCover("https://library.test", "9789602489987", async () => {
+    requests++;
+    return new Response(null, { status: 307, headers: {
+      Location: "https://library.test/covers/B074.webp", "X-Cover-Source": "legacy-library",
+    } });
   });
-  assert.equal(source, "legacy-library");
-  assert.equal(requests.length, 2);
+  assert.equal(source, null);
+  assert.equal(requests, 1);
 });

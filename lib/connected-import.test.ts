@@ -52,11 +52,17 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport); await client.connect(clientTransport);
   try {
+    assert.match(client.getInstructions() ?? "", /Different-language edition of the same work/);
+    assert.match(client.getInstructions() ?? "", /Never report an import as fully verified/);
     const listedTools = (await client.listTools()).tools;
     assert.deepEqual(listedTools.map((tool) => tool.name).sort(), ["create_collection", "list_collection_books", "list_collections", "update_collection"]);
     for (const name of ["create_collection", "update_collection"]) {
       const tool = listedTools.find((item) => item.name === name);
       const description = tool?.description ?? "";
+      assert.match(description, /Different-language edition of the same work/);
+      assert.match(description, /Never assign an ISBN from a representative cover/);
+      assert.match(description, /do not reduce book-identification confidence solely/);
+      assert.match(description, /Never report an import as fully verified/);
       assert.match(description, /PASS 1 — PHYSICAL INVENTORY/);
       assert.match(description, /PASS 4 — WEB VERIFICATION AND COVER/);
       assert.match(description, /PASS 5 — FINAL CHECK/);
@@ -68,6 +74,10 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     assert.deepEqual(prompts.prompts.map((prompt) => prompt.name), ["read_shelf_photo"]);
     const shelfiePrompt = await client.getPrompt({ name: "read_shelf_photo" });
     const promptText = shelfiePrompt.messages[0]?.content.type === "text" ? shelfiePrompt.messages[0].content.text : "";
+    assert.match(promptText, /Different-language edition of the same work/);
+    assert.match(promptText, /Never assign an ISBN from a representative cover/);
+    assert.match(promptText, /Never report an import as fully verified/);
+    assert.doesNotMatch(promptText, /representative cover in the same language is allowed only/);
     assert.match(promptText, /PASS 1 — PHYSICAL INVENTORY/);
     assert.match(promptText, /PASS 4 — WEB VERIFICATION AND COVER/);
     assert.match(promptText, /coverUrl is a direct, public HTTPS URL/);

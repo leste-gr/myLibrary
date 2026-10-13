@@ -1,6 +1,6 @@
 # myLibrary
 
-myLibrary is a Next.js catalogue and owner workspace for a physical book collection. The public catalogue remains readable without a backend during migration; when Supabase is configured, edition choices are stored as drafts and published persistently.
+myLibrary is a Next.js catalogue and owner workspace for a physical book collection. Supabase is the single source of truth for collections, books, edition choices, and cover selections. A configured, available database is required to read the catalogue.
 
 ## Current initial release
 
@@ -10,7 +10,7 @@ myLibrary is a Next.js catalogue and owner workspace for a physical book collect
 - Persistent per-book edition drafts.
 - Explicit publish and discard actions.
 - Atomic catalogue publication with audit history.
-- Bundled fallback data for local development and deployment previews.
+- Database-backed public catalogue with explicit errors when data cannot be loaded.
 
 Shelfie extraction uses the owner's existing AI subscription. Owners can paste an AI response or upload JSON, review and edit the books, then import. An optional authenticated MCP connection can list owned collections and books, create and populate a collection, or append generated JSON books to an existing collection. myLibrary never calls a paid model API or receives the shelf photograph. See [connected assistant setup](docs/CONNECTED_ASSISTANT_SETUP.md) for OAuth, the database migration, and plugin distribution. Try the browser-only review at `/shelfies/try`.
 
@@ -21,7 +21,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. Without Supabase variables, the public catalogue uses the bundled `books.json` and `isbn.json`; the owner workspace shows setup guidance.
+Open `http://localhost:3000` after configuring Supabase. Missing configuration or failed catalogue queries show an error; successful empty queries show an empty catalogue. No file-based catalogue or reference dataset is used.
 
 Copy `.env.example` to `.env.local` after creating Supabase:
 
@@ -31,29 +31,24 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-The service-role key is only for the local importer. Never expose it in browser code or add it to Vercel unless a future server-only operation explicitly needs it.
+The service-role key is only for trusted server-side pipeline tooling. Never expose it in browser code.
 
 ## Validation
 
 ```sh
 npm run typecheck
 npm run build
-npm run import:dry-run
 npm run test
 ```
 
-See [Deployment](docs/DEPLOYMENT.md) for Supabase setup, catalogue import, and Vercel publication.
+See [Deployment](docs/DEPLOYMENT.md) for Supabase setup and Vercel publication.
 
-## Data and migration tools
+## Data and pipeline tools
 
-- `books.json` contains the 166 original copy records.
-- `isbn.json` contains accepted ISBN-13 mappings.
-- `data/isbn-mapping.json` contains ranked edition candidates.
-- `scripts/import-catalogue.mjs` imports the catalogue into Supabase.
-- `scripts/map_isbns.py` regenerates ISBN candidates.
-- `supabase/migrations/` contains the persistent schema and publish transaction.
-- `lib/manual-genai-import.ts` contains the versioned Stage 1 prompt and JSON validator.
+- `supabase/migrations/` contains the persistent schema and database functions.
+- `lib/manual-genai-import.ts` contains the Stage 1 prompt and JSON validator.
 - `docs/STAGE_1_MANUAL_GENAI_IMPORT.md` specifies the manual GenAI ingestion contract.
-- `public/covers/` contains local cover assets.
+- `npm run pipeline:process` processes unresolved imports from Supabase.
+- `npm run match:import`, `npm run covers:candidates`, and `npm run covers:metadata` run individual database-backed stages.
 
-The stable `Bxxx` identifiers remain the IDs shown to users and used during migration.
+Assistant-supplied ISBNs and covers are retained in the database. When no cover is supplied, external ISBN and cover providers remain available. Deleted collections are not reconstructed from local files. Existing static cover images remain available only for database records that explicitly reference them; they are not searched as a catalogue.

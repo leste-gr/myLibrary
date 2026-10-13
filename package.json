@@ -11,9 +11,7 @@
     "match:import": "tsx scripts/match-manual-import.ts",
     "pipeline:process": "tsx scripts/process-pipeline.ts",
     "covers:candidates": "tsx scripts/resolve-candidate-covers.ts",
-    "covers:metadata": "tsx scripts/resolve-metadata-covers.ts",
-    "import:catalogue": "node --env-file=.env.local scripts/import-catalogue.mjs",
-    "import:dry-run": "node scripts/import-catalogue.mjs --dry-run"
+    "covers:metadata": "tsx scripts/resolve-metadata-covers.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",

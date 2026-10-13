@@ -1,7 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-import books from "@/books.json";
-import isbns from "@/isbn.json";
-import type { CatalogueBook, PublicCollection } from "@/lib/types";
+import { supabaseConfig } from "./supabase/config";
+import type { CatalogueBook, PublicCollection } from "./types";
 
 type PublicRow = {
   collection_slug: string;
@@ -31,44 +30,13 @@ type CollectionRow = {
   author_count: number;
 };
 
-const localCollection: PublicCollection = {
-  id: "local",
-  slug: "lefteris",
-  name: "Η βιβλιοθήκη του Λευτέρη",
-  description: "Ιστορίες που μένουν, κόσμοι που περιμένουν.",
-  bookCount: books.length,
-  authorCount: new Set(books.map((book) => book.author)).size,
-};
-
-function localCatalogue(): CatalogueBook[] {
-  const accepted = isbns as Record<string, string>;
-  return books.map((book) => ({
-    id: book.id,
-    title: book.title,
-    author: book.author,
-    contributors: book.contributors,
-    series: book.series,
-    subseries: book.subseries,
-    volume: book.volume,
-    language: book.language,
-    category: book.category,
-    publisher: book.publisher,
-    notes: book.notes,
-    cover: book.cover ? "/" + book.cover : null,
-    coverSource: book.coverSource ?? null,
-    isbn13: accepted[book.id] ?? null,
-  }));
-}
-
 function publicClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  return url && key ? createClient(url, key, { auth: { persistSession: false } }) : null;
+  const { url, key } = supabaseConfig();
+  return createClient(url, key, { auth: { persistSession: false } });
 }
 
 export async function getPublicCollections(): Promise<PublicCollection[]> {
   const supabase = publicClient();
-  if (!supabase) return [localCollection];
 
   const { data, error } = await supabase
     .from("public_collections")
@@ -76,8 +44,7 @@ export async function getPublicCollections(): Promise<PublicCollection[]> {
     .order("created_at", { ascending: true });
 
   if (error || !data) {
-    console.error("Supabase collections unavailable; serving bundled collection.", error);
-    return [localCollection];
+    throw new Error("Unable to load public collections from Supabase.", { cause: error });
   }
 
   return (data as CollectionRow[]).map((row) => ({
@@ -97,7 +64,6 @@ export async function getPublicCollection(slug: string): Promise<PublicCollectio
 
 export async function getPublicCatalogue(slug: string): Promise<CatalogueBook[]> {
   const supabase = publicClient();
-  if (!supabase) return slug === localCollection.slug ? localCatalogue() : [];
 
   const { data, error } = await supabase
     .from("public_catalogue")
@@ -106,8 +72,7 @@ export async function getPublicCatalogue(slug: string): Promise<CatalogueBook[]>
     .order("display_order", { ascending: true });
 
   if (error || !data) {
-    console.error("Supabase catalogue unavailable; serving bundled catalogue.", error);
-    return slug === localCollection.slug ? localCatalogue() : [];
+    throw new Error("Unable to load public catalogue from Supabase.", { cause: error });
   }
 
   return (data as PublicRow[]).map((row) => ({
