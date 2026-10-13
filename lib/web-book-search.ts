@@ -55,8 +55,7 @@ export async function findVerifiedBookPages(input: BookPageSearchInput, fetcher:
   const queries = buildBookPageSearchQueries(input).slice(0, 4);
   const resultLists = await Promise.all(queries.flatMap((query) => [searchDuckDuckGo(query, fetcher).catch(() => []), search(query, fetcher).catch(() => [])]));
   const urls = [...new Set(resultLists.flat())].slice(0, 16);
-  const verified: VerifiedBookPage[] = [];
-  for (const pageUrl of urls) {
+  async function inspect(pageUrl: string) {
     try {
       const page = await fetchPublicResource(pageUrl, {
         maxBytes: MAX_HTML_BYTES,
@@ -68,8 +67,13 @@ export async function findVerifiedBookPages(input: BookPageSearchInput, fetcher:
       const extracted = extractBookPage(new TextDecoder().decode(page.bytes));
       if (extracted.imageUrl) extracted.imageUrl = new URL(extracted.imageUrl, page.finalUrl).toString();
       const candidate = verifyBookPage(input, page.finalUrl, extracted);
-      if (candidate.accepted) verified.push(candidate);
-    } catch { /* Search results are untrusted and failures are isolated. */ }
+      return candidate.accepted ? candidate : null;
+    } catch { return null; /* Search results are untrusted and failures are isolated. */ }
+  }
+  const verified: VerifiedBookPage[] = [];
+  for (let offset = 0; offset < urls.length; offset += 4) {
+    const batch = await Promise.all(urls.slice(offset, offset + 4).map(inspect));
+    verified.push(...batch.filter((candidate): candidate is VerifiedBookPage => Boolean(candidate)));
   }
   return verified.sort((left, right) => right.coverConfidence - left.coverConfidence || right.editionConfidence - left.editionConfidence).slice(0, 5);
 }
