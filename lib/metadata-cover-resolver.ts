@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizedText, textSimilarity } from "./isbn-matcher";
+import books from "@/books.json";
 
 export type MetadataCoverInput = { copyId: string; title: string; authors: string[]; publisher: string | null; language: string | null };
-export type MetadataCoverCandidate = { provider: "openlibrary" | "google-books"; providerId: string; sourceUrl: string; title: string; authors: string[]; publisher: string | null; score: number; evidence: string[] };
+export type MetadataCoverCandidate = { provider: "legacy-library" | "openlibrary" | "google-books"; providerId: string; sourceUrl: string; title: string; authors: string[]; publisher: string | null; score: number; evidence: string[] };
 const UNKNOWN_AUTHORS = new Set(["", "αγνωστος", "unknown", "μη αναγνωσμενος", "συλλογικο εργο"]);
 const ALLOWED_COVER_HOSTS = new Set(["covers.openlibrary.org", "books.google.com", "books.googleusercontent.com"]);
 
@@ -41,7 +42,14 @@ async function fetchJson<T>(url: URL, attempts = 3): Promise<T | null> {
 }
 
 export async function findMetadataCoverCandidates(input: MetadataCoverInput) {
-  const raw: Omit<MetadataCoverCandidate, "score" | "evidence">[] = [];
+  const raw: Omit<MetadataCoverCandidate, "score" | "evidence">[] = books.flatMap((book) => book.cover && textSimilarity(input.title, book.title) >= 0.5 ? [{
+    provider: "legacy-library" as const,
+    providerId: book.id,
+    sourceUrl: `/${book.cover}`,
+    title: book.title,
+    authors: book.author ? [book.author] : [],
+    publisher: book.publisher ?? null,
+  }] : []);
   const openLibrary = new URL("https://openlibrary.org/search.json");
   openLibrary.searchParams.set("title", input.title);
   openLibrary.searchParams.set("limit", "10");

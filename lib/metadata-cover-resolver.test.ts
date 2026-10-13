@@ -16,3 +16,10 @@ test("metadata cover ranking rejects uncorroborated partial and short-title matc
   ]);
   assert.deepEqual(ranked, []);
 });
+
+test("metadata cover ranking accepts an ISBN-less reviewed catalogue cover", () => {
+  const ranked = rankMetadataCovers({ copyId: "x", title: "Τα μυστήρια του κόσμου", authors: ["Άρθουρ Κλαρκ"], publisher: null, language: "el" }, [
+    { provider: "legacy-library", providerId: "B071", sourceUrl: "/covers/B071.webp", title: "Τα μυστήρια του κόσμου", authors: ["Arthur C. Clarke"], publisher: null },
+  ]);
+  assert.equal(ranked[0]?.provider, "legacy-library");
+});
