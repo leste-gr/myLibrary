@@ -127,11 +127,7 @@ export function parseManualGenaiImport(value: unknown): ManualGenaiImport {
   return { schemaVersion: MANUAL_GENAI_SCHEMA_VERSION, books };
 }
 
-export const SHELFIE_GENAI_PROMPT = `You are extracting a physical book inventory from shelf photographs that I attach in this chat.
-
-Return ONLY valid JSON. Do not use Markdown fences and do not add commentary.
-
-Complete these passes internally before returning the JSON:
+export const SHELFIE_EXTRACTION_PROTOCOL = `Complete these passes internally before constructing the import:
 
 PASS 1 — PHYSICAL INVENTORY
 1. Detect and count every distinct physical spine across all attached photos before extracting metadata.
@@ -165,7 +161,13 @@ confidence represents confidence that the physical item was separated correctly 
 
 PASS 4 — FINAL CHECK
 17. Reconcile the JSON count with the physical count, check that neighbors were not merged, remove accidental duplicate detections, retain genuine repeated copies, and verify consecutive positions.
-18. Confirm every item has a meaningful title, every visibleIsbn is complete and valid, unknowns use [] or null correctly, and the response contains JSON only.
+18. Confirm every item has a meaningful title, every visibleIsbn is complete and valid, and unknowns use [] or null correctly.`;
+
+export const SHELFIE_GENAI_PROMPT = `You are extracting a physical book inventory from shelf photographs that I attach in this chat.
+
+Return ONLY valid JSON. Do not use Markdown fences and do not add commentary.
+
+${SHELFIE_EXTRACTION_PROTOCOL}
 
 Use this exact schema and field names:
 {
