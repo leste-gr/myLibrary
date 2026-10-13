@@ -12,19 +12,22 @@ type ImportResult = { collectionId: string; slug: string; importId: string | nul
 const optionalText = (max: number) => z.string().max(max).nullable().optional();
 const optionalConfidence = z.number().min(0).max(1).nullable().optional();
 const bookSchema = z.object({
-  position: z.number().int().min(1).max(100), title: z.string().max(300).nullable().optional(),
-  authors: z.array(z.string().min(1).max(160)).max(10), confidence: z.number().min(0).max(1),
+  position: z.number().int().min(1).max(100).describe("Consecutive physical shelf order, top-to-bottom then left-to-right."),
+  title: z.string().max(300).nullable().optional().describe("Best-supported work or volume title; omit the spine if no meaningful title fragment is readable."),
+  authors: z.array(z.string().min(1).max(160)).max(10).describe("Supported person names only; use [] when none can be identified."),
+  confidence: z.number().min(0).max(1).describe("Confidence that the spine is correctly separated and the title identifies the book."),
   subtitle: optionalText(300), publisher: optionalText(200), language: optionalText(40),
   publicationYear: z.number().int().min(1400).max(2100).nullable().optional(),
   editionStatement: optionalText(160), series: optionalText(200), volume: optionalText(80),
-  visibleIsbn: optionalText(32), notes: optionalText(500),
-  rawVisibleText: optionalText(1000),
+  visibleIsbn: optionalText(32).describe("Complete visibly readable checksum-valid ISBN only; never inferred or looked up."),
+  notes: optionalText(500).describe("Concise ambiguity, alternative readings, logo evidence, or correction beyond literal transcription."),
+  rawVisibleText: optionalText(1000).describe("All meaningful literal spine text before normalization or bibliographic correction."),
   fieldConfidence: z.object({ title: optionalConfidence, authors: optionalConfidence, publisher: optionalConfidence, series: optionalConfidence, volume: optionalConfidence }).nullable().optional(),
 });
 
 export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
-  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.0.0" }, {
-    instructions: "You can list the owner's collections and books. Create the mylibrary.shelfie.v1 JSON from a shelf photo or other user-provided book information, preserving one record per physical book, order, and duplicate copies. Never invent ISBNs or bibliographic facts. Ask for a clearer photo when needed. Use create_collection with the complete JSON when the user requests a new collection. Use update_collection with the complete JSON and an existing collection id to append books. Never call a write tool without the user's explicit request.",
+  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.1.0" }, {
+    instructions: "You can list the owner's collections and books and import attached shelf photos. For a shelf photo, internally perform four passes before calling a write tool: (1) count and separate physical spines across all photos; (2) transcribe literal text, including rotated text and logos; (3) resolve structured title, people, publisher, series, and volume only from supported evidence while preserving literal text in rawVisibleText; (4) reconcile the count, positions, and duplicates. Preserve one item per physical book in top-to-bottom, left-to-right order. Keep real duplicate copies separate and do not double-count overlapping photos. Never translate titles or invent bibliographic facts. visibleIsbn is allowed only when every digit is visibly readable and checksum-valid; never look one up. Use calibrated per-field confidence and record plausible alternatives in notes. Omit spines without a meaningful title fragment. The complete protocol is available as the read_shelf_photo prompt. Use create_collection for a requested new collection and update_collection for an existing collection. Never call a write tool without the user's explicit request.",
   });
   const securitySchemes = [{ type: "oauth2", scopes: ["openid"] }];
   server.registerTool("list_collections", {
@@ -45,7 +48,7 @@ export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
     catch { return { isError: true, content: [{ type: "text", text: "Unable to list this collection. Check access and try again." }] }; }
   });
   server.registerTool("create_collection", {
-    title: "Create and populate a library collection", description: "Create a collection and atomically import the supplied book JSON. The chat model must construct the complete mylibrary.shelfie.v1 payload before calling. Repeating the exact same name and payload returns the original import.",
+    title: "Create and populate a library collection", description: "Create a collection and atomically import the supplied book JSON. When the source is a shelf photo, follow the server's four-pass extraction protocol (also exposed as read_shelf_photo) before calling. Submit the complete mylibrary.shelfie.v1 payload and preserve physical order and copies. Repeating the exact same name and payload returns the original import.",
     inputSchema: { name: z.string().trim().min(1).max(120), description: z.string().trim().max(1000).nullable().optional(), schemaVersion: z.literal("mylibrary.shelfie.v1"), books: z.array(bookSchema).min(1).max(100) },
     outputSchema: { collectionId: z.string(), slug: z.string(), importId: z.string(), imported: z.number(), duplicate: z.boolean(), name: z.string().optional(), description: z.string().nullable().optional(), collectionUrl: z.string() },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }, _meta: { securitySchemes },
@@ -59,7 +62,7 @@ export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
   });
   server.registerTool("update_collection", {
     title: "Add books to an existing collection",
-    description: "Add only new books from the complete mylibrary.shelfie.v1 JSON to an owned collection. The backend ignores books already present using ISBN when available, otherwise normalized title, authors, and volume. Existing books are retained and duplicates within the JSON are also ignored.",
+    description: "Add only new books from the complete mylibrary.shelfie.v1 JSON to an owned collection. When the source is a shelf photo, follow the server's four-pass extraction protocol (also exposed as read_shelf_photo) before calling. The backend ignores books already present using ISBN when available, otherwise normalized title, authors, and volume. Existing books are retained and duplicates within the JSON are also ignored.",
     inputSchema: { collectionId: z.string().uuid(), schemaVersion: z.literal("mylibrary.shelfie.v1"), books: z.array(bookSchema).min(1).max(100) },
     outputSchema: { collectionId: z.string(), slug: z.string(), importId: z.string().nullable(), imported: z.number(), ignoredExisting: z.number(), duplicate: z.boolean(), collectionUrl: z.string() },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }, _meta: { securitySchemes },
@@ -71,6 +74,6 @@ export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
       return { structuredContent: output, content: [{ type: "text", text: JSON.stringify(output) }] };
     } catch (error) { return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : "Collection could not be updated." }] }; }
   });
-  server.registerPrompt("read_shelf_photo", { title: "Read a shelf photo", description: "Extract books using your AI subscription and add them to myLibrary." }, () => ({ messages: [{ role: "user", content: { type: "text", text: SHELFIE_GENAI_PROMPT.replace("Return ONLY valid JSON. Do not use Markdown fences and do not add commentary.", "Use these extraction rules to build the JSON input for create_collection or update_collection. Ask whether to create a new collection or append to an existing one before writing.") } }] }));
+  server.registerPrompt("read_shelf_photo", { title: "Import a shelf photo into myLibrary", description: "Apply the complete four-pass shelf extraction protocol and prepare a reviewed myLibrary import." }, () => ({ messages: [{ role: "user", content: { type: "text", text: SHELFIE_GENAI_PROMPT.replace("Return ONLY valid JSON. Do not use Markdown fences and do not add commentary.", "Apply all rules below to the attached shelf photos and build the complete tool input for create_collection or update_collection. If the destination is not already clear, ask whether to create a named collection or append to an existing one. Show a concise count and uncertainty summary, then obtain explicit confirmation before calling a write tool.") } }] }));
   return server;
 }

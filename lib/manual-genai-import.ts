@@ -131,16 +131,41 @@ export const SHELFIE_GENAI_PROMPT = `You are extracting a physical book inventor
 
 Return ONLY valid JSON. Do not use Markdown fences and do not add commentary.
 
-Rules:
-1. Create exactly one item per distinct physical book spine. Do not merge neighboring books. A boxed set visible as one physical item is one item.
-2. Preserve shelf order: top shelf to bottom shelf, and left to right within each shelf. position starts at 1 and must be unique.
-3. Transcribe what is visible. You may normalize obvious OCR spacing, but do not invent missing bibliographic facts.
-4. visibleIsbn must be null unless a complete ISBN-10 or ISBN-13 is visibly readable in the image. Never guess an ISBN from a title.
-5. Use [] when no author is visible. Use null for other unknown fields.
-6. confidence is your confidence that this item is one correctly separated physical book and that its title is correct, from 0 to 1.
-7. A title is required. Do not include a spine when no title or meaningful title fragment can be detected. Never use placeholders such as "Unknown", "Unreadable", or "Untitled".
-8. Include repeated copies as separate items.
-9. rawVisibleText must preserve the literal spine text before any suggested correction. Use fieldConfidence to score each interpreted field independently. Low-confidence text must broaden later searches rather than becoming a hard constraint.
+Complete these passes internally before returning the JSON:
+
+PASS 1 — PHYSICAL INVENTORY
+1. Detect and count every distinct physical spine across all attached photos before extracting metadata.
+2. Preserve shelf order: top shelf to bottom shelf and left to right within each shelf. position starts at 1, is consecutive, and is unique.
+3. Do not merge neighboring books or split one wide spine. A boxed set visible as one physical object is one item unless its volumes are visibly separate.
+4. Keep repeated physical copies as separate items. Use overlapping photos only as additional evidence, not as additional books.
+
+PASS 2 — LITERAL READING
+5. Inspect horizontal, vertical, rotated, small, and logo text. Identify title, subtitle, people, publisher/imprint, series, volume/part/issue, edition wording, year, language clues, and any complete visible ISBN.
+6. rawVisibleText must preserve all meaningful literal text on the spine in its original script and approximate reading order, before correction or expansion.
+7. Do not translate Greek titles into English or English titles into Greek.
+
+PASS 3 — BIBLIOGRAPHIC INTERPRETATION
+8. title is the best-supported complete title of this work or volume, not merely the largest word or the series name. Separate a clear secondary title into subtitle.
+9. authors contains people responsible for the work, not publishers, series names, or promotional text. Preserve Greek names in Greek and Latin names in Latin when printed that way.
+10. You may normalize capitalization, punctuation, spacing, accents, and obvious OCR errors. You may expand a partially read title or name only when at least two independent visible clues support it, such as author plus series, title fragment plus publisher, or title plus volume. Preserve the literal reading in rawVisibleText and explain the correction briefly in notes.
+11. If several readings remain plausible, choose the most likely, lower that field's confidence, and put concise alternatives in notes. Do not invent a title from an author alone.
+12. publisher may be identified from an unmistakable logo. series and volume must be separate from the individual title. Preserve Roman numerals and meaningful issue labels.
+13. publicationYear is populated only when a four-digit year is visible. language is the likely language of this physical edition, not the author's nationality.
+14. visibleIsbn must be null unless every digit of a complete ISBN-10 or ISBN-13 is visibly readable and checksum-valid. Never retrieve, infer, or guess an ISBN from bibliographic knowledge.
+15. Use [] when no author is supported and null for other unknown fields. Never use placeholders such as "Unknown", "Unreadable", or "Untitled".
+16. A meaningful title or title fragment is required. Omit a spine if no such fragment can be detected; mention the omission nowhere outside the JSON.
+
+CONFIDENCE CALIBRATION
+- 0.95–1.00: directly and completely readable.
+- 0.80–0.94: clear with minor normalization.
+- 0.60–0.79: partially obscured but reconstructed from multiple strong clues.
+- 0.40–0.59: uncertain but still a meaningful supported reading.
+- Below 0.40: normally leave the optional field unknown rather than speculate.
+confidence represents confidence that the physical item was separated correctly and its title identifies the book. fieldConfidence scores each interpreted field; use null when that field is absent.
+
+PASS 4 — FINAL CHECK
+17. Reconcile the JSON count with the physical count, check that neighbors were not merged, remove accidental duplicate detections, retain genuine repeated copies, and verify consecutive positions.
+18. Confirm every item has a meaningful title, every visibleIsbn is complete and valid, unknowns use [] or null correctly, and the response contains JSON only.
 
 Use this exact schema and field names:
 {

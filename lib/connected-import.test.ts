@@ -53,6 +53,12 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
   await server.connect(serverTransport); await client.connect(clientTransport);
   try {
     assert.deepEqual((await client.listTools()).tools.map((tool) => tool.name).sort(), ["create_collection", "list_collection_books", "list_collections", "update_collection"]);
+    const prompts = await client.listPrompts();
+    assert.deepEqual(prompts.prompts.map((prompt) => prompt.name), ["read_shelf_photo"]);
+    const shelfiePrompt = await client.getPrompt({ name: "read_shelf_photo" });
+    const promptText = shelfiePrompt.messages[0]?.content.type === "text" ? shelfiePrompt.messages[0].content.text : "";
+    assert.match(promptText, /PASS 1 — PHYSICAL INVENTORY/);
+    assert.match(promptText, /Never retrieve, infer, or guess an ISBN/);
     const listed = await client.callTool({ name: "list_collection_books", arguments: { collectionId: id } });
     assert.equal((listed.structuredContent as { total: number }).total, 1);
     const created = await client.callTool({ name: "create_collection", arguments: { name: "RPG", description: "Games", ...payload } });

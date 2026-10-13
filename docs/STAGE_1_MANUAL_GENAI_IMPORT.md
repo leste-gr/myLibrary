@@ -73,7 +73,9 @@ Validation rules:
 
 ## Prompt requirements
 
-The shipped prompt instructs the external chat to return JSON only with the exact schema, produce one record per physical spine, preserve shelf order, avoid invented facts, supply only visibly readable ISBNs, retain unreadable books with an uncertainty note, and keep repeated copies separate.
+The shipped prompt uses four internal passes: physical spine inventory, literal transcription, evidence-backed bibliographic interpretation, and final count/consistency checking. It preserves `rawVisibleText`, distinguishes title/subtitle/series/volume, calibrates field confidence, retains repeated physical copies, omits spines without a meaningful title fragment, and permits only complete visibly readable ISBNs.
+
+The MCP server exposes the complete protocol as the `read_shelf_photo` prompt. A condensed version is also supplied automatically in the MCP server instructions and reinforced in the `create_collection` and `update_collection` tool descriptions and field schemas. Clients must reconnect after an instruction or prompt update because server instructions are delivered during MCP initialization.
 
 The prompt is product code in `lib/manual-genai-import.ts`. Any field or meaning change requires a new schema version and compatible database importer.
 
