@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { legacyCatalogueCandidates, normalizedText, rankIsbnCandidates, textSimilarity, type ProviderCandidate } from "./isbn-matcher";
+import { legacyCatalogueCandidates, nameSimilarity, normalizedText, rankIsbnCandidates, textSimilarity, type ProviderCandidate } from "./isbn-matcher";
 
 test("normalizes Greek accents and punctuation", () => {
   assert.equal(normalizedText("  Τά Τρία-Σώματα! "), "τα τρια σωματα");
   assert.equal(textSimilarity("Το Χόμπιτ", "Το Χομπιτ"), 1);
+});
+
+test("matches Greek transliterations of author names", () => {
+  assert.ok(nameSimilarity("Ούρσουλα Λε Γκεν", "Ursula K. Le Guin") >= 0.85);
 });
 
 test("ranks metadata agreement above a title-only candidate", () => {

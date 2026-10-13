@@ -63,7 +63,9 @@ export async function POST(request: Request) {
       }
       stage3++;
     }
-    return Response.json({ stage2Imports: stage2, stage3Covers: stage3 }, { headers: { "Cache-Control": "no-store" } });
+    const metadataInputs = (await unresolvedMetadataCoverInputs(supabase)).slice(0, 10);
+    const metadataResults = await mapWithConcurrency(metadataInputs, 2, (input) => resolveMetadataCover(supabase, input));
+    return Response.json({ stage2Imports: stage2, stage3Covers: stage3, metadataCovers: metadataResults.filter(Boolean).length }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Pipeline failed.", stage2Imports: stage2, stage3Covers: stage3 }, { status: 500 });
   }

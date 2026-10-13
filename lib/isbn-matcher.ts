@@ -82,12 +82,43 @@ export function textSimilarity(leftValue: unknown, rightValue: unknown) {
   return Math.max(jaccard, containment * 0.9);
 }
 
+function phoneticName(value: unknown) {
+  let text = normalizedText(value)
+    .replaceAll("ου", "u").replaceAll("αι", "e").replaceAll("ει", "i").replaceAll("οι", "i")
+    .replaceAll("γκ", "g").replaceAll("γγ", "g").replaceAll("τσ", "ts").replaceAll("τζ", "tz").replaceAll("θ", "th").replaceAll("χ", "ch").replaceAll("ψ", "ps");
+  const greek: Record<string, string> = { α: "a", β: "v", γ: "g", δ: "d", ε: "e", ζ: "z", η: "i", ι: "i", κ: "k", λ: "l", μ: "m", ν: "n", ξ: "x", ο: "o", π: "p", ρ: "r", σ: "s", ς: "s", τ: "t", υ: "i", φ: "f", ω: "o" };
+  return [...text].map((character) => greek[character] ?? character).join("")
+    .replace(/gu(?=[ei])/g, "g").split(" ").filter((token) => token.length > 1).join(" ");
+}
+
+function editSimilarity(left: string, right: string) {
+  if (!left || !right) return 0;
+  const row = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= left.length; i++) {
+    let diagonal = row[0]; row[0] = i;
+    for (let j = 1; j <= right.length; j++) {
+      const above = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, diagonal + (left[i - 1] === right[j - 1] ? 0 : 1));
+      diagonal = above;
+    }
+  }
+  return 1 - row[right.length] / Math.max(left.length, right.length);
+}
+
+export function nameSimilarity(left: unknown, right: unknown) {
+  return Math.max(textSimilarity(left, right), editSimilarity(phoneticName(left), phoneticName(right)));
+}
+
 function usefulAuthors(authors: string[]) {
   return authors.map(normalizedText).filter((author) => !UNKNOWN_AUTHORS.has(author));
 }
 
 function bestSimilarity(expected: string[], candidates: string[]) {
   return expected.reduce((best, expectedValue) => Math.max(best, ...candidates.map((candidate) => textSimilarity(expectedValue, candidate)), 0), 0);
+}
+
+function bestNameSimilarity(expected: string[], candidates: string[]) {
+  return expected.reduce((best, expectedValue) => Math.max(best, ...candidates.map((candidate) => nameSimilarity(expectedValue, candidate)), 0), 0);
 }
 
 function yearFrom(value: string | null) {
@@ -226,9 +257,11 @@ export function rankIsbnCandidates(input: IsbnMatchInput, records: ProviderCandi
       }
       return identifiers;
     }, {});
+    const titleConfidence = best.breakdown.title / 500;
+    const authorWorkConfidence = expectedAuthors.length ? bestNameSimilarity(expectedAuthors, best.record.authors) : 0;
     const workConfidence = Number(Math.min(1, expectedAuthors.length
-      ? (best.breakdown.title / 500) * 0.7 + (best.breakdown.author / 250) * 0.3
-      : best.breakdown.title / 500).toFixed(4));
+      ? 1 - (1 - titleConfidence) * (1 - authorWorkConfidence)
+      : titleConfidence).toFixed(4));
     return {
       isbn13,
       title: best.record.title,

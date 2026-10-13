@@ -34,3 +34,9 @@ test("reviewed covers recover a bad title only from one exact useful author", ()
 test("reviewed covers do not recover a title from an unknown author", () => {
   assert.deepEqual(findReviewedCoverCandidates({ copyId: "x", title: "Wrong", authors: ["Άγνωστος"], publisher: null, language: "el" }), []);
 });
+
+test("reviewed covers recover a slightly incorrect title using a transliterated author", () => {
+  const recovered = findReviewedCoverCandidates({ copyId: "G-62F607DF-024", title: "Ο μάγος της Δωδεκανήσου", authors: ["Ούρσουλα Λε Γκεν"], publisher: null, language: "el" });
+  assert.equal(recovered[0]?.providerId, "B108");
+  assert.equal(recovered[0]?.title, "Ο μάγος της Γαιοθάλασσας");
+});

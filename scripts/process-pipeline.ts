@@ -17,6 +17,7 @@ const siteUrl = configuredSiteUrl;
 const supabase = createClient(url, serviceRoleKey, { auth: { persistSession: false } });
 const maxImports = Number(process.env.PIPELINE_MAX_IMPORTS ?? 10);
 const maxCovers = Number(process.env.PIPELINE_MAX_COVERS ?? 100);
+const maxMetadataCovers = Number(process.env.PIPELINE_MAX_METADATA_COVERS ?? 10);
 
 async function runStage2() {
   let processed = 0;
@@ -69,6 +70,12 @@ async function runStage3() {
   return processed;
 }
 
+async function runMetadataFallback() {
+  const inputs = (await unresolvedMetadataCoverInputs(supabase)).slice(0, maxMetadataCovers);
+  const results = await mapWithConcurrency(inputs, 2, (input) => resolveMetadataCover(supabase, input));
+  return results.filter(Boolean).length;
+}
+
 async function main() {
   const runner = process.env.GITHUB_RUN_ID ? `github-actions:${process.env.GITHUB_RUN_ID}` : "manual";
   const { data: run, error: startError } = await supabase
@@ -80,11 +87,12 @@ async function main() {
   try {
     const stage2 = await runStage2();
     const stage3 = await runStage3();
+    const metadataCovers = await runMetadataFallback();
     const { error } = await supabase.from("ingestion_pipeline_runs").update({
       status: "completed", stage2_imports: stage2, stage3_covers: stage3, completed_at: new Date().toISOString(),
     }).eq("id", run.id);
     if (error) throw new Error(`Pipeline heartbeat completion failed: ${error.message}`);
-    console.log(JSON.stringify({ stage2Imports: stage2, stage3Covers: stage3 }));
+    console.log(JSON.stringify({ stage2Imports: stage2, stage3Covers: stage3, metadataCovers }));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Pipeline failed.";
     await supabase.from("ingestion_pipeline_runs").update({

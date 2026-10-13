@@ -80,7 +80,8 @@ export function verifyBookPage(input: BookPageSearchInput, pageUrl: string, extr
   const workConfidence = Number(Math.min(1, title * 0.75 + (input.authors.length ? author * 0.25 : title * 0.25)).toFixed(4));
   const editionConfidence = Number(Math.min(1, workConfidence * 0.65 + publisher * 0.2 + (extracted.isbn13 ? 0.15 : 0)).toFixed(4));
   const coverConfidence = Number(Math.min(1, workConfidence * 0.8 + (extracted.imageUrl ? 0.1 : 0) + (extracted.structuredType ? 0.1 : 0)).toFixed(4));
-  const accepted = Boolean(extracted.imageUrl) && title >= 0.8 && !authorConflict && (author >= 0.7 || publisher >= 0.75 || (!input.authors.length && title === 1));
+  const distinctiveExactTitle = title === 1 && normalizedText(input.title).split(" ").length >= 4;
+  const accepted = Boolean(extracted.imageUrl) && title >= 0.8 && !authorConflict && (author >= 0.7 || publisher >= 0.75 || distinctiveExactTitle);
   const evidence = [title === 1 ? "exact normalized title" : title >= 0.8 ? "near-exact title" : null, author >= 0.7 ? "matching author" : null, publisher >= 0.75 ? "matching publisher" : null, extracted.structuredType ? `schema.org ${extracted.structuredType}` : null, extracted.isbn13 ? "structured ISBN" : null].filter((value): value is string => Boolean(value));
   return { ...extracted, pageUrl, workConfidence, editionConfidence, coverConfidence, evidence, accepted };
 }

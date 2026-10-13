@@ -1,14 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { normalizedText, textSimilarity } from "./isbn-matcher";
+import { nameSimilarity, normalizedText, textSimilarity } from "./isbn-matcher";
 import books from "@/books.json";
+import { findVerifiedBookPages } from "./web-book-search";
 
-export type MetadataCoverInput = { copyId: string; title: string; authors: string[]; publisher: string | null; language: string | null };
-export type MetadataCoverCandidate = { provider: "legacy-library" | "openlibrary" | "google-books"; providerId: string; sourceUrl: string; title: string; authors: string[]; publisher: string | null; score: number; evidence: string[] };
+export type MetadataCoverInput = { copyId: string; title: string; authors: string[]; publisher: string | null; language: string | null; series?: string | null; volume?: string | null };
+export type MetadataCoverCandidate = { provider: "legacy-library" | "openlibrary" | "google-books" | "web-page"; providerId: string; sourceUrl: string; sourcePageUrl?: string | null; isbn13?: string | null; title: string; authors: string[]; publisher: string | null; score: number; evidence: string[]; workConfidence?: number | null; editionConfidence?: number | null; coverConfidence?: number | null };
 const UNKNOWN_AUTHORS = new Set(["", "αγνωστος", "unknown", "μη αναγνωσμενος", "συλλογικο εργο"]);
 const ALLOWED_COVER_HOSTS = new Set(["covers.openlibrary.org", "books.google.com", "books.googleusercontent.com"]);
 
 function usefulAuthors(authors: string[]) { return authors.filter((author) => !UNKNOWN_AUTHORS.has(normalizedText(author))); }
 function bestSimilarity(expected: string[], candidates: string[]) { return expected.reduce((best, value) => Math.max(best, ...candidates.map((candidate) => textSimilarity(value, candidate)), 0), 0); }
+function bestNameSimilarity(expected: string[], candidates: string[]) { return expected.reduce((best, value) => Math.max(best, ...candidates.map((candidate) => nameSimilarity(value, candidate)), 0), 0); }
 
 function reviewedCatalogueCovers(input: MetadataCoverInput): Omit<MetadataCoverCandidate, "score" | "evidence">[] {
   return books.flatMap((book) => book.cover ? [{
@@ -30,14 +32,14 @@ export function findReviewedCoverCandidates(input: MetadataCoverInput) {
   // Recover only when one useful author was read and exactly one reviewed cover
   // in this catalogue belongs to that author. The result remains representative:
   // it does not assign the reviewed record's ISBN or overwrite the imported title.
-  const expectedAuthors = usefulAuthors(input.authors).map(normalizedText);
+  const expectedAuthors = usefulAuthors(input.authors);
   if (expectedAuthors.length !== 1) return [];
-  const authorMatches = reviewed.filter((candidate) => candidate.authors.some((author) => expectedAuthors.includes(normalizedText(author))));
+  const authorMatches = reviewed.filter((candidate) => candidate.authors.some((author) => nameSimilarity(expectedAuthors[0], author) >= 0.85));
   if (authorMatches.length !== 1) return [];
   return [{
     ...authorMatches[0],
     score: 600,
-    evidence: ["unique exact author in reviewed catalogue", "representative cover; imported title differs"],
+    evidence: ["unique phonetic author match in reviewed catalogue", "representative cover; imported title differs"],
   }];
 }
 
@@ -47,13 +49,13 @@ export function rankMetadataCovers(input: MetadataCoverInput, candidates: Omit<M
   return candidates.map((candidate) => {
     const title = Math.round(textSimilarity(input.title, candidate.title) * 700);
     const publisher = input.publisher && candidate.publisher ? Math.round(textSimilarity(input.publisher, candidate.publisher) * 180) : 0;
-    const author = expectedAuthors.length ? Math.round(bestSimilarity(expectedAuthors, candidate.authors) * 120) : 0;
+    const author = expectedAuthors.length ? Math.round(bestNameSimilarity(expectedAuthors, candidate.authors) * 120) : 0;
     const score = title + publisher + author;
     const exactTitle = expectedTitle === normalizedText(candidate.title);
     const distinctiveExactTitle = exactTitle && expectedTitle.split(" ").length >= 4;
     const corroborated = publisher >= 150 || author >= 100;
-    const evidence = [exactTitle ? "exact normalized title" : title >= 630 ? "near-exact title" : title >= 490 ? "strong title match" : null, publisher >= 150 ? "matching publisher" : null, author >= 100 ? "matching author" : null].filter((item): item is string => Boolean(item));
-    return { ...candidate, score, evidence, accepted: distinctiveExactTitle || (exactTitle && corroborated) || (title >= 630 && corroborated) };
+    const evidence = [exactTitle ? "exact normalized title" : title >= 630 ? "near-exact title" : title >= 450 ? "strong title match" : null, publisher >= 150 ? "matching publisher" : null, author >= 100 ? "matching author or transliteration" : null].filter((item): item is string => Boolean(item));
+    return { ...candidate, score, evidence, accepted: distinctiveExactTitle || (exactTitle && corroborated) || (title >= 630 && corroborated) || (title >= 450 && author >= 100) };
   }).filter((candidate) => candidate.accepted)
     .sort((left, right) => right.score - left.score || left.providerId.localeCompare(right.providerId))
     .slice(0, 5)
@@ -95,7 +97,25 @@ export async function findMetadataCoverCandidates(input: MetadataCoverInput) {
     if (!item.id || !info?.title || !image) continue;
     try { const source = new URL(image.replace(/^http:/, "https:")); if (!ALLOWED_COVER_HOSTS.has(source.hostname)) continue; source.searchParams.set("zoom", "2"); raw.push({ provider: "google-books", providerId: item.id, sourceUrl: source.toString(), title: info.title, authors: info.authors ?? [], publisher: info.publisher ?? null }); } catch { /* invalid provider URL */ }
   }
-  return rankMetadataCovers(input, raw);
+  const catalogueMatches = rankMetadataCovers(input, raw);
+  if (catalogueMatches.length) return catalogueMatches;
+
+  const pages = await findVerifiedBookPages({ title: input.title, authors: usefulAuthors(input.authors), publisher: input.publisher, series: input.series ?? null, volume: input.volume ?? null });
+  return pages.map((page) => ({
+    provider: "web-page" as const,
+    providerId: page.pageUrl,
+    sourceUrl: page.imageUrl as string,
+    sourcePageUrl: page.pageUrl,
+    isbn13: page.isbn13,
+    title: page.title ?? input.title,
+    authors: page.authors,
+    publisher: page.publisher,
+    score: Math.round(page.coverConfidence * 1000),
+    evidence: page.evidence,
+    workConfidence: page.workConfidence,
+    editionConfidence: page.editionConfidence,
+    coverConfidence: page.coverConfidence,
+  }));
 }
 
 export async function resolveMetadataCover(supabase: SupabaseClient, input: MetadataCoverInput) {
@@ -107,20 +127,33 @@ export async function resolveMetadataCover(supabase: SupabaseClient, input: Meta
     await supabase.from("copies").update({ cover_url: null, cover_source: null, updated_at: new Date().toISOString() }).eq("id", input.copyId).is("edition_id", null).eq("edition_verification_state", "unresolved");
     return false;
   }
-  const rows = candidates.map((candidate, index) => ({ copy_id: input.copyId, provider: candidate.provider, provider_id: candidate.providerId, source_url: candidate.sourceUrl, title: candidate.title, authors: candidate.authors, publisher: candidate.publisher, score: candidate.score, evidence: candidate.evidence, selected: index === 0, updated_at: new Date().toISOString() }));
+  const rows = candidates.map((candidate, index) => ({ copy_id: input.copyId, provider: candidate.provider, provider_id: candidate.providerId, source_url: candidate.sourceUrl, source_page_url: candidate.sourcePageUrl ?? null, isbn13: candidate.isbn13 ?? null, title: candidate.title, authors: candidate.authors, publisher: candidate.publisher, score: candidate.score, evidence: candidate.evidence, work_confidence: candidate.workConfidence ?? null, edition_confidence: candidate.editionConfidence ?? null, cover_confidence: candidate.coverConfidence ?? null, selected: index === 0, updated_at: new Date().toISOString() }));
   const { error } = await supabase.from("metadata_cover_candidates").upsert(rows, { onConflict: "copy_id,provider,provider_id" });
   if (error) throw new Error(error.message);
   const selected = candidates[0];
+  const titleSimilarity = textSimilarity(input.title, selected.title);
+  const authorSimilarity = bestNameSimilarity(usefulAuthors(input.authors), selected.authors);
+  const correctionConfidence = Number((1 - (1 - titleSimilarity) * (1 - authorSimilarity)).toFixed(4));
+  if (["legacy-library", "web-page"].includes(selected.provider) && normalizedText(input.title) !== normalizedText(selected.title) && titleSimilarity >= 0.6 && authorSimilarity >= 0.85 && correctionConfidence >= 0.9) {
+    const { data: copy } = await supabase.from("copies").select("work_id,work:works(title,observed_title,title_resolution_confidence)").eq("id", input.copyId).maybeSingle();
+    const work = Array.isArray(copy?.work) ? copy.work[0] : copy?.work;
+    if (copy?.work_id && work?.title === input.title && (!work.observed_title || Number(work.title_resolution_confidence ?? 0) < correctionConfidence)) {
+      const { error: correctionError } = await supabase.from("works").update({ observed_title: work.observed_title ?? input.title, title: selected.title, title_resolution_source: selected.sourcePageUrl ?? `${selected.provider}:${selected.providerId}`, title_resolution_confidence: correctionConfidence, title_resolved_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", copy.work_id);
+      if (correctionError) throw new Error(correctionError.message);
+    }
+  }
   const coverConfidence = Number(Math.min(1, selected.score / 1000).toFixed(4));
   const { data: asset, error: assetError } = await supabase.from("cover_assets").upsert({
     canonical_key: `metadata:${input.copyId}:${selected.provider}:${selected.providerId}`,
     source_type: "metadata",
     source_url: `/api/covers/metadata/${input.copyId}`,
+    source_page_url: selected.sourcePageUrl ?? null,
     provider: selected.provider,
     provider_record_id: selected.providerId,
     evidence: selected.evidence,
-    work_confidence: coverConfidence,
-    cover_confidence: coverConfidence,
+    work_confidence: selected.workConfidence ?? coverConfidence,
+    edition_confidence: selected.editionConfidence ?? null,
+    cover_confidence: selected.coverConfidence ?? coverConfidence,
     verification_status: "provisional",
   }, { onConflict: "canonical_key" }).select("id").single();
   if (assetError || !asset) throw new Error(assetError?.message || "Could not create cover asset.");
@@ -138,9 +171,12 @@ export async function unresolvedMetadataCoverInputs(supabase: SupabaseClient, im
   if (error) throw new Error(error.message);
   const copyIds = [...new Set((data ?? []).map((row) => row.copy_id as string))];
   if (!copyIds.length) return [];
-  const { data: copies, error: copiesError } = await supabase.from("copies").select("id,cover_url,edition:editions(isbn13)").in("id", copyIds).is("cover_url", null).eq("edition_verification_state", "unresolved");
+  const { data: copies, error: copiesError } = await supabase.from("copies").select("id,cover_url,volume,work:works(series),edition:editions(isbn13)").in("id", copyIds).is("cover_url", null).eq("edition_verification_state", "unresolved");
   if (copiesError) throw new Error(copiesError.message);
-  const unresolved = new Set((copies ?? []).filter((copy) => { const edition = Array.isArray(copy.edition) ? copy.edition[0] : copy.edition; return !edition?.isbn13; }).map((copy) => copy.id));
-  return (data ?? []).filter((row) => unresolved.has(row.copy_id as string)).map((row) => ({ copyId: row.copy_id as string, title: row.title_text ?? "", authors: String(row.author_text ?? "").split(",").map((value: string) => value.trim()).filter(Boolean), publisher: row.publisher_text, language: row.language_hint }));
+  const unresolved = new Map((copies ?? []).filter((copy) => { const edition = Array.isArray(copy.edition) ? copy.edition[0] : copy.edition; return !edition?.isbn13; }).map((copy) => [copy.id, copy]));
+  return (data ?? []).filter((row) => unresolved.has(row.copy_id as string)).map((row) => {
+    const copy = unresolved.get(row.copy_id as string); const work = Array.isArray(copy?.work) ? copy.work[0] : copy?.work;
+    return { copyId: row.copy_id as string, title: row.title_text ?? "", authors: String(row.author_text ?? "").split(",").map((value: string) => value.trim()).filter(Boolean), publisher: row.publisher_text, language: row.language_hint, series: work?.series ?? null, volume: copy?.volume ?? null };
+  });
 }
 

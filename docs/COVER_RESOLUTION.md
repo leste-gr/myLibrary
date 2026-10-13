@@ -53,6 +53,7 @@ When no ISBN can be selected, the metadata resolver searches for a cover without
 1. **Reviewed local catalogue.** Previously reviewed bundled covers are matched by title and supporting author or publisher metadata even when the catalogue record has no ISBN. When Stage 1 transcribes a bad title, a cover may also be recovered from one exact, useful author only if that author has exactly one reviewed covered book in the local catalogue. This remains a representative cover and never assigns the reviewed ISBN or overwrites the imported title. This source is quota-free.
 2. **Open Library title search.** Candidate images come from `cover_i` and include title, author, and publisher metadata.
 3. **Google Books title search.** Candidate images come from the largest available `imageLinks` entry and include title, author, and publisher metadata.
+4. **Verified web-page discovery.** When catalogue APIs fail, Bing RSS web results are queried with progressively broader title, author, publisher, and Greek `εξώφυλλο` searches. Result pages are fetched only over public HTTPS, with private-address blocking, redirect validation, timeouts, and response-size limits. The resolver extracts Schema.org `Book`/`Product` data first and Open Graph metadata second. It accepts the image only after the page itself is verified against the book; search-result thumbnails are never accepted directly.
 
 Metadata-cover candidates are scored using:
 
@@ -69,6 +70,8 @@ A candidate is accepted only when it has one of these evidence combinations:
 This conservative gate prevents ambiguous titles from receiving unrelated covers. Accepted candidates are stored in `metadata_cover_candidates`; only the highest-ranked candidate is selected. The application serves it through `/api/covers/metadata/{copyId}`, which validates the source host, response type, and 8 MB size limit before applying shared caching. Metadata resolution never invents or assigns an ISBN.
 
 Metadata-provider requests retry transient responses internally. Unlike the ISBN and ISBN-cover queues, the metadata-only fallback does not yet persist its own retry job after those attempts are exhausted; it will run again when the containing import is retried or during a later metadata-cover batch.
+
+When a verified local or web-page match has a moderately similar title and a strong author match (including Greek/Latin transliteration), the corrected title replaces the display title. The literal Stage 1 title is retained in `works.observed_title` together with the correction source and confidence. Cover selection remains representative unless edition evidence independently justifies assigning an ISBN.
 
 ## 4. Owner corrections
 
