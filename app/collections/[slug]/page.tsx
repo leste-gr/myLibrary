@@ -7,9 +7,9 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 export const revalidate = 60;
 
-export default async function CollectionPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ imported?: string; matched?: string; unresolved?: string; retryable?: string; matching?: string; matchImport?: string }> }) {
+export default async function CollectionPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ imported?: string; matched?: string; unresolved?: string; retryable?: string; matching?: string; matchImport?: string; bookDeleted?: string }> }) {
   const { slug } = await params;
-  const { imported, matched, unresolved, retryable, matching, matchImport } = await searchParams;
+  const { imported, matched, unresolved, retryable, matching, matchImport, bookDeleted } = await searchParams;
   const [collection, books] = await Promise.all([
     getPublicCollection(slug),
     getPublicCatalogue(slug),
@@ -43,6 +43,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
   const matchingIsStale = unfinishedImport?.matching_status === "processing"
     && (!unfinishedImport.matching_started_at || Date.now() - new Date(unfinishedImport.matching_started_at).getTime() > 10 * 60 * 1000);
   return <>
+    {bookDeleted && <div className="global-notice" role="status">Το βιβλίο διαγράφηκε από τη συλλογή.</div>}
     {imported && <div className="global-notice" role="status">Εισήχθησαν {imported} βιβλία από το αρχείο JSON.</div>}
     {matched !== undefined && <div className="global-notice" role="status">Το Stage 2 αντιστοίχισε ISBN σε {matched} βιβλία. {unresolved !== "0" && `${unresolved} έμειναν χωρίς υποψήφιο ISBN.`} {retryable !== "0" && `${retryable} χρειάζονται νέα προσπάθεια.`}</div>}
     {matching === "retry" && matchImport && canEdit && <IsbnMatchRetry importId={matchImport} collectionSlug={collection.slug} />}

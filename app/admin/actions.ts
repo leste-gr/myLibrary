@@ -36,6 +36,38 @@ export async function deleteCollection(formData: FormData) {
   redirect("/?deleted=1");
 }
 
+export async function deleteBook(formData: FormData) {
+  const collectionId = String(formData.get("collectionId") ?? "");
+  const collectionSlug = String(formData.get("collectionSlug") ?? "");
+  const legacyId = String(formData.get("legacyId") ?? "");
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(collectionId) || !collectionSlug || !legacyId) throw new Error("Invalid book.");
+
+  const { supabase, user } = await authenticatedClient();
+  const { data: collection } = await supabase
+    .from("collections")
+    .select("id,slug")
+    .eq("id", collectionId)
+    .eq("slug", collectionSlug)
+    .eq("owner_id", user.id)
+    .maybeSingle();
+  if (!collection) throw new Error("Collection not found.");
+
+  const { data: copy } = await supabase
+    .from("copies")
+    .select("id")
+    .eq("collection_id", collection.id)
+    .eq("legacy_id", legacyId)
+    .maybeSingle();
+  if (!copy) throw new Error("Book not found.");
+
+  const { error } = await supabase.rpc("delete_owned_book", { target_copy_id: copy.id });
+  if (error) throw new Error("Could not delete book: " + error.message);
+  revalidatePath("/");
+  revalidatePath(`/collections/${collection.slug}`);
+  redirect(`/collections/${collection.slug}?bookDeleted=1`);
+}
+
 export async function saveEditionDraft(formData: FormData) {
   const candidateId = String(formData.get("candidateId") ?? "");
   const copyId = String(formData.get("copyId") ?? "");

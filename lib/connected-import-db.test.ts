@@ -81,6 +81,12 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     const repeated = await rpc("assistant_update_collection", [a, appendedPayload]);
     assert.equal(repeated.duplicate, true); assert.equal(repeated.imported, 0); assert.equal(repeated.ignoredExisting, 2);
     assert.equal((await rpc("assistant_list_collection_books", [a, 100, 0])).total, 2);
+    await claims(alice);
+    const createdCopy = (await db.query<{ id: string; work_id: string }>("select id,work_id from public.copies where collection_id = $1", [createdCollection.collectionId])).rows[0];
+    await claims(bob); await assert.rejects(() => rpc("delete_owned_book", [createdCopy.id]), /not found/);
+    await claims(alice); assert.equal(await rpc("delete_owned_book", [createdCopy.id]), true);
+    assert.equal((await db.query("select * from public.copies where id = $1", [createdCopy.id])).rows.length, 0);
+    assert.equal((await db.query("select * from public.works where id = $1", [createdCopy.work_id])).rows.length, 0);
     await claims(bob); await assert.rejects(() => rpc("delete_owned_collection", [createdCollection.collectionId]), /not found/);
     await claims(alice); assert.equal(await rpc("delete_owned_collection", [createdCollection.collectionId]), true);
     assert.equal((await db.query("select * from public.collections where id = $1", [createdCollection.collectionId])).rows.length, 0);

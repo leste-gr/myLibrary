@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import type { CatalogueBook, PublicCollection } from "@/lib/types";
 import { DeleteCollectionButton } from "@/components/delete-collection-button";
+import { DeleteBookButton } from "@/components/delete-book-button";
 
 const normalize = (value: unknown) =>
   String(value ?? "")
@@ -103,7 +104,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerCol
               {filteredBooks.slice(0, limit).map((book) => <article className="book-card-shell" key={book.id}><button type="button" className="book-card" onClick={() => openBook(book)}>
                 <div className="cover-wrap">{book.cover ? <img src={book.cover} alt={"Εξώφυλλο: " + book.title} loading="lazy" /> : <div className="missing-cover"><span>Το εξώφυλλο δεν είναι διαθέσιμο</span></div>}</div>
                 <h3>{book.title}</h3><p className="book-author">{book.author}</p>{book.series && <p className="book-series">{book.series}</p>}{book.isbn13 && <p className="book-isbn">{book.isbn13}</p>}
-              </button>{canEdit && <Link className="edit-book-link" href={`/collections/${collection.slug}/books/${book.id}`}>Επεξεργασία ISBN και έκδοσης</Link>}</article>)}
+              </button>{canEdit && <div className="book-owner-actions"><Link className="edit-book-link" href={`/collections/${collection.slug}/books/${book.id}`}>Επεξεργασία ISBN και έκδοσης</Link><DeleteBookButton collectionId={collection.id} collectionSlug={collection.slug} legacyId={book.id} title={book.title} /></div>}</article>)}
             </div>
             {!filteredBooks.length && <div id="empty"><h3>{initialBooks.length ? "Δεν βρέθηκε κάποιο βιβλίο." : "Η συλλογή δεν έχει ακόμη βιβλία."}</h3>{initialBooks.length > 0 && <><p>Δοκίμασε άλλη αναζήτηση ή αφαίρεσε κάποιο φίλτρο.</p><button type="button" onClick={reset}>Εμφάνιση όλων</button></>}</div>}
             {filteredBooks.length > 0 && <div className="load-more"><p role="status">Εμφανίζονται {Math.min(limit, filteredBooks.length)} από {filteredBooks.length} βιβλία</p>{filteredBooks.length > limit && <button type="button" onClick={() => setLimit((value) => value + 32)}>Εμφάνιση {Math.min(32, filteredBooks.length - limit)} ακόμη βιβλίων</button>}</div>}
