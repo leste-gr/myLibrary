@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { processManualGenaiImport } from "@/lib/process-manual-import";
+import { resolveCandidateCovers } from "@/lib/candidate-cover-resolver";
 import { resolveMetadataCover, unresolvedMetadataCoverInputs } from "@/lib/metadata-cover-resolver";
 import { mapWithConcurrency } from "@/lib/isbn-matcher";
 
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
       if (error) throw new Error(error.message);
       if (!importId) break;
       await processManualGenaiImport(supabase, importId as string);
+      await resolveCandidateCovers(supabase, siteUrl, importId as string);
       const coverInputs = await unresolvedMetadataCoverInputs(supabase, importId as string);
       await mapWithConcurrency(coverInputs, 2, (input) => resolveMetadataCover(supabase, input));
       stage2++;

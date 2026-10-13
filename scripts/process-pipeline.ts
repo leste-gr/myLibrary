@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { processManualGenaiImport } from "../lib/process-manual-import";
+import { resolveCandidateCovers } from "../lib/candidate-cover-resolver";
 import { resolveMetadataCover, unresolvedMetadataCoverInputs } from "../lib/metadata-cover-resolver";
 import { mapWithConcurrency } from "../lib/isbn-matcher";
 
@@ -7,10 +8,11 @@ type CoverJob = { isbn13: string; attempts: number };
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const siteUrl = process.env.MYLIBRARY_SITE_URL?.replace(/\/$/, "");
-if (!url || !serviceRoleKey || !siteUrl) {
+const configuredSiteUrl = process.env.MYLIBRARY_SITE_URL?.replace(/\/$/, "");
+if (!url || !serviceRoleKey || !configuredSiteUrl) {
   throw new Error("SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL), SUPABASE_SERVICE_ROLE_KEY, and MYLIBRARY_SITE_URL are required.");
 }
+const siteUrl = configuredSiteUrl;
 
 const supabase = createClient(url, serviceRoleKey, { auth: { persistSession: false } });
 const maxImports = Number(process.env.PIPELINE_MAX_IMPORTS ?? 10);
@@ -23,6 +25,7 @@ async function runStage2() {
     if (error) throw new Error(`Stage 2 claim failed: ${error.message}`);
     if (!importId) break;
     await processManualGenaiImport(supabase, importId as string);
+    await resolveCandidateCovers(supabase, siteUrl, importId as string);
     const coverInputs = await unresolvedMetadataCoverInputs(supabase, importId as string);
     await mapWithConcurrency(coverInputs, 2, (input) => resolveMetadataCover(supabase, input));
     processed++;

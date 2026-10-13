@@ -44,6 +44,8 @@ The `cover_resolution_jobs` lifecycle is:
 - `missing`: providers responded normally but no image exists;
 - `failed`: a temporary provider or network failure occurred and the job can be retried with exponential backoff.
 
+When the highest-ranked ISBN candidate is a strong work match (`work_confidence >= 0.85`) but does not pass the stricter exact-edition acceptance rule, the pipeline probes that candidate's ISBN cover endpoint. A real image from the reviewed catalogue, Open Library, or Google Books is selected as a **representative cover** without assigning the candidate ISBN to the copy. Placeholders, empty responses, and unlabelled images are rejected. This deliberately gives cover discovery more recall than edition assignment while keeping the two decisions independent.
+
 ## 3. Cover resolution without an ISBN
 
 When no ISBN can be selected, the metadata resolver searches for a cover without creating an edition mapping:
