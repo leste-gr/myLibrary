@@ -10,6 +10,37 @@ const ALLOWED_COVER_HOSTS = new Set(["covers.openlibrary.org", "books.google.com
 function usefulAuthors(authors: string[]) { return authors.filter((author) => !UNKNOWN_AUTHORS.has(normalizedText(author))); }
 function bestSimilarity(expected: string[], candidates: string[]) { return expected.reduce((best, value) => Math.max(best, ...candidates.map((candidate) => textSimilarity(value, candidate)), 0), 0); }
 
+function reviewedCatalogueCovers(input: MetadataCoverInput): Omit<MetadataCoverCandidate, "score" | "evidence">[] {
+  return books.flatMap((book) => book.cover ? [{
+    provider: "legacy-library" as const,
+    providerId: book.id,
+    sourceUrl: `/${book.cover}`,
+    title: book.title,
+    authors: book.author ? [book.author] : [],
+    publisher: book.publisher ?? null,
+  }] : []);
+}
+
+export function findReviewedCoverCandidates(input: MetadataCoverInput) {
+  const reviewed = reviewedCatalogueCovers(input);
+  const titleMatches = rankMetadataCovers(input, reviewed.filter((candidate) => textSimilarity(input.title, candidate.title) >= 0.5));
+  if (titleMatches.length) return titleMatches;
+
+  // Stage 1 can confidently transcribe the wrong title from a difficult spine.
+  // Recover only when one useful author was read and exactly one reviewed cover
+  // in this catalogue belongs to that author. The result remains representative:
+  // it does not assign the reviewed record's ISBN or overwrite the imported title.
+  const expectedAuthors = usefulAuthors(input.authors).map(normalizedText);
+  if (expectedAuthors.length !== 1) return [];
+  const authorMatches = reviewed.filter((candidate) => candidate.authors.some((author) => expectedAuthors.includes(normalizedText(author))));
+  if (authorMatches.length !== 1) return [];
+  return [{
+    ...authorMatches[0],
+    score: 600,
+    evidence: ["unique exact author in reviewed catalogue", "representative cover; imported title differs"],
+  }];
+}
+
 export function rankMetadataCovers(input: MetadataCoverInput, candidates: Omit<MetadataCoverCandidate, "score" | "evidence">[]) {
   const expectedAuthors = usefulAuthors(input.authors);
   const expectedTitle = normalizedText(input.title);
@@ -42,15 +73,7 @@ async function fetchJson<T>(url: URL, attempts = 3): Promise<T | null> {
 }
 
 export async function findMetadataCoverCandidates(input: MetadataCoverInput) {
-  const reviewed: Omit<MetadataCoverCandidate, "score" | "evidence">[] = books.flatMap((book) => book.cover && textSimilarity(input.title, book.title) >= 0.5 ? [{
-    provider: "legacy-library" as const,
-    providerId: book.id,
-    sourceUrl: `/${book.cover}`,
-    title: book.title,
-    authors: book.author ? [book.author] : [],
-    publisher: book.publisher ?? null,
-  }] : []);
-  const reviewedMatches = rankMetadataCovers(input, reviewed);
+  const reviewedMatches = findReviewedCoverCandidates(input);
   if (reviewedMatches.length) return reviewedMatches;
 
   const raw: Omit<MetadataCoverCandidate, "score" | "evidence">[] = [];

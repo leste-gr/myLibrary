@@ -50,7 +50,7 @@ When the highest-ranked ISBN candidate is a strong work match (`work_confidence 
 
 When no ISBN can be selected, the metadata resolver searches for a cover without creating an edition mapping:
 
-1. **Reviewed local catalogue.** Previously reviewed bundled covers are matched by title and supporting author or publisher metadata even when the catalogue record has no ISBN. This source is quota-free.
+1. **Reviewed local catalogue.** Previously reviewed bundled covers are matched by title and supporting author or publisher metadata even when the catalogue record has no ISBN. When Stage 1 transcribes a bad title, a cover may also be recovered from one exact, useful author only if that author has exactly one reviewed covered book in the local catalogue. This remains a representative cover and never assigns the reviewed ISBN or overwrites the imported title. This source is quota-free.
 2. **Open Library title search.** Candidate images come from `cover_i` and include title, author, and publisher metadata.
 3. **Google Books title search.** Candidate images come from the largest available `imageLinks` entry and include title, author, and publisher metadata.
 
