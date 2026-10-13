@@ -42,7 +42,7 @@ async function fetchJson<T>(url: URL, attempts = 3): Promise<T | null> {
 }
 
 export async function findMetadataCoverCandidates(input: MetadataCoverInput) {
-  const raw: Omit<MetadataCoverCandidate, "score" | "evidence">[] = books.flatMap((book) => book.cover && textSimilarity(input.title, book.title) >= 0.5 ? [{
+  const reviewed: Omit<MetadataCoverCandidate, "score" | "evidence">[] = books.flatMap((book) => book.cover && textSimilarity(input.title, book.title) >= 0.5 ? [{
     provider: "legacy-library" as const,
     providerId: book.id,
     sourceUrl: `/${book.cover}`,
@@ -50,6 +50,10 @@ export async function findMetadataCoverCandidates(input: MetadataCoverInput) {
     authors: book.author ? [book.author] : [],
     publisher: book.publisher ?? null,
   }] : []);
+  const reviewedMatches = rankMetadataCovers(input, reviewed);
+  if (reviewedMatches.length) return reviewedMatches;
+
+  const raw: Omit<MetadataCoverCandidate, "score" | "evidence">[] = [];
   const openLibrary = new URL("https://openlibrary.org/search.json");
   openLibrary.searchParams.set("title", input.title);
   openLibrary.searchParams.set("limit", "10");
