@@ -58,3 +58,5 @@ body:has(dialog[open]){overflow:hidden}
   .intro>div:first-child{min-width:0}.collection-stats{flex-shrink:0}
   .manual-isbn-row{flex-wrap:wrap}.manual-isbn-row input{flex-basis:100%}
 }
+
+.site-footer{max-width:1440px;margin:40px auto 0;padding:24px 5%;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--muted)}.site-footer nav,.legal-nav{display:flex;gap:20px;flex-wrap:wrap}.legal-page{max-width:880px;padding:48px 24px 64px;margin:0 auto}.legal-page>.eyebrow{margin-top:32px}.legal-page h1{font-size:clamp(36px,6vw,56px)}.legal-updated{color:var(--muted);font-size:14px}.legal-nav{padding:16px 0 28px;border-bottom:1px solid var(--line);margin-bottom:32px}.legal-page article{font-size:16px;line-height:1.8}.legal-page h2{font:500 26px/1.3 var(--serif);margin:36px 0 12px}.legal-page li{margin-bottom:10px}.legal-page a{overflow-wrap:anywhere}
