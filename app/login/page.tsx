@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { signIn } from "./actions";
+import { signIn, signInWithGoogle } from "./actions";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { safeReturnPath } from "@/lib/safe-return-path";
@@ -25,14 +25,21 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return <main className="login-card">
     <Link href="/">← Όλες οι συλλογές</Link>
     <p className="eyebrow">MYLIBRARY</p>
-    <h1>Σύνδεση στη συλλογή μου</h1>
+    <h1>Σύνδεση ή εγγραφή</h1>
     {!configured ? <div className="form-error">Το Supabase δεν έχει συνδεθεί ακόμη. Πρόσθεσε τις μεταβλητές περιβάλλοντος για να ενεργοποιήσεις τη διαχείριση.</div> :
+      <>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <form action={signInWithGoogle} className="form-stack google-sign-in">
+        {next && <input type="hidden" name="next" value={next} />}
+        <button className="primary-button" type="submit">Συνέχεια με Google</button>
+        <p className="privacy-note">Την πρώτη φορά δημιουργείται ο λογαριασμός σου. Αν έχεις ήδη λογαριασμό, συνδέεσαι στη βιβλιοθήκη σου.</p>
+      </form>
+      <details className="email-sign-in"><summary>Σύνδεση με email και κωδικό</summary>
       <form action={signIn} className="form-stack">
         {next && <input type="hidden" name="next" value={next} />}
-        {error && <p className="form-error">{error}</p>}
         <label htmlFor="email">Email</label><input id="email" name="email" type="email" autoComplete="email" required />
         <label htmlFor="password">Κωδικός</label><input id="password" name="password" type="password" autoComplete="current-password" required />
         <button className="primary-button" type="submit">Σύνδεση</button>
-      </form>}
+      </form></details></>}
   </main>;
 }

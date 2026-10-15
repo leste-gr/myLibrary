@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { authSiteOrigin, googleCallbackUrl, loginErrorPath } from "@/lib/auth-redirects";
 import { safeReturnPath } from "@/lib/safe-return-path";
 
 export async function signIn(formData: FormData) {
@@ -14,4 +15,19 @@ export async function signIn(formData: FormData) {
   if (next) redirect(next);
   const { data: collection } = await supabase.from("collections").select("slug").eq("owner_id", data.user.id).order("created_at", { ascending: true }).limit(1).maybeSingle();
   redirect(collection ? `/collections/${collection.slug}` : "/");
+}
+
+export async function signInWithGoogle(formData: FormData) {
+  const next = safeReturnPath(formData.get("next"));
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: googleCallbackUrl(authSiteOrigin(), next),
+      queryParams: { prompt: "select_account" },
+      skipBrowserRedirect: true,
+    },
+  });
+  if (error || !data.url) redirect(loginErrorPath("Η σύνδεση με Google δεν είναι διαθέσιμη αυτή τη στιγμή. Δοκίμασε ξανά.", next));
+  redirect(data.url);
 }

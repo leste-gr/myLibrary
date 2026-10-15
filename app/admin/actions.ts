@@ -17,12 +17,6 @@ function editPath(collectionSlug: string, legacyId: string, query = "") {
   return base + query;
 }
 
-export async function signOut() {
-  const supabase = await createSupabaseServerClient();
-  await supabase.auth.signOut();
-  redirect("/");
-}
-
 export async function deleteCollection(formData: FormData) {
   const collectionId = String(formData.get("collectionId") ?? "");
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(collectionId)) throw new Error("Invalid collection.");

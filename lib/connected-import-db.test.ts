@@ -13,6 +13,13 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     await db.exec(`
       create role anon; create role authenticated; create role service_role; create role supabase_auth_admin;
       create schema auth; create schema storage; create schema extensions;
+      -- Hosted OAuth tables used by self-service consent (never app-owned tables).
+      create table auth.oauth_clients(id uuid primary key, deleted_at timestamptz);
+      create table auth.oauth_authorizations(
+        authorization_id text primary key, client_id uuid references auth.oauth_clients,
+        user_id uuid, resource text, scope text, status text, expires_at timestamptz,
+        code_challenge text, code_challenge_method text
+      );
       create extension pgcrypto with schema extensions;
       create table auth.users(id uuid primary key, email text, raw_user_meta_data jsonb default '{}', created_at timestamptz default now());
       create function auth.jwt() returns jsonb language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb $$;
@@ -116,5 +123,62 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     assert.deepEqual(hooked.claims.aud, ["authenticated", resource]);
     assert.equal(hooked.claims.client_id, "assistant");
     await assert.rejects(() => rpc("assistant_access_token_hook", [{ client_id: "unknown", claims: { sub: alice } }]), /not enabled/);
+
+    // A dynamically registered client needs the current user's explicit consent.
+    const dynamicClient = "33333333-3333-4333-8333-333333333333";
+    await db.query("insert into private.assistant_oauth_settings values (true,$1)", [resource]);
+    await db.query("insert into auth.oauth_clients(id) values ($1)", [dynamicClient]);
+    await db.query(`insert into auth.oauth_authorizations values
+      ('new-client', $1, $2, $3, 'openid email offline_access', 'pending', now() + interval '10 minutes', 'challenge', 's256')`, [dynamicClient, alice, resource]);
+    await claims(bob);
+    assert.equal(await rpc("assistant_authorization_allowed", ["new-client"]), false);
+    await assert.rejects(() => rpc("authorize_assistant_connection", ["new-client"]), /invalid/);
+    await claims(alice, true);
+    assert.equal(await rpc("assistant_authorization_allowed", ["new-client"]), false);
+    await claims(alice);
+    assert.equal(await rpc("assistant_authorization_allowed", ["new-client"]), true);
+    await rpc("authorize_assistant_connection", ["new-client"]);
+    await rpc("authorize_assistant_connection", ["new-client"]); // idempotent consent
+    await db.exec("reset role");
+    const consent = (await db.query<{ owner_id: string }>("select owner_id from public.assistant_connections where client_id=$1", [dynamicClient])).rows;
+    assert.deepEqual(consent.map((row) => row.owner_id), [alice]);
+    for (const [owner, expected] of [[alice, true], [bob, false]] as const) {
+      await db.query("select set_config('request.jwt.claims',$1,false)", [JSON.stringify({ sub: owner, role: "authenticated", client_id: dynamicClient, aud: ["authenticated", resource] })]);
+      await db.exec("set role authenticated");
+      assert.equal(await rpc("assistant_connection_allowed", []), expected);
+      await db.exec("reset role");
+    }
+
+    const dynamicHook = await rpc("assistant_access_token_hook", [{ client_id: dynamicClient, claims: { sub: alice, aud: "authenticated" } }]);
+    assert.deepEqual(dynamicHook.claims.aud, ["authenticated", resource]);
+    const googleBrowserClaims = { sub: alice, aud: "authenticated", role: "authenticated" };
+    assert.deepEqual((await rpc("assistant_access_token_hook", [{ authentication_method: "oauth", claims: googleBrowserClaims }])).claims, googleBrowserClaims);
+
+    // No expiry, scope, resource, PKCE, or administrator block can be bypassed.
+    for (const [column, value] of [
+      ["scope", "openid admin"], ["resource", "https://wrong.test/api/mcp"],
+      ["code_challenge_method", "plain"], ["code_challenge", ""],
+      ["status", "denied"], ["expires_at", "2000-01-01T00:00:00Z"],
+    ]) {
+      await db.query(`update auth.oauth_authorizations set ${column}=$1 where authorization_id='new-client'`, [value]);
+      await claims(alice);
+      assert.equal(await rpc("assistant_authorization_allowed", ["new-client"]), false, column);
+      await assert.rejects(() => rpc("authorize_assistant_connection", ["new-client"]), /invalid/);
+      await db.exec("reset role");
+      await db.query(`update auth.oauth_authorizations set scope='openid', resource=$1, code_challenge_method='s256', code_challenge='challenge', status='pending', expires_at=now()+interval '10 minutes' where authorization_id='new-client'`, [resource]);
+    }
+    await db.query("update public.assistant_oauth_clients set enabled=false where client_id=$1", [dynamicClient]);
+    await claims(alice);
+    assert.equal(await rpc("assistant_authorization_allowed", ["new-client"]), false);
+    await assert.rejects(() => rpc("authorize_assistant_connection", ["new-client"]), /invalid/);
+    await db.exec("reset role");
+    await db.query("update public.assistant_oauth_clients set enabled=true where client_id=$1", [dynamicClient]);
+    await claims(alice);
+    await rpc("set_assistant_connection", [dynamicClient, false]);
+    await db.exec("reset role");
+    await db.query("select set_config('request.jwt.claims',$1,false)", [JSON.stringify({ sub: alice, role: "authenticated", client_id: dynamicClient, aud: ["authenticated", resource] })]);
+    await db.exec("set role authenticated");
+    assert.equal(await rpc("assistant_connection_allowed", []), false);
+
   } finally { await db.close(); }
 });

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { discardEditionDraft, publishEditionDraft, rejectEditionCandidate, saveEditionDraft, saveManualIsbnDraft, signOut } from "@/app/admin/actions";
+import { discardEditionDraft, publishEditionDraft, rejectEditionCandidate, saveEditionDraft, saveManualIsbnDraft } from "@/app/admin/actions";
 
 type Relation<T> = T | T[] | null;
 type Work = { title: string; author: string };
@@ -43,7 +43,7 @@ export default async function CollectionBookEditPage({ params, searchParams }: {
   const draftEdition = draft ? first(draft.edition) : null;
 
   return <main className="admin-shell">
-    <header className="admin-header"><div><p className="eyebrow">ΕΠΕΞΕΡΓΑΣΙΑ ΣΥΛΛΟΓΗΣ</p><h1>{collection.name}</h1></div><nav><Link href={`/collections/${slug}`}>Πίσω στη συλλογή</Link><form action={signOut}><button type="submit" className="secondary-button">Αποσύνδεση</button></form></nav></header>
+    <header className="admin-header"><div><p className="eyebrow">ΕΠΕΞΕΡΓΑΣΙΑ ΣΥΛΛΟΓΗΣ</p><h1>{collection.name}</h1></div><nav><Link href={`/collections/${slug}`}>Πίσω στη συλλογή</Link></nav></header>
     {messages.error && <p className="form-error">{messages.error}</p>}
     {messages.saved && <p className="draft-banner">Η επιλογή αποθηκεύτηκε ως πρόχειρη. Έλεγξέ την και δημοσίευσέ την όταν είσαι έτοιμος.</p>}
     {messages.published && <p className="draft-banner">Η έκδοση δημοσιεύτηκε στη συλλογή.</p>}

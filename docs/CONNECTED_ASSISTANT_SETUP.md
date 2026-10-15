@@ -26,47 +26,86 @@ If using the existing production Supabase project, note that its Auth Site URL i
 project-wide. Do not point production auth at a disposable preview. Either use a
 separate project or wait to enable OAuth until this branch is promoted to production.
 
-## 2. Apply the database migration
+## 2. Apply the database migrations
 
-In Supabase SQL Editor, run the entire file as a single transaction:
+Apply migrations in filename order through
+`202610150029_self_service_assistant_oauth.sql`. Existing installations must apply
+only unapplied migrations. Historical migrations are not idempotent.
 
-`supabase/migrations/202610100010_connected_shelfie_drafts.sql`
+Migration 029 onboards a Supabase-registered OAuth client when the signed-in user
+approves a valid pending authorization. It verifies the request owner, expiry,
+PKCE S256, scopes, resource, and administrator disablement. Consent is recorded
+per user; it does not grant access to another user's library.
 
-Prerequisite: migrations 001–009 already applied. The migration is one-time, not
-idempotent. Existing browser imports keep their RPC names. Their implementations
-move to the unexposed `private` schema. The narrowly scoped assistant import RPCs
-validate ownership and payloads before calling that implementation. Do not expose
-`private` in the Data API settings.
-
-The migration also restricts OAuth tokens at the table/RPC layer, adds a client
-allowlist, per-user connection consent/revocation, draft deduplication, and a quota
-of 30 newly created drafts per owner per 24 hours. There are no public draft policies.
-
-## 3. Configure Supabase OAuth
-
-1. Under Authentication → Signing Keys, use an asymmetric signing key (ES256 or
-   RS256). The MCP server intentionally does not accept HS256/shared JWT secrets.
-2. Set Auth Site URL to `SITE_ORIGIN`, and enable OAuth Server with Authorization
-   Path `/oauth/consent`.
-3. Register a dedicated OAuth client for myLibrary's ChatGPT connection. Prefer
-   a pre-registered client with the exact callback URL shown in the ChatGPT
-   connection/portal. Do not enable unrestricted dynamic registration for this
-   integration. Never put the client secret in the prompt, repository, or MCP tools.
-4. Add that client's ID and this deployment's MCP resource to the database:
+The migration copies the canonical MCP resource from existing client registrations
+when they all use the same endpoint. For a new or multi-resource installation,
+configure it once using trusted database administration:
 
 ```sql
-insert into public.assistant_oauth_clients(client_id, resource_url)
-values ('YOUR_OAUTH_CLIENT_ID', 'https://YOUR_SITE_ORIGIN/api/mcp');
+insert into private.assistant_oauth_settings(singleton, resource_url)
+values (true, 'https://YOUR_SITE_ORIGIN/api/mcp')
+on conflict(singleton) do update set resource_url = excluded.resource_url;
 ```
 
-5. Configure the **Custom Access Token Hook** to use
-   `public.assistant_access_token_hook`. If you already have a hook, merge its
-   required claims with this function rather than replacing it blindly. This hook
-   preserves ordinary browser claims and binds allowlisted OAuth tokens to both
-   `authenticated` and the registered `/api/mcp` audience. Unknown OAuth clients
-   fail closed, so review existing OAuth integrations before enabling it.
-6. Configure the ChatGPT connection with scope `openid` only. The consent page
-   rejects broader identity scopes; it does not request email/profile access.
+Keep the `private` schema outside the Data API. Ordinary browser and plugin
+sessions cannot edit this setting or enable an administrator-disabled client.
+
+## 3. Configure Google sign-in and the Supabase OAuth server
+
+Supabase provides both the database and authentication. There are two OAuth roles:
+Google identifies the person signing into myLibrary; Supabase issues the plugin's
+own OAuth tokens after that person approves access.
+
+### Google registration and login (one-time application setup)
+
+1. In Google Cloud, configure the OAuth consent screen and create an OAuth client
+   of type **Web application**. For public registration, use an External audience
+   and publish the consent configuration when ready. While testing, add the
+   accounts that should be allowed as test users.
+2. Set the authorized redirect URI to
+   `https://PROJECT.supabase.co/auth/v1/callback`. This is Google's callback to
+   Supabase, not the application's `/auth/callback` route.
+3. In Supabase → Authentication → Sign In / Providers → Google, enter the Google
+   client ID and client secret and enable Google. Keep the secret in Supabase;
+   never put it in the application repository or MCP/plugin configuration.
+4. Allow new user sign-ups. Supabase creates the user on their first Google login;
+   existing verified identities follow Supabase's account-linking rules.
+5. Set Supabase Auth Site URL to `SITE_ORIGIN` and include
+   `SITE_ORIGIN/auth/callback` in its redirect allowlist. For development, explicitly
+   add `http://localhost:3000/auth/callback` to the development project's allowlist.
+6. Set `MYLIBRARY_SITE_URL` to the same origin. The application creates a PKCE
+   flow, exchanges the returning code for the browser session, and preserves a
+   pending `/oauth/consent?authorization_id=...` request through Google login.
+
+The same **Continue with Google** button registers a new user or signs an existing
+user in. Website logout ends the current browser session. Plugin grants are
+managed separately at `/shelfies/connections`.
+
+### Endpoint-only MCP connection
+
+1. Use an asymmetric Supabase signing key (ES256 or RS256).
+2. Enable Supabase OAuth Server, set Authorization Path to `/oauth/consent`, and
+   enable **Dynamic Client Registration**. The MCP client must support OAuth
+   discovery and dynamic registration to connect using only the endpoint.
+3. Configure the Custom Access Token Hook to use
+   `public.assistant_access_token_hook`. If an existing hook serves another
+   integration, merge its claims behavior rather than replacing it blindly.
+4. Keep scopes to `openid email offline_access`. Require authorization-code flow
+   with PKCE S256. Supabase validates registered redirect URIs, codes and refresh
+   tokens. The consent page validates the pending request before enabling the
+   client and recording this user's grant.
+
+Users provide only `SITE_ORIGIN/api/mcp` and select OAuth in their MCP client.
+They sign in with Google and approve the named client. Neither the website nor
+the plugin contains a personal token or a fixed user identity. Each issued token
+identifies its own user and client; the backend verifies its signature, expiry,
+issuer, audience, user identity, and live per-user grant.
+
+Dynamic registration creates an OAuth application record, not permission to read
+any library. The user must still approve access. Administrators can disable a
+client in `assistant_oauth_clients`; users can revoke their own grants at any time.
+Clients without discovery/dynamic registration support require manual client
+configuration and cannot offer the endpoint-only experience.
 
 Authorization endpoint: `https://PROJECT.supabase.co/auth/v1/oauth/authorize`
 
@@ -74,10 +113,8 @@ Token endpoint: `https://PROJECT.supabase.co/auth/v1/oauth/token`
 
 Discovery: `https://PROJECT.supabase.co/.well-known/oauth-authorization-server/auth/v1`
 
-The MCP endpoint advertises protected-resource metadata at
-`SITE_ORIGIN/.well-known/oauth-protected-resource` and the `/api/mcp` suffix variant.
-Supabase handles OAuth codes, exact callbacks, PKCE and token refresh. The app
-verifies JWT signatures, expiry, issuer, audience, user identity and live consent.
+Protected-resource discovery is served at both
+`SITE_ORIGIN/.well-known/oauth-protected-resource` and its `/api/mcp` suffix variant.
 
 ## 4. Set Vercel environment variables for the chosen branch/environment
 
@@ -89,15 +126,15 @@ MYLIBRARY_MCP_ENABLED=true
 ```
 
 Do not set a service-role key or an OpenAI API key. Redeploy after changing variables.
-Keep `MYLIBRARY_MCP_ENABLED=false` until migration, client registration, and hook are
+Keep `MYLIBRARY_MCP_ENABLED=false` until migrations, dynamic registration, and the hook are
 ready. On each deployment, use a resource URL matching its configured site origin.
 
 ## 5. Connect and test in ChatGPT
 
 In an account that supports custom MCP connections, add `SITE_ORIGIN/api/mcp` with
-OAuth, supplying the registered client credentials through the connection settings.
-Enter the exact callback shown there in Supabase's client registration. Sign into
-myLibrary and approve the named application on the consent screen.
+OAuth. Leave manual client credentials empty when the client supports discovery
+and dynamic registration. Continue with Google and approve the named application
+on the consent screen.
 
 The connected server exposes `list_collections`, `list_collection_books`,
 `create_collection`, and `update_collection`. Collection creation and imports
@@ -117,7 +154,7 @@ Test with a small shelf photo or a JSON attachment:
 6. Visit `/shelfies/connections` and revoke access. Further tool calls must fail,
    including with a previously issued access token. Reconnect through consent.
 
-The user's signed-in account owns every draft; collection IDs never grant access.
+The user's signed-in account owns every collection and import it creates; collection IDs never grant access.
 Prompt injection in titles/notes cannot grant additional tools or SQL privileges.
 The browser fallback review UI renders book fields as text, never HTML.
 
@@ -155,3 +192,18 @@ redirect/token flow after configuration.
 - [Supabase MCP authentication](https://supabase.com/docs/guides/auth/oauth-server/mcp-authentication)
 - [Supabase OAuth setup](https://supabase.com/docs/guides/auth/oauth-server/getting-started)
 - [Supabase token security](https://supabase.com/docs/guides/auth/oauth-server/token-security)
+
+## Release verification for Google + self-service OAuth
+
+- New Google account: sign-in creates its own user and collection.
+- Existing Google account: returns to its own library without creating duplicates.
+- Cancelled/expired Google login: shows an error and preserves any pending consent destination.
+- Website logout: removes the session and shows Sign in / Register across the site.
+- A second user's plugin connection cannot read or modify the first user's collections.
+- A newly registered MCP client reaches consent without an administrator adding its ID.
+- Denial grants no access; revocation stops subsequent calls with old access tokens.
+- Expired requests, wrong resources, broad scopes, non-S256 PKCE, and disabled clients fail closed.
+
+Database integration tests exercise application migrations against simulated hosted
+OAuth tables. A final Google account round trip and client registration/token
+exchange must also be checked against the configured hosted providers.

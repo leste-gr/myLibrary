@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { SiteFooter } from "@/components/site-footer";
+import { AccountMenu } from "@/components/account-menu";
 
 export const metadata: Metadata = {
   title: "myLibrary · Δημόσιες συλλογές βιβλίων",
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="el">
-      <body>{children}<SiteFooter /></body>
+      <body><AccountMenu />{children}<SiteFooter /></body>
     </html>
   );
 }

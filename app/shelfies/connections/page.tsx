@@ -18,7 +18,7 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
   if (!assistantConfigured()) redirect("/shelfies/connect");
   const client = await createSupabaseServerClient();
   const { data: { user } } = await client.auth.getUser();
-  if (!user) redirect("/login?next=/shelfies");
+  if (!user) redirect("/login?next=/shelfies/connections");
   const grants = await client.auth.oauth.listGrants();
   const { error, revoked } = await searchParams;
   return <main className="shelfie-shell"><Link href="/shelfies">← Εισαγωγή βιβλίων</Link><h1>Συνδεδεμένες εφαρμογές</h1>

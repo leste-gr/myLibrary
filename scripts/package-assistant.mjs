@@ -9,7 +9,7 @@ const dir = path.resolve("artifacts/mylibrary-assistant");
 await mkdir(dir, { recursive: true });
 await writeFile(path.join(dir, "plugin.json"), JSON.stringify({
   $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  name: "mylibrary-shelfie", version: "1.0.0",
+  name: "mylibrary-shelfie", version: "1.1.0",
   description: "Read shelf photos with your AI subscription and import books into owned myLibrary collections.",
   author: { name: "myLibrary" },
   homepage: `${url.origin}/shelfies/connect`,
@@ -24,5 +24,5 @@ await writeFile(path.join(dir, "mcp.json"), JSON.stringify({
     },
   },
 }, null, 2) + "\n");
-await writeFile(path.join(dir, "README.md"), `# myLibrary assistant\n\nConnect to ${url.origin}/api/mcp using OAuth (scopes: openid email offline_access).\n\nThe assistant can list collections, page through their books, create and populate a collection from generated book JSON, or append JSON books to an existing collection. The backend validates and imports each payload atomically.\n\nRun the setup in docs/CONNECTED_ASSISTANT_SETUP.md before connecting. Packaging does not publish a plugin to the ChatGPT directory; register and test the remote MCP connection in your account, then submit it separately if public distribution is needed.\n`);
+await writeFile(path.join(dir, "README.md"), `# myLibrary assistant\n\nConnect to ${url.origin}/api/mcp using OAuth (scopes: openid email offline_access). Enter only the MCP endpoint, continue with Google, and approve access to your own library. No personal access token, API key, or manually supplied OAuth client secret is required when the MCP client supports discovery and dynamic registration.\n\nThe assistant can list collections, page through their books, create and populate a collection from generated book JSON, or append JSON books to an existing collection. The backend validates and imports each payload atomically.\n\nRun the setup in docs/CONNECTED_ASSISTANT_SETUP.md before connecting. Packaging does not publish a plugin to the ChatGPT directory; register and test the remote MCP connection in your account, then submit it separately if public distribution is needed.\n`);
 console.log(`Assistant package written to ${dir}`);

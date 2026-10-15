@@ -21,9 +21,9 @@ async function decide(form: FormData) {
   if (!("authorization_id" in data)) redirect(data.redirect_url);
   if (form.get("decision") === "approve") {
     if (!scopesAllowed(data.scope)) redirect(`${back}&error=scope`);
-    const enabled = await client.rpc("assistant_client_enabled", { target_client_id: data.client.id });
+    const enabled = await client.rpc("assistant_authorization_allowed", { target_authorization_id: id });
     if (enabled.error || enabled.data !== true) redirect(`${back}&error=client`);
-    const grant = await client.rpc("set_assistant_connection", { target_client_id: data.client.id, allow_access: true });
+    const grant = await client.rpc("authorize_assistant_connection", { target_authorization_id: id });
     if (grant.error) redirect(`${back}&error=connection`);
     const result = await client.auth.oauth.approveAuthorization(id, { skipBrowserRedirect: true });
     if (result.error || !result.data) redirect(`${back}&error=approval`);
@@ -44,13 +44,13 @@ export default async function ConsentPage({ searchParams }: { searchParams: Prom
   const { data, error } = await client.auth.oauth.getAuthorizationDetails(id);
   if (error || !data) return <main className="login-card"><h1>Το αίτημα έληξε</h1><p>Ξεκίνα ξανά τη σύνδεση από το AI chat.</p><Link href="/shelfies">Επιστροφή</Link></main>;
   if (!("authorization_id" in data)) redirect(data.redirect_url);
-  const enabled = await client.rpc("assistant_client_enabled", { target_client_id: data.client.id });
+  const enabled = await client.rpc("assistant_authorization_allowed", { target_authorization_id: id });
   const canApprove = !enabled.error && enabled.data === true && scopesAllowed(data.scope);
   return <main className="login-card"><p className="eyebrow">MYLIBRARY</p><h1>Σύνδεση εφαρμογής</h1><p><strong>{data.client.name}</strong> ζητά σύνδεση με τη βιβλιοθήκη σου.</p>
-    <p>Λογαριασμός: {user.email}</p><ul><li>Βλέπει τις συλλογές σου ως προορισμούς εισαγωγής.</li><li>Στέλνει στοιχεία βιβλίων σε ιδιωτικά πρόχειρα για έλεγχο.</li><li>Δεν μπορεί να δημοσιεύσει, να επεξεργαστεί ή να διαγράψει βιβλία.</li></ul>
+    <p>Λογαριασμός: {user.email}</p><ul><li>Βλέπει τις συλλογές σου και τα βιβλία τους.</li><li>Δημιουργεί συλλογές και προσθέτει βιβλία μετά από αίτημά σου.</li><li>Τα εισαγόμενα βιβλία εμφανίζονται στη δημόσια σελίδα της συλλογής.</li><li>Δεν μπορεί να διαγράψει συλλογές ή βιβλία.</li></ul>
     <p className="privacy-note">Η φωτογραφία μένει στο AI chat. Μπορείς να ανακαλέσεις τη σύνδεση από τη διαχείριση εφαρμογών.</p>
     <p className="privacy-note">Επιστροφή σε: {new URL(data.redirect_uri).origin}<br />Δικαιώματα ταυτότητας: {data.scope || "κανένα"}</p>
-    {(!canApprove || requestError) && <p className="form-error" role="alert">{!canApprove ? "Αυτή η εφαρμογή ή τα δικαιώματά της δεν έχουν ενεργοποιηθεί από τον διαχειριστή." : "Η σύνδεση δεν ολοκληρώθηκε. Δοκίμασε ξανά από το AI chat."}</p>}
+    {(!canApprove || requestError) && <p className="form-error" role="alert">{!canApprove ? "Το αίτημα σύνδεσης δεν είναι έγκυρο, έχει λήξει ή η εφαρμογή έχει απενεργοποιηθεί. Ξεκίνα ξανά από το AI chat." : "Η σύνδεση δεν ολοκληρώθηκε. Δοκίμασε ξανά από το AI chat."}</p>}
     <form action={decide} className="publish-actions"><input type="hidden" name="authorizationId" value={id} /><button className="primary-button" name="decision" value="approve" disabled={!canApprove}>Σύνδεση εφαρμογής</button><button className="secondary-button" name="decision" value="deny">Ακύρωση</button></form>
   </main>;
 }
