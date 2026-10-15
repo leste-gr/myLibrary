@@ -4,7 +4,7 @@ export function safeReturnPath(value: unknown): string | null {
   try {
     const url = new URL(value, "https://mylibrary.invalid");
     if (url.origin !== "https://mylibrary.invalid" || !value.startsWith("/")) return null;
-    if (url.pathname !== "/oauth/consent" && url.pathname !== "/shelfies" && url.pathname !== "/shelfies/connections" && !/^\/shelfies\/review\/[0-9a-f-]{36}$/i.test(url.pathname)) return null;
+    if (url.pathname !== "/oauth/consent" && url.pathname !== "/shelfies" && url.pathname !== "/shelfies/connections" && url.pathname !== "/reset-password" && !/^\/shelfies\/review\/[0-9a-f-]{36}$/i.test(url.pathname)) return null;
     return url.pathname + url.search;
   } catch { return null; }
 }

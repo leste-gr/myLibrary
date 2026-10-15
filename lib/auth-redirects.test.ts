@@ -1,18 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { authSiteOrigin, googleCallbackUrl, loginErrorPath } from "./auth-redirects";
+import { authSiteOrigin, authCallbackUrl, loginErrorPath } from "./auth-redirects";
 import { safeReturnPath } from "./safe-return-path";
 
 test("Google sign-in preserves the plugin consent request across success and failure", () => {
   const next = "/oauth/consent?authorization_id=pending-authorization";
-  const callback = new URL(googleCallbackUrl("https://library.test", next));
+  const callback = new URL(authCallbackUrl("https://library.test", next));
   assert.equal(callback.origin, "https://library.test");
   assert.equal(callback.pathname, "/auth/callback");
   assert.equal(callback.searchParams.get("next"), next);
   assert.equal(new URL(loginErrorPath("Try again", next), callback).searchParams.get("next"), next);
   assert.equal(safeReturnPath("/shelfies/connections"), "/shelfies/connections");
   for (const unsafe of ["https://evil.test", "//evil.test", "/\\evil.test", "/auth/callback", "/login"]) {
-    assert.equal(new URL(googleCallbackUrl("https://library.test", unsafe)).searchParams.has("next"), false);
+    assert.equal(new URL(authCallbackUrl("https://library.test", unsafe)).searchParams.has("next"), false);
     assert.equal(new URL(loginErrorPath("Try again", unsafe), callback).searchParams.has("next"), false);
   }
 });

@@ -16,5 +16,5 @@ export async function GET(request: Request) {
       return NextResponse.redirect(new URL(next ?? "/login", origin));
     }
   }
-  return NextResponse.redirect(new URL(loginErrorPath("Η σύνδεση με Google δεν ολοκληρώθηκε ή έληξε. Δοκίμασε ξανά.", next), origin));
+  return NextResponse.redirect(new URL(loginErrorPath("Η σύνδεση ή η επιβεβαίωση email δεν ολοκληρώθηκε ή έληξε. Άνοιξε τον σύνδεσμο στον ίδιο browser ή ζήτησε νέο email.", next), origin));
 }

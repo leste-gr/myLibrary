@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { authSiteOrigin, googleCallbackUrl, loginErrorPath } from "@/lib/auth-redirects";
+import { authSiteOrigin, authCallbackUrl, loginErrorPath } from "@/lib/auth-redirects";
 import { safeReturnPath } from "@/lib/safe-return-path";
 
 export async function signIn(formData: FormData) {
@@ -23,7 +23,7 @@ export async function signInWithGoogle(formData: FormData) {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: googleCallbackUrl(authSiteOrigin(), next),
+      redirectTo: authCallbackUrl(authSiteOrigin(), next),
       queryParams: { prompt: "select_account" },
       skipBrowserRedirect: true,
     },

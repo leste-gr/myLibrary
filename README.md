@@ -5,7 +5,7 @@ myLibrary is a Next.js catalogue and owner workspace for a physical book collect
 ## Current initial release
 
 - Public catalogue with search, filters, sorting, ISBN display, and book details.
-- Google registration/sign-in through Supabase, with email/password sign-in for existing accounts.
+- Google or email/password registration and sign-in through Supabase, with email confirmation and password recovery.
 - Website logout and per-user OAuth connections for MCP clients.
 - Ranked edition candidates imported from the existing ISBN analysis.
 - Persistent per-book edition drafts.

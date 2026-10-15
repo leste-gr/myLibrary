@@ -207,3 +207,33 @@ redirect/token flow after configuration.
 Database integration tests exercise application migrations against simulated hosted
 OAuth tables. A final Google account round trip and client registration/token
 exchange must also be checked against the configured hosted providers.
+
+## Email/password accounts
+
+Users can select **Register with email** at `/login` or go to `/register`. This
+works with Yahoo, Outlook, and other email providers; Google is optional.
+Supabase remains the identity store. The registration flow requires matching
+passwords of at least eight characters, acceptance of the terms, and email
+confirmation. Pending plugin consent survives registration and sign-in.
+
+Keep the Email provider and new sign-ups enabled in Supabase. Keep confirmation
+emails enabled (`mailer_autoconfirm=false`). Configure a custom SMTP provider
+under Authentication → Email → SMTP Settings. Supabase's built-in sender is
+restricted and is not suitable for public signup; its default rate limits are
+also low. Set the sender address, provider credentials, and delivery/rate limits
+according to the mail provider's verified-domain setup. Store SMTP credentials
+only in Supabase, not in the repository or plugin.
+
+The default Supabase confirmation and recovery templates can use their
+`ConfirmationURL` link. The application passes a PKCE callback at
+`SITE_ORIGIN/auth/callback`, already covered by the configured redirect allowlist.
+Open these links in the browser that started the request so its PKCE verifier
+cookie is available. If a link expires or a different browser is used, request
+a new confirmation or password-reset email from that browser.
+
+`/forgot-password` requests recovery without revealing whether an account exists.
+`/reset-password` requires an authenticated session, validates the new password,
+and then lets the user continue to their library or pending plugin consent.
+Existing accounts can sign in using email/password without sending an email.
+Do not create an account or send test messages to someone else's address; the
+owner completes registration and chooses their own password.

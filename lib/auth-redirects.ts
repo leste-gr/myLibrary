@@ -14,7 +14,7 @@ export function authSiteOrigin() {
   return url.origin;
 }
 
-export function googleCallbackUrl(origin: string, next: unknown) {
+export function authCallbackUrl(origin: string, next: unknown) {
   const url = new URL("/auth/callback", origin);
   const path = safeReturnPath(next);
   if (path) url.searchParams.set("next", path);
