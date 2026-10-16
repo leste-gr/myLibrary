@@ -10,7 +10,7 @@ This is the canonical contract for turning a shelfie into published books. Detai
 | --- | --- | --- |
 | 1. Extract and research book data | Implemented | The prompt identifies shelf books, then asks the user's LLM to verify an edition ISBN and direct public cover image. The same schema supports MCP and manual JSON upload. |
 | 2. Identify ISBN fallback | Implemented | Runs only for imported books without `coverUrl`; it retains ranked candidates and selects the leader. |
-| 3. Resolve cover fallback | Implemented | Runs only when Stage 1 did not supply a cover. It uses the ISBN provider cascade or conservative metadata matching. |
+| 3. Resolve cover fallback | Implemented | Runs only when Stage 1 did not supply a cover. It owns selected-ISBN, representative candidate, and metadata cover detection, in that order. |
 | 4. Owner refinement | Implemented | On their public collection page, the owner can inspect candidates, choose an edition, or enter an ISBN manually. |
 
 Stage 2 progress is stored on the import record. Processing starts from the database insertion event. A processing attempt older than ten minutes can be recovered by a later ingestion dispatch. Provider failures finish as unresolved results; the service does not maintain a scheduled or owner-operated retry queue.
@@ -26,6 +26,8 @@ Every imported physical spine creates a published copy, a work, and a `manual_ge
 Stage 2 must always select its strongest ISBN candidate automatically while retaining the remaining candidates for owner selection. A valid, visibly read ISBN is stronger evidence than a bibliographic text match but remains distinguishable from an owner override.
 
 ### Stage 2 → Stage 3
+
+Stage 2 only identifies, ranks, and selects ISBN candidates. It does not probe images or assign cover assets. Edition selection queues an ISBN lookup for Stage 3. Stage 3 first resolves selected-ISBN jobs and attaches successful cover assets, then probes strong representative candidates, then searches metadata for copies still without covers. Candidate and metadata discovery only consider observations whose ISBN matching has finished.
 
 Backend cover resolution begins only when Stage 1 did not provide a cover. Its results and negative lookups are cached by ISBN. Assistant-supplied public images retain `assistant-supplied` provenance and are used directly by that copy.
 

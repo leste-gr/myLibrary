@@ -45,13 +45,12 @@ export async function probeCandidateCover(siteUrl: string, isbn13: string, fetch
 }
 
 async function candidateRows(supabase: SupabaseClient, importId?: string) {
-  let copyIds: string[] | null = null;
-  if (importId) {
-    const { data: observations, error } = await supabase.from("book_observations").select("copy_id").eq("manual_genai_import_id", importId).not("copy_id", "is", null);
-    if (error) throw new Error(error.message);
-    copyIds = [...new Set((observations ?? []).map((row) => row.copy_id as string))];
-    if (!copyIds.length) return [];
-  }
+  let observationsQuery = supabase.from("book_observations").select("copy_id").in("status", ["matched", "unresolved"]).not("copy_id", "is", null);
+  if (importId) observationsQuery = observationsQuery.eq("manual_genai_import_id", importId);
+  const { data: observations, error } = await observationsQuery;
+  if (error) throw new Error(error.message);
+  const copyIds = [...new Set((observations ?? []).map((row) => row.copy_id as string))];
+  if (!copyIds.length) return [];
 
   let copiesQuery = supabase.from("copies").select("id").is("edition_id", null).is("cover_url", null).eq("edition_verification_state", "unresolved");
   if (copyIds) copiesQuery = copiesQuery.in("id", copyIds);

@@ -24,7 +24,9 @@ Candidates are grouped by canonical ISBN-13, retained up to a maximum of ten, an
 
 The highest-ranked candidate is selected automatically as `algorithm_selected` only when it scores at least 500 points and leads the next edition by at least 50 points. A close edition race remains unresolved for owner review even when the work match is strong. Alternatives remain available to the owner. When no accepted candidate is found, the observation becomes unresolved after the current provider attempt; there is no scheduled or owner-operated retry queue.
 
-Candidates separately store `work_confidence`, `edition_confidence`, and `cover_confidence`. Provider identifiers are structured data rather than a flattened label, so an Open Library cover ID/edition OLID or Google volume ID can be reused by later resolvers.
+Stage 2 candidates store `work_confidence` and `edition_confidence`; Stage 3 supplies `cover_confidence`. Provider identifiers are structured data rather than a flattened label, so an Open Library edition OLID or Google volume ID can be reused by later resolvers.
+
+All backend cover detection runs in Stage 3, after Stage 2 has finished ISBN identification. Stage 2 stores bibliographic evidence and queues selected ISBNs; it does not assign cover URLs or assets. Stage 3 resolves selected ISBNs, then representative candidates, then metadata fallbacks.
 
 ## 2. Cover resolution with an ISBN
 

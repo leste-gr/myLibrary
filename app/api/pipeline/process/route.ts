@@ -1,14 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import { processManualGenaiImport } from "@/lib/process-manual-import";
-import { resolveCandidateCovers } from "@/lib/candidate-cover-resolver";
-import { resolveMetadataCover, unresolvedMetadataCoverInputs } from "@/lib/metadata-cover-resolver";
-import { mapWithConcurrency } from "@/lib/isbn-matcher";
+import { processCoverResolution } from "@/lib/process-cover-resolution";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
-
-type CoverJob = { isbn13: string; attempts: number };
 
 function serviceRoleToken(request: Request) {
   const value = request.headers.get("authorization");
@@ -35,37 +31,11 @@ export async function POST(request: Request) {
       if (error) throw new Error(error.message);
       if (!importId) break;
       await processManualGenaiImport(supabase, importId as string);
-      await resolveCandidateCovers(supabase, siteUrl, importId as string);
-      const coverInputs = await unresolvedMetadataCoverInputs(supabase, importId as string);
-      await mapWithConcurrency(coverInputs, 2, (input) => resolveMetadataCover(supabase, input));
       stage2++;
     }
-    while (stage3 < 100) {
-      const { data, error } = await supabase.rpc("claim_next_cover_resolution");
-      if (error) throw new Error(error.message);
-      const job = ((data as CoverJob[] | null)?.[0] ?? null);
-      if (!job) break;
-      try {
-        const response = await fetch(`${siteUrl}/api/covers/${job.isbn13}`, { signal: AbortSignal.timeout(20_000) });
-        if (!response.ok) throw new Error(`cover endpoint returned ${response.status}`);
-        await response.arrayBuffer();
-        const source = response.headers.get("x-cover-source") ?? "unknown";
-        const status = source === "placeholder" ? "missing" : "completed";
-        const { error: updateError } = await supabase.from("cover_resolution_jobs").update({
-          status, source, error: null, completed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-        }).eq("isbn13", job.isbn13);
-        if (updateError) throw new Error(updateError.message);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Cover resolution failed.";
-        await supabase.from("cover_resolution_jobs").update({
-          status: "failed", error: message.slice(0, 1000), next_retry_at: null, completed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-        }).eq("isbn13", job.isbn13);
-      }
-      stage3++;
-    }
-    const metadataInputs = (await unresolvedMetadataCoverInputs(supabase)).slice(0, 10);
-    const metadataResults = await mapWithConcurrency(metadataInputs, 2, (input) => resolveMetadataCover(supabase, input));
-    return Response.json({ stage2Imports: stage2, stage3Covers: stage3, metadataCovers: metadataResults.filter(Boolean).length }, { headers: { "Cache-Control": "no-store" } });
+    const covers = await processCoverResolution(supabase, siteUrl);
+    stage3 = covers.stage3Covers;
+    return Response.json({ stage2Imports: stage2, ...covers }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Pipeline failed.", stage2Imports: stage2, stage3Covers: stage3 }, { status: 500 });
   }

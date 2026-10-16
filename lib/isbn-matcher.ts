@@ -26,11 +26,10 @@ export type RankedIsbnCandidate = {
   providerIdentifiers: Record<string, string[]>;
   workConfidence: number;
   editionConfidence: number;
-  coverConfidence: number | null;
   autoAccept: boolean;
 };
 
-export type ProviderCandidate = Omit<RankedIsbnCandidate, "score" | "confidence" | "rank" | "evidence" | "scoreBreakdown" | "providerCount" | "providerIdentifiers" | "workConfidence" | "editionConfidence" | "coverConfidence" | "autoAccept"> & {
+export type ProviderCandidate = Omit<RankedIsbnCandidate, "score" | "confidence" | "rank" | "evidence" | "scoreBreakdown" | "providerCount" | "providerIdentifiers" | "workConfidence" | "editionConfidence" | "autoAccept"> & {
   provider: "openlibrary" | "google-books";
   providerIdentifiers?: Record<string, string[]>;
 };
@@ -131,8 +130,8 @@ async function openLibraryCandidates(input: IsbnMatchInput): Promise<ProviderRes
     const authors = usefulAuthors(input.authors);
     if (authors[0]) url.searchParams.set("author", authors[0]);
     url.searchParams.set("limit", "10");
-    url.searchParams.set("fields", "key,title,author_name,isbn,publisher,first_publish_year,language,cover_i,cover_edition_key,edition_key");
-    const payload = await fetchJson<{ docs?: Array<{ key?: string; title?: string; author_name?: string[]; isbn?: string[]; publisher?: string[]; first_publish_year?: number; language?: string[]; cover_i?: number; cover_edition_key?: string; edition_key?: string[] }> }>(url);
+    url.searchParams.set("fields", "key,title,author_name,isbn,publisher,first_publish_year,language,edition_key");
+    const payload = await fetchJson<{ docs?: Array<{ key?: string; title?: string; author_name?: string[]; isbn?: string[]; publisher?: string[]; first_publish_year?: number; language?: string[]; edition_key?: string[] }> }>(url);
     const records: ProviderCandidate[] = [];
     for (const document of payload.docs ?? []) {
       for (const rawIsbn of (document.isbn ?? []).slice(0, 40)) {
@@ -149,8 +148,7 @@ async function openLibraryCandidates(input: IsbnMatchInput): Promise<ProviderRes
           providerId: document.key?.split("/").pop() ?? isbn13,
           providerIdentifiers: {
             workOlid: document.key ? [document.key.split("/").pop() ?? document.key] : [],
-            editionOlid: [...new Set([document.cover_edition_key, ...(document.edition_key ?? [])].filter((value): value is string => Boolean(value)))],
-            coverId: document.cover_i ? [String(document.cover_i)] : [],
+            editionOlid: [...new Set(document.edition_key ?? [])],
           },
         });
       }
@@ -255,7 +253,6 @@ export function rankIsbnCandidates(input: IsbnMatchInput, records: ProviderCandi
       providerIdentifiers,
       workConfidence,
       editionConfidence: 0,
-      coverConfidence: null,
       autoAccept: false,
     };
   }).filter((candidate) => candidate.scoreBreakdown.title >= 250)

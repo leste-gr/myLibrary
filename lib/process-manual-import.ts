@@ -75,7 +75,6 @@ async function runManualGenaiImportMatching(supabase: SupabaseClient, importId: 
       title: candidate.title,
       publishers: candidate.publishers,
       published_date: candidate.publishedDate,
-      cover_url: `/api/covers/${candidate.isbn13}`,
       provider: "isbn-matcher-v3",
       provider_id: candidate.providerId || candidate.isbn13,
       score: candidate.score,
@@ -90,7 +89,6 @@ async function runManualGenaiImportMatching(supabase: SupabaseClient, importId: 
       provider_identifiers: candidate.providerIdentifiers,
       work_confidence: candidate.workConfidence,
       edition_confidence: candidate.editionConfidence,
-      cover_confidence: candidate.coverConfidence,
       auto_accept: candidate.autoAccept,
       last_evaluated_at: new Date().toISOString(),
     }));

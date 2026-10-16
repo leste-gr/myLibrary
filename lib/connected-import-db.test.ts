@@ -185,5 +185,20 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     await db.exec("set role authenticated");
     assert.equal(await rpc("assistant_connection_allowed", []), false);
 
+    // ISBN selection must not assign a cover until Stage 3 has a real image.
+    await db.exec("reset role");
+    const workId = (await db.query<{ id: string }>("insert into public.works(external_key,title,author) values ('stage-boundary','Boundary book','Author') returning id")).rows[0].id;
+    const copyId = (await db.query<{ id: string }>("insert into public.copies(collection_id,work_id,legacy_id,display_order,category,language) values ($1,$2,'stage-boundary',999,'Other','en') returning id", [a, workId])).rows[0].id;
+    await db.query("insert into public.edition_candidates(copy_id,isbn13,provider,provider_id,title,rank,score,auto_accept,work_confidence,edition_confidence) values ($1,'9780140328721','isbn-matcher-v3','boundary','Boundary book',1,900,true,.99,.99)", [copyId]);
+    const stage2Copy = (await db.query<{ edition_id: string; cover_url: string | null }>("select edition_id,cover_url from public.copies where id=$1", [copyId])).rows[0];
+    assert.ok(stage2Copy.edition_id);
+    assert.equal(stage2Copy.cover_url, null);
+    assert.equal((await db.query("select * from public.copy_cover_selections where copy_id=$1", [copyId])).rows.length, 0);
+    await rpc("attach_resolved_isbn_covers", []);
+    assert.equal((await db.query("select * from public.copy_cover_selections where copy_id=$1", [copyId])).rows.length, 0, "pending ISBN jobs cannot assign images");
+    await db.query("update public.cover_resolution_jobs set status='completed',source='openlibrary' where isbn13='9780140328721'");
+    await rpc("attach_resolved_isbn_covers", []);
+    assert.match((await db.query<{ cover_url: string }>("select cover_url from public.copies where id=$1", [copyId])).rows[0].cover_url, /^\/api\/cover-assets\//);
+    assert.equal(await rpc("attach_resolved_isbn_covers", []), 0, "attachment is idempotent");
   } finally { await db.close(); }
 });

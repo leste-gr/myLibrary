@@ -160,7 +160,7 @@ export async function resolveMetadataCover(supabase: SupabaseClient, input: Meta
 }
 
 export async function unresolvedMetadataCoverInputs(supabase: SupabaseClient, importId?: string) {
-  let query = supabase.from("book_observations").select("copy_id,title_text,author_text,publisher_text,language_hint").not("copy_id", "is", null);
+  let query = supabase.from("book_observations").select("copy_id,title_text,author_text,publisher_text,language_hint").in("status", ["matched", "unresolved"]).not("copy_id", "is", null);
   if (importId) query = query.eq("manual_genai_import_id", importId);
   const { data, error } = await query;
   if (error) throw new Error(error.message);

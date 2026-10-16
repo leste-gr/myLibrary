@@ -15,6 +15,8 @@ Apply every SQL file in `supabase/migrations/` in filename order using the Supab
 
 `202610110010_manual_genai_matching_status.sql` introduced persistent Stage 2 progress. Migration `202610160030_remove_scheduled_and_owner_retries.sql` removes the scheduled and owner-operated retry paths and terminalizes their remaining queue state.
 
+Apply `202610160031_stage3_cover_resolution.sql` before deploying the Stage 3 cover refactor. It keeps Stage 2 edition selection separate from cover assignment and adds the service-role-only `attach_resolved_isbn_covers` RPC used by Stage 3. Existing cover selections remain intact.
+
 Never expose `SUPABASE_SERVICE_ROLE_KEY` in a browser bundle.
 
 ## 2. Configure the application
