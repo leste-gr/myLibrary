@@ -22,7 +22,7 @@ Candidates are grouped by canonical ISBN-13, retained up to a maximum of ten, an
 - matching language: 25 points;
 - agreement by more than one provider: 100 points.
 
-The highest-ranked candidate is selected automatically as `algorithm_selected` only when it scores at least 500 points and leads the next edition by at least 50 points. A close edition race remains unresolved for owner review even when the work match is strong. Alternatives remain available to the owner. A provider failure does not count as a negative result: when no accepted candidate is found and at least one provider timed out, returned HTTP 429, or returned a 5xx response, the observation remains `ready_for_matching` and the import becomes `partial` for retry with exponential backoff.
+The highest-ranked candidate is selected automatically as `algorithm_selected` only when it scores at least 500 points and leads the next edition by at least 50 points. A close edition race remains unresolved for owner review even when the work match is strong. Alternatives remain available to the owner. When no accepted candidate is found, the observation becomes unresolved after the current provider attempt; there is no scheduled or owner-operated retry queue.
 
 Candidates separately store `work_confidence`, `edition_confidence`, and `cover_confidence`. Provider identifiers are structured data rather than a flattened label, so an Open Library cover ID/edition OLID or Google volume ID can be reused by later resolvers.
 
@@ -36,7 +36,7 @@ Each selected image has a stable `cover_assets.id`, provenance, evidence, confid
 2. **Google Books by ISBN.** Queries `isbn:{isbn}` and chooses the largest available `imageLinks` value in this order: `extraLarge`, `large`, `medium`, `thumbnail`, then `smallThumbnail`. Only approved Google Books image hosts are accepted.
 3. **Placeholder.** Returned only after every available provider gives a genuine negative result.
 
-Successful responses use long-lived shared caching. Genuine misses use a short cache. HTTP 429, timeouts, and 5xx errors return HTTP 503 with `Retry-After` and are recorded as retryable `failed` cover jobs with `next_retry_at`; they are not marked permanently `missing`.
+Successful responses use long-lived shared caching. Genuine misses use a short cache. HTTP 429, timeouts, and 5xx errors return HTTP 503 and are recorded as terminal `failed` cover jobs for operational visibility.
 
 The `cover_resolution_jobs` lifecycle is:
 
@@ -44,7 +44,7 @@ The `cover_resolution_jobs` lifecycle is:
 
 - `completed`: a real image was retrieved;
 - `missing`: providers responded normally but no image exists;
-- `failed`: a temporary provider or network failure occurred and the job can be retried with exponential backoff.
+- `failed`: a provider or network failure prevented resolution during the event-driven attempt.
 
 When the highest-ranked ISBN candidate is a strong work match (`work_confidence >= 0.85`) but does not pass the stricter exact-edition acceptance rule, the pipeline probes that candidate's ISBN cover endpoint. A real image from Open Library or Google Books is selected as a **representative cover** without assigning the candidate ISBN to the copy. Placeholders, empty responses, and unlabelled images are rejected. This deliberately gives cover discovery more recall than edition assignment while keeping the two decisions independent.
 
@@ -70,7 +70,7 @@ A candidate is accepted only when it has one of these evidence combinations:
 
 This conservative gate prevents ambiguous titles from receiving unrelated covers. Accepted candidates are stored in `metadata_cover_candidates`; only the highest-ranked candidate is selected. The application serves it through `/api/covers/metadata/{copyId}`, which validates the source host, response type, and 8 MB size limit before applying shared caching. Metadata resolution never invents or assigns an ISBN.
 
-Metadata-provider requests retry transient responses internally. Unlike the ISBN and ISBN-cover queues, the metadata-only fallback does not yet persist its own retry job after those attempts are exhausted; it will run again when the containing import is retried or during a later metadata-cover batch.
+Metadata-provider requests make a bounded set of attempts within the active ingestion request. No persistent metadata retry job is created.
 
 When a verified web-page match has a moderately similar title and a strong author match (including Greek/Latin transliteration), the corrected title replaces the display title. The literal Stage 1 title is retained in `works.observed_title` together with the correction source and confidence. Cover selection remains representative unless edition evidence independently justifies assigning an ISBN.
 

@@ -13,7 +13,7 @@ Apply every SQL file in `supabase/migrations/` in filename order using the Supab
 - the authenticated, atomic `import_manual_genai_books` function; and
 - ownership policies for import records.
 
-`202610110010_manual_genai_matching_status.sql` adds persistent Stage 2 progress, failure reporting, and owner-scoped retry state.
+`202610110010_manual_genai_matching_status.sql` introduced persistent Stage 2 progress. Migration `202610160030_remove_scheduled_and_owner_retries.sql` removes the scheduled and owner-operated retry paths and terminalizes their remaining queue state.
 
 Never expose `SUPABASE_SERVICE_ROLE_KEY` in a browser bundle.
 

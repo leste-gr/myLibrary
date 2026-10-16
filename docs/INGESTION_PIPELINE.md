@@ -13,9 +13,9 @@ This is the canonical contract for turning a shelfie into published books. Detai
 | 3. Resolve cover fallback | Implemented | Runs only when Stage 1 did not supply a cover. It uses the ISBN provider cascade or conservative metadata matching. |
 | 4. Owner refinement | Implemented | On their public collection page, the owner can inspect candidates, choose an edition, or enter an ISBN manually. |
 
-Stage 2 progress is stored on the import record. Interrupted, partial, and failed matches remain visible to the owner on later visits and can be retried without uploading the JSON again. A processing attempt older than ten minutes is treated as stale. Provider rate limits, timeouts, and 5xx responses remain retryable with exponential backoff; they are never converted into permanent unresolved results merely because another provider returned an empty response.
+Stage 2 progress is stored on the import record. Processing starts from the database insertion event. A processing attempt older than ten minutes can be recovered by a later ingestion dispatch. Provider failures finish as unresolved results; the service does not maintain a scheduled or owner-operated retry queue.
 
-Stage handoffs use database statuses rather than direct calls between ingestion sources. A supplied cover marks its observation `cover_provided` and is excluded from Stage 2. If every imported book has a cover, the import is completed immediately. Otherwise the import remains `pending`, and Stage 2 selects only `ready_for_matching` observations. A supplied ISBN+cover also completes its ISBN cover job so Stage 3 cannot refetch it. Scheduled polling remains a recovery fallback for unresolved books.
+Stage handoffs use database statuses rather than direct calls between ingestion sources. A supplied cover marks its observation `cover_provided` and is excluded from Stage 2. If every imported book has a cover, the import is completed immediately. Otherwise the import remains `pending`, and Stage 2 selects only `ready_for_matching` observations. A supplied ISBN+cover also completes its ISBN cover job so Stage 3 cannot refetch it.
 
 ## Stage handoffs
 

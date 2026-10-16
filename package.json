@@ -9,7 +9,6 @@
     "test": "tsx --test lib/*.test.ts",
     "typecheck": "tsc --noEmit",
     "match:import": "tsx scripts/match-manual-import.ts",
-    "pipeline:process": "tsx scripts/process-pipeline.ts",
     "covers:candidates": "tsx scripts/resolve-candidate-covers.ts",
     "covers:metadata": "tsx scripts/resolve-metadata-covers.ts"
   },

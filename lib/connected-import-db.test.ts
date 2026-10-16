@@ -97,6 +97,11 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     assert.equal((await db.query<{ status: string }>("select status from public.book_observations where copy_id = $1", [createdCopy.id])).rows[0].status, "cover_provided");
     await db.exec("reset role");
     assert.equal((await db.query<{ status: string }>("select status from public.cover_resolution_jobs where isbn13 = '9780261102217'")).rows[0].status, "completed");
+    assert.equal((await db.query<{ table_name: string | null }>("select to_regclass('public.ingestion_pipeline_runs')::text as table_name")).rows[0].table_name, null);
+    await assert.rejects(() => db.query("update public.manual_genai_imports set matching_status='partial' where id=$1", [createdCollection.importId]), /manual_genai_matching_status_check/);
+    await db.query("update public.cover_resolution_jobs set status='failed', next_retry_at=now()-interval '1 minute' where isbn13='9780261102217'");
+    assert.equal((await db.query("select * from public.claim_next_cover_resolution()")).rows.length, 0, "failed cover jobs are terminal");
+    await db.query("update public.cover_resolution_jobs set status='completed' where isbn13='9780261102217'");
     await claims(alice);
     await claims(bob); await assert.rejects(() => rpc("delete_owned_book", [createdCopy.id]), /not found/);
     await claims(alice); assert.equal(await rpc("delete_owned_book", [createdCopy.id]), true);
