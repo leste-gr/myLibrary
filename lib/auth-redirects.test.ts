@@ -10,6 +10,7 @@ test("Google sign-in preserves the plugin consent request across success and fai
   assert.equal(callback.pathname, "/auth/callback");
   assert.equal(callback.searchParams.get("next"), next);
   assert.equal(new URL(loginErrorPath("Try again", next), callback).searchParams.get("next"), next);
+  assert.equal(safeReturnPath("/?view=mine"), "/?view=mine");
   assert.equal(safeReturnPath("/shelfies/connections"), "/shelfies/connections");
   for (const unsafe of ["https://evil.test", "//evil.test", "/\\evil.test", "/auth/callback", "/login"]) {
     assert.equal(new URL(authCallbackUrl("https://library.test", unsafe)).searchParams.has("next"), false);

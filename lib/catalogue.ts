@@ -35,13 +35,16 @@ function publicClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-export async function getPublicCollections(): Promise<PublicCollection[]> {
+export async function getPublicCollections(collectionIds?: string[]): Promise<PublicCollection[]> {
   const supabase = publicClient();
 
-  const { data, error } = await supabase
+  if (collectionIds?.length === 0) return [];
+  let query = supabase
     .from("public_collections")
     .select("*")
     .order("created_at", { ascending: true });
+  if (collectionIds) query = query.in("id", collectionIds);
+  const { data, error } = await query;
 
   if (error || !data) {
     throw new Error("Unable to load public collections from Supabase.", { cause: error });

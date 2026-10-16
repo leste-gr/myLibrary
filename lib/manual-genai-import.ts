@@ -39,13 +39,13 @@ export type ManualGenaiImport = {
  * Never guess at prose, repair malformed JSON, or discard invalid book fields. */
 export function parseManualGenaiText(text: string): ManualGenaiImport {
   if (new TextEncoder().encode(text).byteLength > MAX_IMPORT_BYTES) {
-    throw new Error("Η απάντηση πρέπει να είναι μικρότερη από 1 MB.");
+    throw new Error("The response must be smaller than 1 MB.");
   }
   const trimmed = text.replace(/^\uFEFF/, "").trim();
   const fenced = /^```(?:json)?\s*\n([\s\S]*?)\n```$/i.exec(trimmed);
   let value: unknown;
   try { value = JSON.parse(fenced ? fenced[1] : trimmed); }
-  catch { throw new Error("Δεν βρέθηκε έγκυρο JSON. Επικόλλησε ολόκληρη την απάντηση JSON του chat."); }
+  catch { throw new Error("No valid JSON found. Paste the complete JSON response from your chat."); }
   return parseManualGenaiImport(value);
 }
 

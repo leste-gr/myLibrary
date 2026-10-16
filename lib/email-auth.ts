@@ -9,9 +9,9 @@ export function normalizedEmail(value: unknown) {
 
 export function passwordValidationError(password: unknown, confirmation: unknown) {
   if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH || password.length > 128) {
-    return "Ο κωδικός πρέπει να έχει από 8 έως 128 χαρακτήρες.";
+    return "Password must contain 8 to 128 characters.";
   }
-  if (password !== confirmation) return "Οι κωδικοί δεν ταιριάζουν.";
+  if (password !== confirmation) return "Passwords do not match.";
   return null;
 }
 

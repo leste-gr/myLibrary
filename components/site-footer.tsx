@@ -1,5 +1,7 @@
+import { getTranslations } from "@/lib/i18n/server";
 import Link from "next/link";
 
-export function SiteFooter() {
-  return <footer className="site-footer"><span>myLibrary</span><nav aria-label="Νομικές πληροφορίες"><Link href="/privacy">Πολιτική απορρήτου</Link><Link href="/terms">Όροι χρήσης</Link></nav></footer>;
+export async function SiteFooter() {
+  const t = await getTranslations();
+  return <footer className="site-footer"><span>myLibrary</span><nav aria-label={t("Legal information")}><Link href="/privacy">{t("Privacy Policy")}</Link><Link href="/terms">{t("Terms of Service")}</Link></nav></footer>;
 }

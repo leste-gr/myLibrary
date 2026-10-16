@@ -1,4 +1,5 @@
 "use server";
+import { getTranslations } from "@/lib/i18n/server";
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -131,12 +132,13 @@ export async function rejectEditionCandidate(formData: FormData) {
 }
 
 export async function saveManualIsbnDraft(formData: FormData) {
+  const t = await getTranslations();
   const rawIsbn = String(formData.get("isbn") ?? "");
   const copyId = String(formData.get("copyId") ?? "");
   const legacyId = String(formData.get("legacyId") ?? "");
   const collectionSlug = String(formData.get("collectionSlug") ?? "");
   const isbn13 = canonicalIsbn(rawIsbn);
-  if (!isbn13) redirect(editPath(collectionSlug, legacyId, "?error=" + encodeURIComponent("Μη έγκυρο ISBN-10 ή ISBN-13.")));
+  if (!isbn13) redirect(editPath(collectionSlug, legacyId, "?error=" + encodeURIComponent(t("Invalid ISBN-10 or ISBN-13."))));
 
   const { supabase, user } = await authenticatedClient();
   const { data: collection } = await supabase

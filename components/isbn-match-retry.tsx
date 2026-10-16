@@ -1,9 +1,11 @@
 "use client";
+import { useTranslations } from "@/components/language-provider";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export function IsbnMatchRetry({ importId, collectionSlug }: { importId: string; collectionSlug: string }) {
+  const t = useTranslations();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -14,18 +16,18 @@ export function IsbnMatchRetry({ importId, collectionSlug }: { importId: string;
     try {
       const response = await fetch(`/api/imports/${importId}/match`, { method: "POST" });
       const result = await response.json() as { matched?: number; unresolved?: number; retryable?: number; error?: string };
-      if (!response.ok) throw new Error(result.error || "Η αναζήτηση ISBN απέτυχε.");
+      if (!response.ok) throw new Error(result.error || t("ISBN search failed."));
       router.replace(`/collections/${collectionSlug}?matched=${result.matched ?? 0}&unresolved=${result.unresolved ?? 0}&retryable=${result.retryable ?? 0}`);
       router.refresh();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Η αναζήτηση ISBN απέτυχε.");
+      setError(reason instanceof Error ? t(reason.message) : t("ISBN search failed."));
       setBusy(false);
     }
   }
 
   return <div className="global-notice match-retry" role="status">
-    <span>Η εισαγωγή ολοκληρώθηκε, αλλά η αυτόματη αναζήτηση ISBN χρειάζεται επανάληψη.</span>
-    <button className="secondary-button" type="button" disabled={busy} onClick={retry}>{busy ? "Αναζήτηση ISBN…" : "Επανάληψη Stage 2"}</button>
-    {error && <span className="form-error">{error}</span>}
+    <span>{t("The import is complete, but the automatic ISBN search needs another attempt.")}</span>
+    <button className="secondary-button" type="button" disabled={busy} onClick={retry}>{busy ? t("Searching for ISBNs…") : t("Retry ISBN matching")}</button>
+    {error && <span className="form-error">{t(error)}</span>}
   </div>;
 }

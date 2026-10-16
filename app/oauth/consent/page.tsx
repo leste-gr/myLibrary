@@ -1,3 +1,4 @@
+import { getTranslations } from "@/lib/i18n/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -35,22 +36,23 @@ async function decide(form: FormData) {
 }
 
 export default async function ConsentPage({ searchParams }: { searchParams: Promise<{ authorization_id?: string; error?: string }> }) {
-  if (!assistantConfigured()) return <main className="login-card"><h1>Η σύνδεση δεν είναι διαθέσιμη ακόμη</h1><Link href="/shelfies/connect">Οδηγίες σύνδεσης</Link></main>;
+  const t = await getTranslations();
+  if (!assistantConfigured()) return <main className="login-card"><h1>{t("Connection is not available yet")}</h1><Link href="/shelfies/connect">{t("Connection instructions")}</Link></main>;
   const { authorization_id: id, error: requestError } = await searchParams;
-  if (!id) return <main className="login-card"><h1>Μη έγκυρο αίτημα σύνδεσης</h1><p>Ξεκίνα τη σύνδεση από το AI chat σου.</p></main>;
+  if (!id) return <main className="login-card"><h1>{t("Invalid connection request")}</h1><p>{t("Start connecting from your AI chat.")}</p></main>;
   const client = await createSupabaseServerClient();
   const { data: { user } } = await client.auth.getUser();
   if (!user) redirect(`/login?next=${encodeURIComponent(`/oauth/consent?authorization_id=${encodeURIComponent(id)}`)}`);
   const { data, error } = await client.auth.oauth.getAuthorizationDetails(id);
-  if (error || !data) return <main className="login-card"><h1>Το αίτημα έληξε</h1><p>Ξεκίνα ξανά τη σύνδεση από το AI chat.</p><Link href="/shelfies">Επιστροφή</Link></main>;
+  if (error || !data) return <main className="login-card"><h1>{t("This request has expired")}</h1><p>{t("Start connecting again from your AI chat.")}</p><Link href="/shelfies">{t("Back")}</Link></main>;
   if (!("authorization_id" in data)) redirect(data.redirect_url);
   const enabled = await client.rpc("assistant_authorization_allowed", { target_authorization_id: id });
   const canApprove = !enabled.error && enabled.data === true && scopesAllowed(data.scope);
-  return <main className="login-card"><p className="eyebrow">MYLIBRARY</p><h1>Σύνδεση εφαρμογής</h1><p><strong>{data.client.name}</strong> ζητά σύνδεση με τη βιβλιοθήκη σου.</p>
-    <p>Λογαριασμός: {user.email}</p><ul><li>Βλέπει τις συλλογές σου και τα βιβλία τους.</li><li>Δημιουργεί συλλογές και προσθέτει βιβλία μετά από αίτημά σου.</li><li>Τα εισαγόμενα βιβλία εμφανίζονται στη δημόσια σελίδα της συλλογής.</li><li>Δεν μπορεί να διαγράψει συλλογές ή βιβλία.</li></ul>
-    <p className="privacy-note">Η φωτογραφία μένει στο AI chat. Μπορείς να ανακαλέσεις τη σύνδεση από τη διαχείριση εφαρμογών.</p>
-    <p className="privacy-note">Επιστροφή σε: {new URL(data.redirect_uri).origin}<br />Δικαιώματα ταυτότητας: {data.scope || "κανένα"}</p>
-    {(!canApprove || requestError) && <p className="form-error" role="alert">{!canApprove ? "Το αίτημα σύνδεσης δεν είναι έγκυρο, έχει λήξει ή η εφαρμογή έχει απενεργοποιηθεί. Ξεκίνα ξανά από το AI chat." : "Η σύνδεση δεν ολοκληρώθηκε. Δοκίμασε ξανά από το AI chat."}</p>}
-    <form action={decide} className="publish-actions"><input type="hidden" name="authorizationId" value={id} /><button className="primary-button" name="decision" value="approve" disabled={!canApprove}>Σύνδεση εφαρμογής</button><button className="secondary-button" name="decision" value="deny">Ακύρωση</button></form>
+  return <main className="login-card"><p className="eyebrow">{t("MYLIBRARY")}</p><h1>{t("Connect application")}</h1><p><strong>{data.client.name}</strong> {" " + t("requests access to your library.")}</p>
+    <p>{t("Account:") + " "}{user.email}</p><ul><li>{t("Read your collections and their books.")}</li><li>{t("Create collections and add books when you request it.")}</li><li>{t("Imported books appear on the collection's public page.")}</li><li>{t("Cannot delete collections or books.")}</li></ul>
+    <p className="privacy-note">{t("The photo stays in your AI chat. You can revoke access from connected applications.")}</p>
+    <p className="privacy-note">{t("Return to:") + " "}{new URL(data.redirect_uri).origin}<br />{t("Identity permissions:") + " "}{data.scope || t("none")}</p>
+    {(!canApprove || requestError) && <p className="form-error" role="alert">{!canApprove ? t("This connection request is invalid, has expired, or the application has been disabled. Start again from your AI chat.") : t("Connection failed. Try again from your AI chat.")}</p>}
+    <form action={decide} className="publish-actions"><input type="hidden" name="authorizationId" value={id} /><button className="primary-button" name="decision" value="approve" disabled={!canApprove}>{t("Connect application")}</button><button className="secondary-button" name="decision" value="deny">{t("Cancel")}</button></form>
   </main>;
 }

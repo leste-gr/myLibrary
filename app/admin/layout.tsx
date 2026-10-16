@@ -1,12 +1,13 @@
+import { getTranslations } from "@/lib/i18n/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
-
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const t = await getTranslations();
   if (!isSupabaseConfigured()) redirect("/login");
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -22,8 +23,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return <div className="admin-shell">
     <header className="admin-header">
-      <div><p className="eyebrow">OWNER WORKSPACE</p><h1>{collection.name}</h1></div>
-      <nav><Link href={`/collections/${collection.slug}`}>Δημόσιος κατάλογος</Link></nav>
+      <div><p className="eyebrow">{t("OWNER WORKSPACE")}</p><h1>{collection.name}</h1></div>
+      <nav><Link href={`/collections/${collection.slug}`}>{t("Public catalogue")}</Link></nav>
     </header>
     {children}
   </div>;

@@ -1,3 +1,4 @@
+import { getLocale, getTranslations } from "@/lib/i18n/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ShelfieReview } from "@/components/shelfie-review";
@@ -8,6 +9,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 export default async function ShelfiePage({ searchParams }: { searchParams: Promise<{ collection?: string }> }) {
+  const t = await getTranslations();
+  const locale = await getLocale();
   if (!isSupabaseConfigured()) redirect("/shelfies/try");
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -26,14 +29,14 @@ export default async function ShelfiePage({ searchParams }: { searchParams: Prom
   const drafts = assistantConfigured() ? await supabase.from("shelfie_import_drafts").select("id,created_at,payload").eq("owner_id", user.id).eq("status", "pending").order("created_at", { ascending: false }).limit(20) : null;
 
   return <main className="shelfie-shell">
-    <Link href={requestedSlug ? `/collections/${requestedSlug}` : "/"}>← Επιστροφή</Link>
-    <p className="eyebrow">ΝΕΑ ΠΗΓΗ ΒΙΒΛΙΩΝ</p>
-    <h1>Εισαγωγή από shelfie</h1>
-    <p className="shelfie-lead">Διάβασε τη φωτογραφία με το δικό σου AI και έλεγξε τα βιβλία πριν τα προσθέσεις.</p>
-    <section className="assistant-callout"><h2>Απευθείας από το ChatGPT</h2><p>{assistantConfigured() ? "Σύνδεσε το myLibrary και ζήτησε από το chat να στείλει τα βιβλία για έλεγχο." : "Η απευθείας σύνδεση προετοιμάζεται. Μπορείς ήδη να χρησιμοποιήσεις την επικόλληση απάντησης παρακάτω."}</p><Link href="/shelfies/connect">Πώς λειτουργεί η σύνδεση →</Link></section>
-    {drafts?.error && <p className="form-error" role="alert">Δεν ήταν δυνατή η φόρτωση των πρόχειρων εισαγωγών. Δοκίμασε ανανέωση της σελίδας.</p>}
-    {Boolean(drafts?.data?.length) && <section className="draft-inbox"><h2>Περιμένουν έλεγχο</h2>{drafts?.data?.map((draft) => <Link key={draft.id} href={`/shelfies/review/${draft.id}`}>Έλεγχος {Array.isArray(draft.payload?.books) ? draft.payload.books.length : ""} βιβλίων · {new Date(draft.created_at).toLocaleDateString("el-GR")}</Link>)}</section>}
+    <Link href={requestedSlug ? `/collections/${requestedSlug}` : "/"}>{t("← Back")}</Link>
+    <p className="eyebrow">{t("ADD BOOKS")}</p>
+    <h1>{t("Import from a shelf photo")}</h1>
+    <p className="shelfie-lead">{t("Read the photo with your own AI and review the books before adding them.")}</p>
+    <section className="assistant-callout"><h2>{t("Directly from ChatGPT")}</h2><p>{assistantConfigured() ? t("Connect myLibrary and ask the chat to send your books for review.") : t("The direct connection is being prepared. You can already paste a response below.")}</p><Link href="/shelfies/connect">{t("How to connect →")}</Link></section>
+    {drafts?.error && <p className="form-error" role="alert">{t("Could not load draft imports. Try refreshing the page.")}</p>}
+    {Boolean(drafts?.data?.length) && <section className="draft-inbox"><h2>{t("Waiting for review")}</h2>{drafts?.data?.map((draft) => <Link key={draft.id} href={`/shelfies/review/${draft.id}`}>{t("Review") + " "}{Array.isArray(draft.payload?.books) ? draft.payload.books.length : ""} {" " + t("books ·") + " "}{new Date(draft.created_at).toLocaleDateString(locale === "el" ? "el-GR" : "en-GB")}</Link>)}</section>}
     <ShelfieReview userId={user.id} collections={ordered} />
-    <p className="privacy-note">Η φωτογραφία δεν αποστέλλεται ποτέ στο myLibrary. Ισχύουν οι όροι και η πολιτική απορρήτου του GenAI chat που επιλέγεις.</p>
+    <p className="privacy-note">{t("Your photo is never sent to myLibrary. The terms and privacy policy of your chosen AI chat apply.")}</p>
   </main>;
 }

@@ -31,6 +31,11 @@ test("catalogue uses only Supabase and distinguishes empty results from failures
 
   payload = [{ id: "db-id", slug: "new", name: "New library", description: null, book_count: 1, author_count: 1 }];
   assert.deepEqual(await getPublicCollections(), [{ id: "db-id", slug: "new", name: "New library", description: null, bookCount: 1, authorCount: 1 }]);
+  await getPublicCollections(["db-id"]);
+  assert.equal(new URL(requests.at(-1)!).searchParams.get("id"), 'in.(db-id)');
+  const requestCount = requests.length;
+  assert.deepEqual(await getPublicCollections([]), []);
+  assert.equal(requests.length, requestCount, "an owner without collections must never fall back to all collections");
   payload = [{ legacy_id: "db-book", title: "Database book", author: "Author", contributors: null, series: null, subseries: null, volume: null, language: "en", category: "Fiction", publisher: null, notes: null, cover_url: "https://example.test/cover.jpg", cover_source: "assistant-supplied", isbn13: null }];
   const books = await getPublicCatalogue("new");
   assert.equal(books.length, 1);

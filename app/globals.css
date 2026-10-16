@@ -64,3 +64,14 @@ body:has(dialog[open]){overflow:hidden}
 .account-menu{display:flex;justify-content:flex-end;align-items:center;gap:18px;flex-wrap:wrap;padding:12px 5%;border-bottom:1px solid var(--line);font-size:13px;background:var(--white)}.account-menu form{margin:0}.account-email{color:var(--muted);overflow-wrap:anywhere}.account-menu .secondary-button{padding:7px 12px}.google-sign-in{margin:24px 0}.email-sign-in{margin-top:24px}.email-sign-in summary{cursor:pointer;color:var(--muted)}.email-sign-in form{margin-top:16px}@media(max-width:600px){.account-menu{gap:10px}.account-email{flex-basis:100%;text-align:right}}
 
 .auth-notice{padding:14px 18px;background:var(--sand);border:1px solid var(--line);margin:20px 0;line-height:1.6}.auth-notice p{margin:0}.form-stack .terms-check{display:flex;align-items:flex-start;gap:10px;font-size:14px;font-weight:400}.form-stack .terms-check input{width:auto;margin-top:5px;flex-shrink:0}.email-sign-in h2{font:500 24px var(--serif);margin:24px 0 12px}
+
+.global-navigation{display:flex;align-items:center;justify-content:flex-end;gap:24px;padding:10px 5%;border-bottom:1px solid var(--line);background:var(--white)}
+.global-navigation .account-menu{padding:0;border:0;min-width:0}
+.language-switcher{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);flex-shrink:0}
+.language-switcher select{min-height:44px;background:transparent;font-size:13px}
+.collection-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px;border-bottom:1px solid var(--line)}
+.collection-tabs a{display:inline-flex;align-items:center;min-height:48px;padding:10px 18px;text-decoration:none;border-bottom:3px solid transparent;color:var(--muted)}
+.collection-tabs a[aria-current=page]{border-color:var(--wine);color:var(--wine);font-weight:700}
+.collection-tabs a:hover{background:var(--sand)}
+.scroll-hint{color:var(--muted);font-size:13px}
+@media(max-width:760px){.global-navigation{flex-wrap:wrap;gap:12px;justify-content:space-between}.global-navigation .account-menu{flex:1;justify-content:flex-start}.global-navigation .account-email{text-align:left}.language-switcher>span{display:none}}
