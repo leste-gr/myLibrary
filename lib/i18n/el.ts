@@ -423,9 +423,8 @@ export const el: Record<string, string> = {
   "Search this book again. Results are ranked for your review; the ISBN and book status stay unchanged.": "Αναζητήστε ξανά αυτό το βιβλίο. Τα αποτελέσματα ταξινομούνται για έλεγχο· το ISBN και η κατάσταση του βιβλίου παραμένουν ίδια.",
   "Found {0} ISBN candidates. Choose an edition to use it.": "Βρέθηκαν {0} υποψήφια ISBN. Επιλέξτε μια έκδοση για να τη χρησιμοποιήσετε.",
   "Some ISBN providers were unavailable. These results may be incomplete; you can search again.": "Ορισμένες πηγές ISBN δεν ήταν διαθέσιμες. Τα αποτελέσματα μπορεί να είναι ελλιπή· μπορείτε να αναζητήσετε ξανά.",
-  "No ISBN candidates found. Try again later or enter an ISBN manually.": "Δεν βρέθηκαν υποψήφια ISBN. Δοκιμάστε αργότερα ή εισαγάγετε ISBN χειροκίνητα.",
+  "No ISBNs were matched.": "Δεν βρέθηκαν αντίστοιχα ISBN.",
   "Rank {0}": "Κατάταξη {0}",
   "Current edition": "Τρέχουσα έκδοση",
-  "ISBN providers are unavailable. Please try again.": "Οι πηγές ISBN δεν είναι διαθέσιμες. Δοκιμάστε ξανά.",
   "Could not search ISBN candidates. Please try again.": "Η αναζήτηση υποψήφιων ISBN απέτυχε. Δοκιμάστε ξανά."
 };

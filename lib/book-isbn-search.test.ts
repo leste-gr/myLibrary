@@ -16,7 +16,7 @@ function client() {
         async maybeSingle() { return { data: { raw_payload: { authors: ["Original author"], publicationYear: 2001 } }, error: null }; },
       }; return chain;
     },
-    async rpc(name: string, args: unknown) { saves.push([name, args]); return { data: 2, error: null }; },
+    async rpc(name: string, args: { candidates: unknown[] }) { saves.push([name, args]); return { data: args.candidates.length, error: null }; },
   } as unknown as SupabaseClient;
   return { supabase, filters, saves };
 }
@@ -35,8 +35,19 @@ test("single-book Stage 2 uses shared ranking and only saves review results for 
   assert.deepEqual(saves, [["save_book_isbn_search", { target_copy_id: "copy-id", candidates, provider_failures: 0 }]]);
 });
 
-test("a provider outage preserves previously saved candidates", async () => {
+for (const providerFailures of [0, 1, 2]) {
+  test(`no matches are saved normally with ${providerFailures} unavailable providers`, async () => {
+    const { supabase, saves } = client();
+    const result = await findBookIsbnCandidates(supabase, "copy-id", async () => ({ candidates: [], providerFailures }));
+    assert.deepEqual(result, { count: 0, providerFailures });
+    assert.deepEqual(saves, [["save_book_isbn_search", { target_copy_id: "copy-id", candidates: [], provider_failures: providerFailures }]]);
+  });
+}
+
+test("partial provider failures retain the ranked candidates that were found", async () => {
   const { supabase, saves } = client();
-  await assert.rejects(() => findBookIsbnCandidates(supabase, "copy-id", async () => ({ candidates: [], providerFailures: 2 })), /providers are unavailable/);
-  assert.equal(saves.length, 0);
+  const candidates = [{ isbn13: "9780261102217", rank: 1 }] as RankedIsbnCandidate[];
+  const result = await findBookIsbnCandidates(supabase, "copy-id", async () => ({ candidates, providerFailures: 1 }));
+  assert.deepEqual(result, { count: 1, providerFailures: 1 });
+  assert.deepEqual(saves, [["save_book_isbn_search", { target_copy_id: "copy-id", candidates, provider_failures: 1 }]]);
 });

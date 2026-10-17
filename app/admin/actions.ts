@@ -79,8 +79,7 @@ export async function searchBookIsbnCandidates(formData: FormData) {
     await findBookIsbnCandidates(supabase, copy.id);
   } catch (error) {
     console.error("Owner ISBN search failed", error);
-    message = error instanceof Error && error.message === "ISBN providers are unavailable. Please try again."
-      ? error.message : "Could not search ISBN candidates. Please try again.";
+    message = "Could not search ISBN candidates. Please try again.";
   }
   if (message) redirect(destination + "?error=" + encodeURIComponent(message));
   revalidatePath(destination);

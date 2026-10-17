@@ -33,7 +33,6 @@ export async function findBookIsbnCandidates(supabase: SupabaseClient, copyId: s
     series: work?.series ?? (typeof raw.series === "string" ? raw.series : null),
   };
   const result = await search(input);
-  if (!result.candidates.length && result.providerFailures) throw new Error("ISBN providers are unavailable. Please try again.");
   const { data: count, error: saveError } = await supabase.rpc("save_book_isbn_search", {
     target_copy_id: copyId, candidates: result.candidates, provider_failures: result.providerFailures,
   });
