@@ -1,5 +1,7 @@
 // Interface translations only. Book and collection data retain their original language.
 export const el: Record<string, string> = {
+  "Loading possible editions…": "Φόρτωση πιθανών εκδόσεων…",
+  "Possible editions could not be loaded. Reload the page to try again.": "Δεν ήταν δυνατή η φόρτωση των πιθανών εκδόσεων. Ανανέωσε τη σελίδα για να δοκιμάσεις ξανά.",
   "Saving cover…": "Αποθήκευση εξωφύλλου…",
   "Use image link": "Χρήση συνδέσμου εικόνας",
   "Choose image source": "Επιλογή πηγής εικόνας",
