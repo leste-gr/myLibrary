@@ -19,7 +19,7 @@ async function fetchImage(url: string, source: string): Promise<CoverResult> {
     });
     const contentType = response.headers.get("content-type")?.split(";", 1)[0] ?? "";
     const declaredLength = Number(response.headers.get("content-length") ?? 0);
-    if (!response.ok) return { cover: null, transientFailure: response.status === 429 || response.status >= 500 };
+    if (!response.ok) return { cover: null, transientFailure: response.status !== 404 && response.status !== 410 };
     if (!contentType.startsWith("image/") || declaredLength > MAX_IMAGE_BYTES) return { cover: null, transientFailure: false };
     const bytes = await response.arrayBuffer();
     if (!bytes.byteLength || bytes.byteLength > MAX_IMAGE_BYTES) return { cover: null, transientFailure: false };
@@ -40,7 +40,7 @@ async function googleBooksCover(isbn: string): Promise<{ url: string | null; tra
       signal: AbortSignal.timeout(5000),
       next: { revalidate: 2592000 },
     });
-    if (!response.ok) return { url: null, transientFailure: response.status === 429 || response.status >= 500 };
+    if (!response.ok) return { url: null, transientFailure: response.status !== 404 && response.status !== 410 };
     const payload = await response.json() as { items?: { volumeInfo?: { imageLinks?: Record<string, string> } }[] };
     const links = payload.items?.[0]?.volumeInfo?.imageLinks;
     const cover = links?.extraLarge ?? links?.large ?? links?.medium ?? links?.thumbnail ?? links?.smallThumbnail;

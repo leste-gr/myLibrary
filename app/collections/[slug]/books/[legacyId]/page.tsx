@@ -1,4 +1,5 @@
 import { getTranslations } from "@/lib/i18n/server";
+import { DEFAULT_BOOK_COVER } from "@/lib/book-cover";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -8,7 +9,7 @@ type Relation<T> = T | T[] | null;
 type Work = { title: string; author: string };
 type Edition = { isbn13: string | null; title: string | null; publishers: string[]; published_date: string | null; cover_url: string | null };
 type Draft = { edition_id: string; cover_url: string | null; edition: Relation<Edition> };
-type Copy = { id: string; legacy_id: string; category: string; language: string; cover_url: string | null; edition_verification_state: string; work: Relation<Work>; edition: Relation<Edition>; copy_drafts: Relation<Draft> };
+type Copy = { id: string; legacy_id: string; category: string; language: string; cover_url: string | null; cover_status: string; edition_verification_state: string; work: Relation<Work>; edition: Relation<Edition>; copy_drafts: Relation<Draft> };
 type Candidate = { id: string; isbn13: string; title: string | null; publishers: string[]; published_date: string | null; cover_url: string | null; provider: string; score: number; suggested: boolean; rank: number; selection_state: string; confidence: number | null; work_confidence: number | null; edition_confidence: number | null; cover_confidence: number | null; auto_accept: boolean; algorithm_version: string };
 
 function first<T>(value: Relation<T>): T | null {
@@ -30,7 +31,7 @@ export default async function CollectionBookEditPage({ params, searchParams }: {
   const { data: collection } = await supabase.from("collections").select("id,name").eq("slug", slug).eq("owner_id", user.id).single();
   if (!collection) notFound();
   const { data, error } = await supabase.from("copies").select(
-    "id,legacy_id,category,language,cover_url,edition_verification_state,work:works(title,author),edition:editions(isbn13,title,publishers,published_date,cover_url),copy_drafts(edition_id,cover_url,edition:editions(isbn13,title,publishers,published_date,cover_url))"
+    "id,legacy_id,category,language,cover_url,cover_status,edition_verification_state,work:works(title,author),edition:editions(isbn13,title,publishers,published_date,cover_url),copy_drafts(edition_id,cover_url,edition:editions(isbn13,title,publishers,published_date,cover_url))"
   ).eq("collection_id", collection.id).eq("legacy_id", legacyId).single();
   if (error || !data) notFound();
   const copy = data as Copy;
@@ -43,6 +44,7 @@ export default async function CollectionBookEditPage({ params, searchParams }: {
   const edition = first(copy.edition);
   const draft = first(copy.copy_drafts);
   const draftEdition = draft ? first(draft.edition) : null;
+  const cover = copy.cover_status === "cover_not_found" ? DEFAULT_BOOK_COVER : copy.cover_url;
 
   return <main className="admin-shell">
     <header className="admin-header"><div><p className="eyebrow">{t("EDIT COLLECTION")}</p><h1>{collection.name}</h1></div><nav><Link href={`/collections/${slug}`}>{t("Back to collection")}</Link></nav></header>
@@ -51,7 +53,7 @@ export default async function CollectionBookEditPage({ params, searchParams }: {
     {messages.published && <p className="draft-banner">{t("The edition was published to the collection.")}</p>}
     {messages.rejected && <p className="draft-banner">{t("The candidate edition was rejected and will not be suggested again for this copy.")}</p>}
     <section className="admin-book-grid">
-      <div className="admin-book-cover">{copy.cover_url ? <img src={copy.cover_url} alt="" /> : <div className="missing-cover">{t("No cover")}</div>}</div>
+      <div className="admin-book-cover">{cover ? <img src={cover} alt={copy.cover_status === "cover_not_found" ? t("Cover unavailable") : ""} /> : <div className="missing-cover">{t("No cover")}</div>}</div>
       <div className="admin-book-meta"><p className="eyebrow">{copy.legacy_id}</p><h2>{work?.title}</h2><p>{work?.author}</p><dl><dt>{t("Category")}</dt><dd>{copy.category}</dd><dt>{t("Language")}</dt><dd>{copy.language}</dd><dt>{t("Published ISBN")}</dt><dd>{edition?.isbn13 ?? "—"}</dd><dt>{t("Matching status")}</dt><dd>{copy.edition_verification_state === "algorithm_selected" ? t("Automatic selection") : copy.edition_verification_state === "owner_overridden" ? t("Owner correction") : t(({ owner_confirmed: "Owner confirmed", no_isbn: "No ISBN", unresolved: "Unresolved" } as Record<string, string>)[copy.edition_verification_state] ?? copy.edition_verification_state)}</dd></dl>
         {draft && <div className="draft-banner"><strong>{t("Draft edition")}</strong><p>{draftEdition?.title ?? work?.title} · {draftEdition?.isbn13}</p><div className="publish-actions">
           <form action={publishEditionDraft}><input type="hidden" name="copyId" value={copy.id} /><input type="hidden" name="legacyId" value={copy.legacy_id} /><input type="hidden" name="collectionSlug" value={slug} /><button className="primary-button" type="submit">{t("Publish")}</button></form>

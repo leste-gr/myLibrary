@@ -39,3 +39,7 @@ test("rejects removed legacy cover redirects without following them", async () =
   assert.equal(source, null);
   assert.equal(requests, 1);
 });
+
+test("scheduled resolution preserves provider failures for retry", async () => {
+  await assert.rejects(() => probeCandidateCover("https://library.test", "9789602489987", async () => new Response("unavailable", { status: 503 }), true), /503/);
+});

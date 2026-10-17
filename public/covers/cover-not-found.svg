@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900" fill="none">
+  <title>Default book cover</title>
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="600" y2="900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F0E8DA"/>
+      <stop offset="1" stop-color="#DDD0BB"/>
+    </linearGradient>
+    <linearGradient id="spine" x1="0" y1="0" x2="40" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#71332F"/>
+      <stop offset="1" stop-color="#8D4E45"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#paper)" d="M0 0h600v900H0z"/>
+  <path fill="url(#spine)" d="M0 0h34v900H0z"/>
+  <path stroke="#71332F" stroke-opacity=".22" d="M48 0v900"/>
+  <path stroke="#71332F" stroke-opacity=".35" d="M83 57h465v786H83z"/>
+  <path stroke="#71332F" stroke-opacity=".2" d="M94 68h443v764H94z"/>
+  <path stroke="#71332F" stroke-opacity=".45" d="M271 225h88M291 237h48"/>
+  <path fill="#71332F" d="m315 202 5 6-5 6-5-6 5-6Z"/>
+  <circle cx="315" cy="427" r="114" fill="#F7F3EB" fill-opacity=".42"/>
+  <circle cx="315" cy="427" r="113.5" stroke="#71332F" stroke-opacity=".14"/>
+  <g stroke="#71332F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M315 393c-20-16-46-22-75-17v90c29-5 55 1 75 17m0-90c20-16 46-22 75-17v90c-29-5-55 1-75 17m0-90v90"/>
+    <path d="M240 387h-10v91c33-5 60 1 85 17 25-16 52-22 85-17v-91h-10" stroke-opacity=".55"/>
+    <path d="M255 399c15-1 28 2 43 9m-43 8c15-1 28 2 43 9m-43 8c15-1 28 2 43 9m34-34c15-7 28-10 43-9m-43 26c15-7 28-10 43-9m-43 26c15-7 28-10 43-9" stroke-width="2" stroke-opacity=".45"/>
+  </g>
+  <path stroke="#71332F" stroke-opacity=".3" d="M283 637h64"/>
+  <text x="315" y="694" text-anchor="middle" fill="#71332F" font-family="Georgia,serif" font-size="25" letter-spacing="2">myLibrary</text>
+  <path fill="#71332F" fill-opacity=".45" d="m315 750 3 4-3 4-3-4 3-4Z"/>
+</svg>

@@ -17,6 +17,10 @@ Apply every SQL file in `supabase/migrations/` in filename order using the Supab
 
 Apply `202610160031_stage3_cover_resolution.sql` before deploying the Stage 3 cover refactor. It keeps Stage 2 edition selection separate from cover assignment and adds the service-role-only `attach_resolved_isbn_covers` RPC used by Stage 3. Existing cover selections remain intact.
 
+Apply `202610170032_hourly_ingestion_recovery.sql` for hourly recovery. It adds per-book cover state, whole-import completion, atomic work claims, and the `mylibrary-hourly-ingestion-retry` pg_cron job (`0 * * * *`). Verify the job is active in `cron.job`. Deploy the updated `pipeline-dispatch` Edge Function with its existing JWT verification setting (`false`): it acknowledges the database HTTP call immediately and runs the worker with `EdgeRuntime.waitUntil`. Deploy the matching application code before testing the scheduler. Check `cron.job_run_details` for scheduler execution and Edge Function logs for worker results; a cron dispatch alone does not prove worker completion.
+
+Apply `202610170033_default_missing_cover.sql` with the shared `/covers/cover-not-found.svg` asset. Terminal cover misses display this placeholder in the public catalogue and owner editor while retaining a null stored cover URL, so the placeholder cannot reopen retries or count as a successfully found cover.
+
 Never expose `SUPABASE_SERVICE_ROLE_KEY` in a browser bundle.
 
 ## 2. Configure the application

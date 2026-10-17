@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { findIsbnCandidates, mapWithConcurrency, type IsbnMatchInput } from "./isbn-matcher";
+import { nextHourlyRetry } from "./ingestion-retry";
 
 type ObservationRow = {
   id: string;
@@ -49,7 +50,6 @@ async function runManualGenaiImportMatching(supabase: SupabaseClient, importId: 
     .order("detection_index", { ascending: true });
   if (observationsError) throw new Error(observationsError.message);
   const observations = (data ?? []) as ObservationRow[];
-  if (!observations.length) throw new Error("This import contains no observations.");
 
   const processed = await mapWithConcurrency(observations, 3, async (observation) => ({
     observation,
@@ -121,7 +121,8 @@ async function runManualGenaiImportMatching(supabase: SupabaseClient, importId: 
 
   const hasAcceptedCandidate = ({ observation, result }: (typeof processed)[number]) => result.candidates.some((candidate) => candidate.autoAccept && (!observation.copy_id || !rejectedByCopy.get(observation.copy_id)?.has(candidate.isbn13)));
   const matchedIds = processed.filter(hasAcceptedCandidate).map(({ observation }) => observation.id);
-  const unresolvedIds = processed.filter((item) => !hasAcceptedCandidate(item)).map(({ observation }) => observation.id);
+  const unresolvedIds = processed.filter((item) => !hasAcceptedCandidate(item) && item.result.providerFailures === 0).map(({ observation }) => observation.id);
+  const retryableIds = processed.filter((item) => !hasAcceptedCandidate(item) && item.result.providerFailures > 0).map(({ observation }) => observation.id);
   await updateStatuses(supabase, matchedIds, "matched");
   await updateStatuses(supabase, unresolvedIds, "unresolved");
 
@@ -131,16 +132,9 @@ async function runManualGenaiImportMatching(supabase: SupabaseClient, importId: 
     matched: matchedIds.length,
     unresolved: unresolvedIds.length,
     candidates: candidateRows.length,
+    retryable: retryableIds.length,
   };
-  const { error: completionError } = await supabase.from("manual_genai_imports").update({
-    matching_status: "completed",
-    matched_count: matchedIds.length,
-    unresolved_count: unresolvedIds.length,
-    retryable_count: 0,
-    matching_error: null,
-    next_retry_at: null,
-    matching_completed_at: new Date().toISOString(),
-  }).eq("id", importId);
+  const { error: completionError } = await supabase.rpc("finish_isbn_matching", { target_import_id: importId });
   if (completionError) throw new Error(completionError.message);
   return summary;
 }
@@ -161,6 +155,7 @@ export async function processManualGenaiImport(supabase: SupabaseClient, importI
       matching_status: "failed",
       matching_error: message.slice(0, 1000),
       matching_completed_at: new Date().toISOString(),
+      next_retry_at: nextHourlyRetry(),
     }).eq("id", importId);
     throw error;
   }

@@ -92,6 +92,7 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     await claims(alice);
     const completedImport = (await db.query<{ matching_status: string }>("select matching_status from public.manual_genai_imports where id = $1", [createdCollection.importId])).rows[0];
     assert.equal(completedImport.matching_status, "completed");
+    assert.equal((await db.query<{ ingestion_status: string }>("select ingestion_status from public.manual_genai_imports where id=$1", [createdCollection.importId])).rows[0].ingestion_status, "completed", "a fully supplied import completes immediately");
     const createdCopy = (await db.query<{ id: string; work_id: string }>("select id,work_id from public.copies where collection_id = $1", [createdCollection.collectionId])).rows[0];
     assert.equal((await db.query<{ cover_url: string; cover_source: string }>("select cover_url,cover_source from public.copies where id = $1", [createdCopy.id])).rows[0].cover_url, "https://images.example.test/rpg-book.jpg");
     assert.equal((await db.query<{ status: string }>("select status from public.book_observations where copy_id = $1", [createdCopy.id])).rows[0].status, "cover_provided");
@@ -100,7 +101,7 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     assert.equal((await db.query<{ table_name: string | null }>("select to_regclass('public.ingestion_pipeline_runs')::text as table_name")).rows[0].table_name, null);
     await assert.rejects(() => db.query("update public.manual_genai_imports set matching_status='partial' where id=$1", [createdCollection.importId]), /manual_genai_matching_status_check/);
     await db.query("update public.cover_resolution_jobs set status='failed', next_retry_at=now()-interval '1 minute' where isbn13='9780261102217'");
-    assert.equal((await db.query("select * from public.claim_next_cover_resolution()")).rows.length, 0, "failed cover jobs are terminal");
+    assert.equal((await db.query("select * from public.claim_next_cover_resolution()")).rows.length, 1, "failed cover jobs are retryable when due");
     await db.query("update public.cover_resolution_jobs set status='completed' where isbn13='9780261102217'");
     await claims(alice);
     await claims(bob); await assert.rejects(() => rpc("delete_owned_book", [createdCopy.id]), /not found/);
@@ -200,5 +201,47 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     await rpc("attach_resolved_isbn_covers", []);
     assert.match((await db.query<{ cover_url: string }>("select cover_url from public.copies where id=$1", [copyId])).rows[0].cover_url, /^\/api\/cover-assets\//);
     assert.equal(await rpc("attach_resolved_isbn_covers", []), 0, "attachment is idempotent");
+
+    // Only finished ISBN matching releases cover work. A genuine miss completes
+    // ingestion and cannot be claimed again, including by the hourly worker.
+    const retryImport = "99999999-1111-4111-8111-111111111111";
+    await db.query("insert into public.manual_genai_imports(id,collection_id,owner_id,schema_version,payload_checksum,book_count) values ($1,$2,$3,'mylibrary.shelfie.v1','retry-boundary',1)", [retryImport, a, alice]);
+    await db.query("insert into public.book_observations(collection_id,copy_id,source_type,manual_genai_import_id,status) values ($1,$2,'manual_genai_json',$3,'ready_for_matching')", [a, copyId, retryImport]);
+    await db.query("update public.copies set cover_url=null where id=$1", [copyId]);
+    await db.query("update public.manual_genai_imports set matching_status='completed' where id<>$1", [retryImport]);
+    await db.query("update public.copies set cover_status='cover_not_found' where id<>$1 and cover_url is null", [copyId]);
+    assert.equal(await rpc("claim_next_book_cover", []), null, "ISBN work must finish first");
+    await db.query("update public.book_observations set status='matched' where manual_genai_import_id=$1", [retryImport]);
+    await rpc("finish_isbn_matching", [retryImport]);
+    await rpc("refresh_ingestion_statuses", []);
+    assert.equal((await db.query<{ ingestion_status: string }>("select ingestion_status from public.manual_genai_imports where id=$1", [retryImport])).rows[0].ingestion_status, "processing");
+    assert.equal(await rpc("claim_next_book_cover", []), copyId);
+    assert.equal(await rpc("claim_next_book_cover", []), null, "active claims cannot overlap");
+    await db.query("update public.copies set cover_started_at=now()-interval '11 minutes' where id=$1", [copyId]);
+    assert.equal(await rpc("claim_next_book_cover", []), copyId, "stuck work is reclaimed");
+    await db.query("update public.copies set cover_status='failed',cover_next_retry_at=now()+interval '1 hour' where id=$1", [copyId]);
+    assert.equal(await rpc("claim_next_book_cover", []), null, "failed work respects the retry delay");
+    await db.query("update public.copies set cover_next_retry_at=now()-interval '1 minute' where id=$1", [copyId]);
+    assert.equal(await rpc("claim_next_book_cover", []), copyId, "due failures are reclaimed");
+    await db.query("update public.copies set cover_status='cover_not_found',cover_completed_at=now() where id=$1", [copyId]);
+    assert.equal((await db.query<{ ingestion_status: string }>("select ingestion_status from public.manual_genai_imports where id=$1", [retryImport])).rows[0].ingestion_status, "completed");
+    assert.equal(await rpc("claim_next_book_cover", []), null, "not-found is terminal");
+    assert.equal((await db.query<{ cover_url: string }>("select cover_url from public.public_catalogue where legacy_id='stage-boundary'")).rows[0].cover_url, "/covers/cover-not-found.svg", "terminal misses display the shared default image");
+    assert.equal((await db.query<{ cover_url: string | null }>("select cover_url from public.copies where id=$1", [copyId])).rows[0].cover_url, null, "a placeholder must not be stored as a found cover");
+    await db.query("update public.copies set cover_url='https://images.example.test/owner.jpg' where id=$1", [copyId]);
+    assert.equal((await db.query<{ cover_status: string }>("select cover_status from public.copies where id=$1", [copyId])).rows[0].cover_status, "completed", "owner-supplied covers complete work");
+    await db.query("update public.manual_genai_imports set matching_status='failed',next_retry_at=now()+interval '1 hour' where id=$1", [retryImport]);
+    await db.query("update public.manual_genai_imports set matching_status='completed' where id<>$1", [retryImport]);
+    assert.equal(await rpc("claim_next_isbn_match", []), null, "ISBN failures wait until due");
+    await db.query("update public.manual_genai_imports set next_retry_at=now()-interval '1 minute' where id=$1", [retryImport]);
+    assert.equal(await rpc("claim_next_isbn_match", []), retryImport);
+    await db.query("update public.manual_genai_imports set matching_started_at=now()-interval '11 minutes' where id=$1", [retryImport]);
+    assert.equal(await rpc("claim_next_isbn_match", []), retryImport, "stalled ISBN matching is recovered");
+    await db.query("update public.book_observations set status='ready_for_matching' where manual_genai_import_id=$1", [retryImport]);
+    await rpc("finish_isbn_matching", [retryImport]);
+    const retryState = (await db.query<{ matching_status: string; retryable_count: number; next_tick: boolean }>("select matching_status,retryable_count,next_retry_at=date_trunc('hour',now())+interval '1 hour' as next_tick from public.manual_genai_imports where id=$1", [retryImport])).rows[0];
+    assert.equal(retryState.matching_status, "failed");
+    assert.equal(retryState.retryable_count, 1);
+    assert.equal(retryState.next_tick, true);
   } finally { await db.close(); }
 });

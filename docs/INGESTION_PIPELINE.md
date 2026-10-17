@@ -13,7 +13,11 @@ This is the canonical contract for turning a shelfie into published books. Detai
 | 3. Resolve cover fallback | Implemented | Runs only when Stage 1 did not supply a cover. It owns selected-ISBN, representative candidate, and metadata cover detection, in that order. |
 | 4. Owner refinement | Implemented | On their public collection page, the owner can inspect candidates, choose an edition, or enter an ISBN manually. |
 
-Stage 2 progress is stored on the import record. Processing starts from the database insertion event. A processing attempt older than ten minutes can be recovered by a later ingestion dispatch. Provider failures finish as unresolved results; the service does not maintain a scheduled or owner-operated retry queue.
+Stage 2 progress is stored on the import record. Processing starts from the database insertion event and from the hourly Supabase `pg_cron` job `mylibrary-hourly-ingestion-retry`, scheduled at minute zero of every hour. Both invoke the same dispatcher and worker. Failed lookups become eligible at the next hourly tick. Processing claims older than ten minutes can be recovered. Atomic row claims prevent overlapping workers from processing the same book.
+
+Each book has a `cover_status`: `pending → processing → completed | cover_not_found | failed`. A genuine negative lookup becomes `cover_not_found` and is excluded from subsequent runs. Timeouts, rate limits and incomplete provider searches become `failed`, with an error and next retry time. Existing covers are marked completed. Changing the edition or removing a cover reopens its cover work.
+
+Import `matching_status` describes Stage 2 only. The separate `ingestion_status` becomes `completed` once matching has finished and every remaining book has a cover or a terminal `cover_not_found` result. It remains pending, processing or failed while work needs attention. Completion is maintained by database triggers, including when books are removed or an owner supplies a cover.
 
 Stage handoffs use database statuses rather than direct calls between ingestion sources. A supplied cover marks its observation `cover_provided` and is excluded from Stage 2. If every imported book has a cover, the import is completed immediately. Otherwise the import remains `pending`, and Stage 2 selects only `ready_for_matching` observations. A supplied ISBN+cover also completes its ISBN cover job so Stage 3 cannot refetch it.
 
@@ -28,6 +32,8 @@ Stage 2 must always select its strongest ISBN candidate automatically while reta
 ### Stage 2 → Stage 3
 
 Stage 2 only identifies, ranks, and selects ISBN candidates. It does not probe images or assign cover assets. Edition selection queues an ISBN lookup for Stage 3. Stage 3 first resolves selected-ISBN jobs and attaches successful cover assets, then probes strong representative candidates, then searches metadata for copies still without covers. Candidate and metadata discovery only consider observations whose ISBN matching has finished.
+
+Stage 3 claims up to 100 books per request within the worker time budget. Each claimed book follows its applicable selected-ISBN or candidate/metadata path. A failure on one import or book does not prevent other eligible work from running. Work left by the batch or time limit is picked up on the next dispatch.
 
 Backend cover resolution begins only when Stage 1 did not provide a cover. Its results and negative lookups are cached by ISBN. Assistant-supplied public images retain `assistant-supplied` provenance and are used directly by that copy.
 

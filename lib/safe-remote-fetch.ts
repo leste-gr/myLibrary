@@ -1,5 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { ProviderUnavailableError } from "./provider-error";
 
 type AddressResolver = (hostname: string) => Promise<string[]>;
 type SafeFetchOptions = {
@@ -55,7 +56,8 @@ export async function fetchPublicResource(rawUrl: string | URL, options: SafeFet
       signal: AbortSignal.timeout(options.timeoutMs ?? 10_000),
       cache: "no-store",
       headers: options.headers,
-    });
+    }).catch(() => { throw new ProviderUnavailableError("Remote resource timed out or could not be reached."); });
+    if (response.status === 429 || response.status >= 500) throw new ProviderUnavailableError(`Remote provider returned ${response.status}.`);
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       if (redirects === 3) throw new Error("Too many redirects.");
       const location = response.headers.get("location");

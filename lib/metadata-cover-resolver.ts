@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { nameSimilarity, normalizedText, textSimilarity } from "./isbn-matcher";
 import { findVerifiedBookPages } from "./web-book-search";
+import { ProviderUnavailableError } from "./provider-error";
 
 export type MetadataCoverInput = { copyId: string; title: string; authors: string[]; publisher: string | null; language: string | null; series?: string | null; volume?: string | null };
 export type MetadataCoverCandidate = { provider: "openlibrary" | "google-books" | "web-page"; providerId: string; sourceUrl: string; sourcePageUrl?: string | null; isbn13?: string | null; title: string; authors: string[]; publisher: string | null; score: number; evidence: string[]; workConfidence?: number | null; editionConfidence?: number | null; coverConfidence?: number | null };
@@ -60,15 +61,17 @@ async function fetchJson<T>(url: URL, attempts = 3): Promise<T | null> {
     try {
       const response = await fetch(url, { headers: { Accept: "application/json", "User-Agent": "myLibrary-metadata-cover/1.0" }, signal: AbortSignal.timeout(10_000), cache: "no-store" });
       if (response.ok) return response.json() as Promise<T>;
-      if (response.status !== 429 && response.status < 500) return null;
+      if (response.status === 404) return null;
     } catch { /* retry transient provider failures */ }
     await new Promise((resolve) => setTimeout(resolve, 750 * (2 ** attempt)));
   }
-  return null;
+  throw new ProviderUnavailableError("Metadata provider unavailable after bounded retries.");
 }
 
 export async function findMetadataCoverCandidates(input: MetadataCoverInput) {
   const raw: Omit<MetadataCoverCandidate, "score" | "evidence">[] = [];
+  let providerFailed = false;
+  const recordFailure = () => { providerFailed = true; return null; };
   const openLibraryQueries = [{ parameter: "title", value: input.title }];
   const namedContributors = usefulAuthors(input.authors);
   if (namedContributors.length >= 2) openLibraryQueries.push({ parameter: "q", value: `author:"${namedContributors[0]}" ${namedContributors.slice(1).map((name) => `"${name}"`).join(" ")}` });
@@ -77,7 +80,7 @@ export async function findMetadataCoverCandidates(input: MetadataCoverInput) {
     openLibrary.searchParams.set(query.parameter, query.value);
     openLibrary.searchParams.set("limit", "10");
     openLibrary.searchParams.set("fields", "key,title,subtitle,author_name,publisher,cover_i");
-    const openPayload = await fetchJson<{ docs?: { key?: string; title?: string; subtitle?: string; author_name?: string[]; publisher?: string[]; cover_i?: number }[] }>(openLibrary);
+    const openPayload = await fetchJson<{ docs?: { key?: string; title?: string; subtitle?: string; author_name?: string[]; publisher?: string[]; cover_i?: number }[] }>(openLibrary).catch(recordFailure);
     for (const doc of openPayload?.docs ?? []) if (doc.cover_i && doc.title) raw.push({ provider: "openlibrary", providerId: String(doc.cover_i), sourceUrl: `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`, sourcePageUrl: doc.key ? `https://openlibrary.org${doc.key}` : null, title: doc.subtitle ? `${doc.title}: ${doc.subtitle}` : doc.title, authors: doc.author_name ?? [], publisher: doc.publisher?.[0] ?? null });
   }
 
@@ -86,7 +89,7 @@ export async function findMetadataCoverCandidates(input: MetadataCoverInput) {
   google.searchParams.set("maxResults", "20");
   google.searchParams.set("printType", "books");
   google.searchParams.set("fields", "items(id,volumeInfo(title,authors,publisher,imageLinks))");
-  const googlePayload = await fetchJson<{ items?: { id?: string; volumeInfo?: { title?: string; authors?: string[]; publisher?: string; imageLinks?: Record<string, string> } }[] }>(google);
+  const googlePayload = await fetchJson<{ items?: { id?: string; volumeInfo?: { title?: string; authors?: string[]; publisher?: string; imageLinks?: Record<string, string> } }[] }>(google).catch(recordFailure);
   for (const item of googlePayload?.items ?? []) {
     const info = item.volumeInfo; const image = info?.imageLinks?.extraLarge ?? info?.imageLinks?.large ?? info?.imageLinks?.medium ?? info?.imageLinks?.thumbnail ?? info?.imageLinks?.smallThumbnail;
     if (!item.id || !info?.title || !image) continue;
@@ -96,6 +99,7 @@ export async function findMetadataCoverCandidates(input: MetadataCoverInput) {
   if (catalogueMatches.length) return catalogueMatches;
 
   const pages = await findVerifiedBookPages({ title: input.title, authors: usefulAuthors(input.authors), publisher: input.publisher, series: input.series ?? null, volume: input.volume ?? null });
+  if (!pages.length && providerFailed) throw new ProviderUnavailableError("Cover search incomplete because a metadata provider failed.");
   return pages.map((page) => ({
     provider: "web-page" as const,
     providerId: page.pageUrl,
@@ -119,7 +123,8 @@ export async function resolveMetadataCover(supabase: SupabaseClient, input: Meta
   if (!candidates.length) {
     await supabase.from("metadata_cover_candidates").delete().eq("copy_id", input.copyId);
     await supabase.from("copy_cover_selections").delete().eq("copy_id", input.copyId).eq("usage_scope", "representative").eq("decision_source", "algorithm");
-    await supabase.from("copies").update({ cover_url: null, cover_source: null, updated_at: new Date().toISOString() }).eq("id", input.copyId).is("edition_id", null).eq("edition_verification_state", "unresolved");
+    const { error: clearError } = await supabase.from("copies").update({ cover_url: null, cover_source: null, updated_at: new Date().toISOString() }).eq("id", input.copyId).is("cover_url", null).is("edition_id", null).eq("edition_verification_state", "unresolved");
+    if (clearError) throw new Error(clearError.message);
     return false;
   }
   const rows = candidates.map((candidate, index) => ({ copy_id: input.copyId, provider: candidate.provider, provider_id: candidate.providerId, source_url: candidate.sourceUrl, source_page_url: candidate.sourcePageUrl ?? null, isbn13: candidate.isbn13 ?? null, title: candidate.title, authors: candidate.authors, publisher: candidate.publisher, score: candidate.score, evidence: candidate.evidence, work_confidence: candidate.workConfidence ?? null, edition_confidence: candidate.editionConfidence ?? null, cover_confidence: candidate.coverConfidence ?? null, selected: index === 0, updated_at: new Date().toISOString() }));
@@ -154,7 +159,7 @@ export async function resolveMetadataCover(supabase: SupabaseClient, input: Meta
   if (assetError || !asset) throw new Error(assetError?.message || "Could not create cover asset.");
   const { error: selectionError } = await supabase.from("copy_cover_selections").upsert({ copy_id: input.copyId, cover_asset_id: asset.id, usage_scope: "representative", decision_source: "algorithm", selected_at: new Date().toISOString() }, { onConflict: "copy_id" });
   if (selectionError) throw new Error(selectionError.message);
-  const { error: copyError } = await supabase.from("copies").update({ cover_url: `/api/cover-assets/${asset.id}`, cover_source: "cover-asset", updated_at: new Date().toISOString() }).eq("id", input.copyId).is("edition_id", null).eq("edition_verification_state", "unresolved");
+  const { error: copyError } = await supabase.from("copies").update({ cover_url: `/api/cover-assets/${asset.id}`, cover_source: "cover-asset", updated_at: new Date().toISOString() }).eq("id", input.copyId).is("cover_url", null).is("edition_id", null).eq("edition_verification_state", "unresolved");
   if (copyError) throw new Error(copyError.message);
   return true;
 }
@@ -166,7 +171,7 @@ export async function unresolvedMetadataCoverInputs(supabase: SupabaseClient, im
   if (error) throw new Error(error.message);
   const copyIds = [...new Set((data ?? []).map((row) => row.copy_id as string))];
   if (!copyIds.length) return [];
-  const { data: copies, error: copiesError } = await supabase.from("copies").select("id,cover_url,volume,work:works(series),edition:editions(isbn13)").in("id", copyIds).is("cover_url", null).eq("edition_verification_state", "unresolved");
+  const { data: copies, error: copiesError } = await supabase.from("copies").select("id,cover_url,volume,work:works(series),edition:editions(isbn13)").in("id", copyIds).is("cover_url", null).eq("edition_verification_state", "unresolved").in("cover_status", ["pending", "processing", "failed"]);
   if (copiesError) throw new Error(copiesError.message);
   const unresolved = new Map((copies ?? []).filter((copy) => { const edition = Array.isArray(copy.edition) ? copy.edition[0] : copy.edition; return !edition?.isbn13; }).map((copy) => [copy.id, copy]));
   return (data ?? []).filter((row) => unresolved.has(row.copy_id as string)).map((row) => {
