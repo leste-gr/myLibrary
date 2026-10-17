@@ -208,6 +208,7 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     await db.query("insert into public.manual_genai_imports(id,collection_id,owner_id,schema_version,payload_checksum,book_count) values ($1,$2,$3,'mylibrary.shelfie.v1','retry-boundary',1)", [retryImport, a, alice]);
     await db.query("insert into public.book_observations(collection_id,copy_id,source_type,manual_genai_import_id,status) values ($1,$2,'manual_genai_json',$3,'ready_for_matching')", [a, copyId, retryImport]);
     await db.query("update public.copies set cover_url=null where id=$1", [copyId]);
+    assert.equal((await db.query<{ cover_url: string }>("select cover_url from public.public_catalogue where legacy_id='stage-boundary'")).rows[0].cover_url, "/covers/cover-not-found.svg", "new pending books use the default image immediately");
     await db.query("update public.manual_genai_imports set matching_status='completed' where id<>$1", [retryImport]);
     await db.query("update public.copies set cover_status='cover_not_found' where id<>$1 and cover_url is null", [copyId]);
     assert.equal(await rpc("claim_next_book_cover", []), null, "ISBN work must finish first");

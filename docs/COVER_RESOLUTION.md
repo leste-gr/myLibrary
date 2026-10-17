@@ -50,6 +50,8 @@ The `cover_resolution_jobs` lifecycle is:
 
 Per-book `copies.cover_status` tracks all three cover methods. A confirmed miss becomes terminal `cover_not_found`; a successful selection becomes `completed`. Both are skipped by the scheduler. Selected-ISBN misses retain `missing` in the shared ISBN cache. Candidate and metadata misses are terminal only after the applicable searches complete without provider failures.
 
+All books without an image display the shared `/covers/cover-not-found.svg`, including newly ingested books waiting for resolution. Catalogue cards, detail dialogs and owner edition views also switch to that image if a source fails to load or decode in the browser. The default is a display fallback and never marks a pending lookup as successfully resolved. Audited broken URLs retain their original source for inspection and use `cover_not_found` to select the default image.
+
 When the highest-ranked ISBN candidate is a strong work match (`work_confidence >= 0.85`) but does not pass the stricter exact-edition acceptance rule, the pipeline probes that candidate's ISBN cover endpoint. A real image from Open Library or Google Books is selected as a **representative cover** without assigning the candidate ISBN to the copy. Placeholders, empty responses, and unlabelled images are rejected. This deliberately gives cover discovery more recall than edition assignment while keeping the two decisions independent.
 
 ## 3. Cover resolution without an ISBN

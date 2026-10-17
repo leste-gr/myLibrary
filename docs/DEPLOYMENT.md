@@ -21,6 +21,8 @@ Apply `202610170032_hourly_ingestion_recovery.sql` for hourly recovery. It adds 
 
 Apply `202610170033_default_missing_cover.sql` with the shared `/covers/cover-not-found.svg` asset. Terminal cover misses display this placeholder in the public catalogue and owner editor while retaining a null stored cover URL, so the placeholder cannot reopen retries or count as a successfully found cover.
 
+`202610170034_universal_cover_fallback.sql` extends the default image to every empty cover, including pending ingestions. The shared `BookCoverImage` component also catches failed image loads and decode failures in cards, dialogs and owner edition views, including failures that occur before hydration. Existing confirmed-broken cover URLs can be retained for inspection while setting `cover_status = 'cover_not_found'` to display the default.
+
 Never expose `SUPABASE_SERVICE_ROLE_KEY` in a browser bundle.
 
 ## 2. Configure the application

@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CatalogueBook, PublicCollection } from "@/lib/types";
 import { DeleteCollectionButton } from "@/components/delete-collection-button";
 import { DeleteBookButton } from "@/components/delete-book-button";
-import { DEFAULT_BOOK_COVER } from "@/lib/book-cover";
+import { BookCoverImage } from "@/components/book-cover-image";
 
 const normalize = (value: unknown) =>
   String(value ?? "")
@@ -121,7 +121,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
             {activeFilters.length > 0 && <div className="active-filters" aria-label={t("Active filters")}>{activeFilters.map((filter) => <button key={filter.label} className="filter-chip" type="button" aria-label={t("Remove: {0} — {1}", [filter.label, filter.value])} onClick={() => { filter.clear(); setLimit(32); }}>{filter.label}: {filter.value}<span aria-hidden="true"> ×</span></button>)}</div>}
             <div className="book-grid">
               {filteredBooks.slice(0, limit).map((book) => <article className="book-card-shell" key={book.id}><button type="button" className="book-card" onClick={() => openBook(book)}>
-                <div className="cover-wrap">{book.cover ? <img src={book.cover} alt={book.cover === DEFAULT_BOOK_COVER ? t("Cover unavailable") : t("Cover: ") + book.title} loading="lazy" /> : <div className="missing-cover"><span>{t("Cover unavailable")}</span></div>}</div>
+                <div className="cover-wrap"><BookCoverImage src={book.cover} alt={t("Cover: ") + book.title} fallbackAlt={t("Cover unavailable")} loading="lazy" /></div>
                 <h3>{book.title}</h3><p className="book-author">{book.author}</p>{book.series && <p className="book-series">{book.series}</p>}{book.isbn13 && <p className="book-isbn">{book.isbn13}</p>}
               </button>{canEdit && <div className="book-owner-actions"><Link className="edit-book-link" href={`/collections/${collection.slug}/books/${book.id}`}>{t("Edit ISBN and edition")}</Link><DeleteBookButton collectionId={collection.id} collectionSlug={collection.slug} legacyId={book.id} title={book.title} /></div>}</article>)}
             </div>
@@ -133,7 +133,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
       <footer><span>{collection.name}</span><p>{t("Each record represents a physical volume in the collection.")}</p></footer>
       <dialog ref={dialogRef} aria-labelledby="book-detail-title" onClose={() => setSelected(null)} onClick={(event) => { if (event.target === event.currentTarget) { const bounds = event.currentTarget.getBoundingClientRect(); if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) event.currentTarget.close(); } }}>
         <button className="close-dialog" aria-label={t("Close")} onClick={() => { dialogRef.current?.close(); setSelected(null); }}>×</button>
-        {selected && <div className="detail-layout"><div className="detail-art"><div className="cover-wrap">{selected.cover ? <img src={selected.cover} alt={selected.cover === DEFAULT_BOOK_COVER ? t("Cover unavailable") : t("Cover: ") + selected.title} /> : <div className="missing-cover"><span>{t("No cover available")}</span></div>}</div></div><div className="detail-copy"><p className="eyebrow">{t("FROM THE COLLECTION")}</p><h2 id="book-detail-title">{selected.title}</h2><p className="detail-author">{selected.author}</p><dl>
+        {selected && <div className="detail-layout"><div className="detail-art"><div className="cover-wrap"><BookCoverImage src={selected.cover} alt={t("Cover: ") + selected.title} fallbackAlt={t("Cover unavailable")} /></div></div><div className="detail-copy"><p className="eyebrow">{t("FROM THE COLLECTION")}</p><h2 id="book-detail-title">{selected.title}</h2><p className="detail-author">{selected.author}</p><dl>
           {selected.category && <><dt>{t("Category")}</dt><dd>{selected.category}</dd></>}
           {selected.language && <><dt>{t("Language")}</dt><dd>{selected.language}</dd></>}
           {selected.publisher && <><dt>{t("Publisher")}</dt><dd>{selected.publisher}</dd></>}
