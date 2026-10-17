@@ -26,7 +26,8 @@ export function isPublicAddress(value: string) {
   if (version === 4) return !privateIpv4(value);
   if (version === 6) {
     const normalized = value.toLowerCase();
-    return normalized !== "::" && normalized !== "::1" && !normalized.startsWith("fc") && !normalized.startsWith("fd") && !normalized.startsWith("fe8") && !normalized.startsWith("fe9") && !normalized.startsWith("fea") && !normalized.startsWith("feb");
+    // Only global unicast; reject mapped IPv4, local and transition ranges.
+    return /^[23]/.test(normalized) && !normalized.startsWith("2001:0:") && !normalized.startsWith("2002:");
   }
   return false;
 }
@@ -68,7 +69,26 @@ export async function fetchPublicResource(rawUrl: string | URL, options: SafeFet
     const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() ?? "";
     const declaredLength = Number(response.headers.get("content-length") ?? 0);
     if (!response.ok || !options.acceptedTypes(contentType) || declaredLength > options.maxBytes) throw new Error(`Remote resource rejected (${response.status}).`);
-    const bytes = await response.arrayBuffer();
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("Remote resource has no body.");
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > options.maxBytes) {
+          await reader.cancel();
+          throw new Error("Remote resource has an invalid size.");
+        }
+        chunks.push(value);
+      }
+    } finally { reader.releaseLock(); }
+    const body = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.byteLength; }
+    const bytes = body.buffer;
     if (!bytes.byteLength || bytes.byteLength > options.maxBytes) throw new Error("Remote resource has an invalid size.");
     return { bytes, contentType, finalUrl: url.toString() };
   }

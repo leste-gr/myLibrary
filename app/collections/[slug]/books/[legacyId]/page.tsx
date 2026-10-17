@@ -64,7 +64,7 @@ export default async function CollectionBookEditPage({ params, searchParams }: {
     : copy.cover_status === "cover_not_found" ? DEFAULT_BOOK_COVER : copy.cover_url;
 
   return <main className="admin-shell">
-    <header className="admin-header"><div><p className="eyebrow">{t("EDIT COLLECTION")}</p><h1>{collection.name}</h1></div><nav><Link href={`/collections/${slug}`}>{t("Back to collection")}</Link></nav></header>
+    <header className="admin-header"><div><p className="eyebrow">{t("EDIT COLLECTION")}</p><h1>{collection.name}</h1></div><nav><Link href={`/collections/${slug}#book-${encodeURIComponent(legacyId)}`}>{t("Back to collection")}</Link></nav></header>
     {messages.error && <p className="form-error">{t(messages.error)}</p>}
     {messages.coverSaved && <p className="auth-notice" role="status">{t("Your cover image has been saved.")}</p>}
     {messages.isbnSearched && <p className="auth-notice" role="status">{candidates.length ? t("Found {0} ISBN candidates. Choose an edition to use it.", [candidates.length]) : t("No ISBNs were matched.")}</p>}

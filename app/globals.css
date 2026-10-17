@@ -100,6 +100,12 @@ body:has(dialog[open]){overflow:hidden}
 
 /* Paper discovery: a compact masthead and shelves that lead into each collection. */
 .directory-brand{display:none}
+.cover-source{display:flex;flex-wrap:wrap;gap:12px 24px;border:0;padding:0;margin:0}
+.cover-source legend{margin-bottom:10px;font-weight:600}
+.cover-source label{display:flex;align-items:center;gap:8px;min-height:44px}
+.cover-source input{accent-color:var(--wine)}
+.cover-upload input[type=url]{width:100%;min-height:44px;padding:10px;border:1px solid var(--line);background:var(--paper);font-size:16px}
+.book-card-shell{scroll-margin-block:24px}
 body:has(.directory-shell) .global-navigation{max-width:1180px;margin:auto;min-height:82px;gap:24px;background:var(--paper)}
 body:has(.directory-shell) .directory-brand{display:flex;align-items:center;gap:12px;margin-right:auto;text-decoration:none;color:var(--ink);font:500 25px var(--serif)}
 .directory-brand>span{display:grid;place-items:center;width:38px;height:40px;background:var(--wine);color:var(--white);font:24px var(--serif)}

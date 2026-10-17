@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { canonicalIsbn } from "@/lib/isbn";
 import { randomUUID } from "node:crypto";
-import { prepareCoverUpload } from "@/lib/cover-upload";
+import { prepareCoverUpload, prepareCoverFromUrl } from "@/lib/cover-upload";
 import { saveIsbnDraft } from "@/lib/save-isbn-draft";
 import { findBookIsbnCandidates } from "@/lib/book-isbn-search";
 
@@ -37,8 +37,12 @@ export async function uploadBookCover(formData: FormData) {
   const file = formData.get("cover");
   let image: Buffer;
   try {
-    if (!(file instanceof File)) throw new Error("Choose a cover image to upload.");
-    image = await prepareCoverUpload(file);
+    if (formData.get("source") === "url") {
+      image = await prepareCoverFromUrl(String(formData.get("coverUrl") ?? ""));
+    } else {
+      if (!(file instanceof File)) throw new Error("Choose a cover image to upload.");
+      image = await prepareCoverUpload(file);
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "This image could not be read. Choose a valid JPG, PNG or WebP file.";
     redirect(destination + "?error=" + encodeURIComponent(message));

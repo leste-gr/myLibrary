@@ -1,6 +1,19 @@
 import sharp from "sharp";
 import { MAX_COVER_UPLOAD_BYTES } from "./book-cover";
+import { fetchPublicResource } from "./safe-remote-fetch";
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+export async function prepareCoverFromUrl(url: string, fetcher?: typeof fetch, resolveAddresses?: (hostname: string) => Promise<string[]>) {
+  try {
+    const resource = await fetchPublicResource(url.trim(), {
+      maxBytes: MAX_COVER_UPLOAD_BYTES, acceptedTypes: type => IMAGE_TYPES.has(type),
+      fetcher, resolveAddresses,
+    });
+    return await prepareCoverUpload(new File([resource.bytes], "cover", { type: resource.contentType }));
+  } catch {
+    throw new Error("Could not read this image link. Use a public HTTPS link to a JPG, PNG or WebP image up to 4 MB.");
+  }
+}
 
 export async function prepareCoverUpload(file: File) {
   if (!file.size) throw new Error("Choose a cover image to upload.");

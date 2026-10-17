@@ -30,6 +30,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
   const [language, setLanguage] = useState("");
   const [sort, setSort] = useState("catalogue");
   const [limit, setLimit] = useState(32);
+  const [returnBook, setReturnBook] = useState<string | null>(null);
   const [selected, setSelected] = useState<CatalogueBook | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -60,6 +61,50 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
     if (sort === "author") result.sort((a, b) => a.author.localeCompare(b.author, "el"));
     return result;
   }, [searchIndex, deferredQuery, category, author, language, sort]);
+
+  useEffect(() => {
+    function restoreBook() {
+      if (!window.location.hash.startsWith("#book-")) return;
+      let id: string;
+      try { id = decodeURIComponent(window.location.hash.slice(6)); } catch { return; }
+      if (!initialBooks.some(book => book.id === id)) return;
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(`catalogue-return:${collection.slug}`) ?? "null");
+        if (saved?.bookId === id && [saved.query, saved.category, saved.author, saved.language, saved.sort].every(value => typeof value === "string")) {
+          setQuery(saved.query); setCategory(saved.category); setAuthor(saved.author);
+          setLanguage(saved.language); setSort(saved.sort);
+        }
+      } catch { /* Returning to a book also works when storage is unavailable. */ }
+      setReturnBook(id);
+    }
+    restoreBook();
+    window.addEventListener("hashchange", restoreBook);
+    return () => window.removeEventListener("hashchange", restoreBook);
+  }, [collection.slug, initialBooks]);
+
+  useEffect(() => {
+    if (!returnBook || query !== deferredQuery) return;
+    const index = filteredBooks.findIndex(book => book.id === returnBook);
+    if (index < 0) {
+      // An edit may change the title or author so it no longer matches the old filters.
+      setQuery(""); setCategory(""); setAuthor(""); setLanguage("");
+      return;
+    }
+    if (index >= limit) { setLimit(Math.ceil((index + 1) / 32) * 32); return; }
+    const frame = requestAnimationFrame(() => {
+      const card = document.getElementById(`book-${returnBook}`);
+      card?.scrollIntoView({ block: "center" });
+      card?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+      setReturnBook(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [returnBook, filteredBooks, limit, query, deferredQuery]);
+
+  function rememberBook(id: string) {
+    try { sessionStorage.setItem(`catalogue-return:${collection.slug}`, JSON.stringify({ bookId: id, query, category, author, language, sort })); } catch { /* Optional view persistence. */ }
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}#book-${encodeURIComponent(id)}`);
+    dialogRef.current?.close();
+  }
 
   useEffect(() => {
     if (!("IntersectionObserver" in window)) { setManualLoading(true); return; }
@@ -121,7 +166,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
             <div className="catalogue-toolbar"><div><h2>{category || t("All books")}</h2><p role="status" aria-live="polite" aria-atomic="true">{filteredBooks.length} {" " + t("of") + " "}{initialBooks.length} {" " + t("books")}</p></div><div className="sort-wrap"><label htmlFor="sort">{t("Sort by")}</label><select id="sort" value={sort} onChange={(event) => { setSort(event.target.value); setLimit(32); }}><option value="catalogue">{t("Catalogue order")}</option><option value="title">{t("Title A–Z")}</option><option value="author">{t("Author A–Z")}</option></select></div></div>
             {activeFilters.length > 0 && <div className="active-filters" aria-label={t("Active filters")}>{activeFilters.map((filter) => <button key={filter.label} className="filter-chip" type="button" aria-label={t("Remove: {0} — {1}", [filter.label, filter.value])} onClick={() => { filter.clear(); setLimit(32); }}>{filter.label}: {filter.value}<span aria-hidden="true"> ×</span></button>)}</div>}
             <div className="book-grid">
-              {filteredBooks.slice(0, limit).map((book) => <article className="book-card-shell" key={book.id}><button type="button" className="book-card" onClick={() => openBook(book)}>
+              {filteredBooks.slice(0, limit).map((book) => <article className="book-card-shell" id={`book-${book.id}`} key={book.id}><button type="button" className="book-card" onClick={() => openBook(book)}>
                 <div className="cover-wrap"><BookCoverImage src={book.cover} alt={t("Cover: ") + book.title} fallbackAlt={t("Cover unavailable")} loading="lazy" /></div>
                 <h3>{book.title}</h3><p className="book-author">{book.author}</p>{book.series && <p className="book-series">{book.series}</p>}{book.isbn13 && <p className="book-isbn">{book.isbn13}</p>}
               </button></article>)}
@@ -140,7 +185,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
           {selected.publisher && <><dt>{t("Publisher")}</dt><dd>{selected.publisher}</dd></>}
           {selected.isbn13 && <><dt>ISBN-13</dt><dd>{selected.isbn13}</dd></>}
           <dt>{t("Book ID")}</dt><dd>{selected.id}</dd>
-        </dl>{canEdit && <div className="book-owner-actions"><Link className="secondary-button" href={`/collections/${collection.slug}/books/${selected.id}`}>{t("Edit book")}</Link><DeleteBookButton collectionId={collection.id} collectionSlug={collection.slug} legacyId={selected.id} title={selected.title} /></div>}</div></div>}
+        </dl>{canEdit && <div className="book-owner-actions"><Link className="secondary-button" href={`/collections/${collection.slug}/books/${selected.id}`} onClick={() => rememberBook(selected.id)}>{t("Edit book")}</Link><DeleteBookButton collectionId={collection.id} collectionSlug={collection.slug} legacyId={selected.id} title={selected.title} /></div>}</div></div>}
       </dialog>
     </div>
   );

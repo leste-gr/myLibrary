@@ -1,5 +1,13 @@
 // Interface translations only. Book and collection data retain their original language.
 export const el: Record<string, string> = {
+  "Saving cover…": "Αποθήκευση εξωφύλλου…",
+  "Use image link": "Χρήση συνδέσμου εικόνας",
+  "Choose image source": "Επιλογή πηγής εικόνας",
+  "Upload a file": "Μεταφόρτωση αρχείου",
+  "Paste an image link": "Επικόλληση συνδέσμου εικόνας",
+  "Public image link": "Δημόσιος σύνδεσμος εικόνας",
+  "Paste a direct HTTPS image link. JPG, PNG or WebP, up to 4 MB. A copy will be saved to your library.": "Επικόλλησε έναν απευθείας σύνδεσμο HTTPS εικόνας. JPG, PNG ή WebP, έως 4 MB. Ένα αντίγραφο θα αποθηκευτεί στη βιβλιοθήκη σου.",
+  "Could not read this image link. Use a public HTTPS link to a JPG, PNG or WebP image up to 4 MB.": "Δεν ήταν δυνατή η ανάγνωση της εικόνας. Χρησιμοποίησε δημόσιο σύνδεσμο HTTPS για εικόνα JPG, PNG ή WebP έως 4 MB.",
   "A community of collections": "Μια κοινότητα συλλογών",
   "Good books.": "Καλά βιβλία.",
   "Interesting company.": "Ενδιαφέρουσα παρέα.",
