@@ -1,5 +1,6 @@
 import { getLocale, getTranslations } from "@/lib/i18n/server";
 import { LanguageProvider, LanguageSwitcher } from "@/components/language-provider";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import "./globals.css";
 import { SiteFooter } from "@/components/site-footer";
@@ -21,7 +22,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const locale = await getLocale();
   return (
     <html lang={locale}>
-      <body><LanguageProvider locale={locale}><div className="global-navigation"><AccountMenu /><LanguageSwitcher /></div>{children}<SiteFooter /></LanguageProvider></body>
+      <body><LanguageProvider locale={locale}><div className="global-navigation"><Suspense fallback={<span className="account-placeholder" aria-hidden="true" />}><AccountMenu /></Suspense><LanguageSwitcher /></div>{children}<SiteFooter /></LanguageProvider></body>
     </html>
   );
 }

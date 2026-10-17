@@ -430,5 +430,7 @@ export const el: Record<string, string> = {
   "Publication date": "Ημερομηνία έκδοσης",
   "Preview of the cover and details that will be applied when you publish.": "Προεπισκόπηση εξωφύλλου και στοιχείων που θα εφαρμοστούν κατά τη δημοσίευση.",
   "Your uploaded cover will be kept.": "Το εξώφυλλο που ανεβάσατε θα διατηρηθεί.",
-  "Some ISBN details are unavailable. Existing details will be kept where needed.": "Ορισμένα στοιχεία ISBN δεν είναι διαθέσιμα. Τα υπάρχοντα στοιχεία θα διατηρηθούν όπου χρειάζεται."
+  "Some ISBN details are unavailable. Existing details will be kept where needed.": "Ορισμένα στοιχεία ISBN δεν είναι διαθέσιμα. Τα υπάρχοντα στοιχεία θα διατηρηθούν όπου χρειάζεται.",
+  "Loading collections…": "Φόρτωση συλλογών…",
+  "Loading books…": "Φόρτωση βιβλίων…"
 };

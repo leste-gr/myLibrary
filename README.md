@@ -40,6 +40,7 @@ The service-role key is only for trusted server-side pipeline tooling. Never exp
 npm run typecheck
 npm run build
 npm run test
+npm run test:catalogue-cache # isolated production-server cache/access check; build first
 ```
 
 See [Deployment](docs/DEPLOYMENT.md) for Supabase setup and Vercel publication.

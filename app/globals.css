@@ -89,3 +89,11 @@ body:has(dialog[open]){overflow:hidden}
 @media(max-width:900px){.book-dialog{padding:48px 28px 28px}.book-dialog .detail-layout{grid-template-columns:minmax(240px,1.1fr) minmax(220px,1fr);gap:28px}}
 @media(max-width:640px){.book-dialog{width:calc(100% - 24px);padding:48px 20px 24px}.book-dialog .detail-layout{display:block}.book-dialog .detail-art{margin:0 auto 28px}.book-dialog .detail-art img{max-height:60vh}.book-dialog .detail-copy dl{grid-template-columns:95px minmax(0,1fr);gap:10px}.cover-upload{padding:20px}}
 @media(max-width:760px){.global-navigation{flex-wrap:wrap;gap:12px;justify-content:space-between}.global-navigation .account-menu{flex:1;justify-content:flex-start}.global-navigation .account-email{text-align:left}.language-switcher>span{display:none}}
+
+/* Reserve space while collection data streams, without fetching cover images. */
+.catalogue-loading { padding-block: 2rem; }
+.skeleton-collection { min-height: 210px; }
+.skeleton-line { display: block; height: 1rem; margin-block: 1rem; border-radius: 4px; background: #e8e2d7; }
+.skeleton-line.short { width: 60%; }
+.skeleton-cover { aspect-ratio: 2 / 3; border-radius: 6px; background: #e8e2d7; }
+.account-placeholder { display: inline-block; width: 9rem; min-height: 2rem; }

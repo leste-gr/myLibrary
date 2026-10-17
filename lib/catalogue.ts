@@ -3,21 +3,14 @@ import { supabaseConfig } from "./supabase/config";
 import type { CatalogueBook, PublicCollection } from "./types";
 
 type PublicRow = {
-  collection_slug: string;
-  collection_name: string;
   legacy_id: string;
   title: string;
   author: string;
-  contributors: string | null;
   series: string | null;
-  subseries: string | null;
-  volume: string | null;
   language: string;
   category: string;
   publisher: string | null;
-  notes: string | null;
   cover_url: string | null;
-  cover_source: string | null;
   isbn13: string | null;
 };
 
@@ -41,7 +34,7 @@ export async function getPublicCollections(collectionIds?: string[]): Promise<Pu
   if (collectionIds?.length === 0) return [];
   let query = supabase
     .from("public_collections")
-    .select("*")
+    .select("id,slug,name,description,book_count,author_count")
     .order("created_at", { ascending: true });
   if (collectionIds) query = query.in("id", collectionIds);
   const { data, error } = await query;
@@ -61,8 +54,12 @@ export async function getPublicCollections(collectionIds?: string[]): Promise<Pu
 }
 
 export async function getPublicCollection(slug: string): Promise<PublicCollection | null> {
-  const collections = await getPublicCollections();
-  return collections.find((collection) => collection.slug === slug) ?? null;
+  const { data, error } = await publicClient().from("public_collections")
+    .select("id,slug,name,description,book_count,author_count").eq("slug", slug).maybeSingle();
+  if (error) throw new Error("Unable to load public collection from Supabase.", { cause: error });
+  if (!data) return null;
+  const row = data as CollectionRow;
+  return { id: row.id, slug: row.slug, name: row.name, description: row.description, bookCount: row.book_count, authorCount: row.author_count };
 }
 
 export async function getPublicCatalogue(slug: string): Promise<CatalogueBook[]> {
@@ -70,7 +67,7 @@ export async function getPublicCatalogue(slug: string): Promise<CatalogueBook[]>
 
   const { data, error } = await supabase
     .from("public_catalogue")
-    .select("*")
+    .select("legacy_id,title,author,series,language,category,publisher,cover_url,isbn13")
     .eq("collection_slug", slug)
     .order("display_order", { ascending: true });
 
@@ -82,16 +79,11 @@ export async function getPublicCatalogue(slug: string): Promise<CatalogueBook[]>
     id: row.legacy_id,
     title: row.title,
     author: row.author,
-    contributors: row.contributors,
     series: row.series ?? "",
-    subseries: row.subseries,
-    volume: row.volume,
     language: row.language,
     category: row.category,
     publisher: row.publisher,
-    notes: row.notes,
     cover: row.cover_url,
-    coverSource: row.cover_source,
     isbn13: row.isbn13,
   }));
 }

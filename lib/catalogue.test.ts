@@ -31,6 +31,8 @@ test("catalogue uses only Supabase and distinguishes empty results from failures
 
   payload = [{ id: "db-id", slug: "new", name: "New library", description: null, book_count: 1, author_count: 1 }];
   assert.deepEqual(await getPublicCollections(), [{ id: "db-id", slug: "new", name: "New library", description: null, bookCount: 1, authorCount: 1 }]);
+  assert.deepEqual(await getPublicCollection("new"), { id: "db-id", slug: "new", name: "New library", description: null, bookCount: 1, authorCount: 1 });
+  assert.equal(new URL(requests.at(-1)!).searchParams.get("slug"), "eq.new", "opening one collection must scope the database query to its slug");
   await getPublicCollections(["db-id"]);
   assert.equal(new URL(requests.at(-1)!).searchParams.get("id"), 'in.(db-id)');
   const requestCount = requests.length;
@@ -41,10 +43,14 @@ test("catalogue uses only Supabase and distinguishes empty results from failures
   assert.equal(books.length, 1);
   assert.equal(books[0].id, "db-book");
   assert.equal(books[0].cover, "https://example.test/cover.jpg");
+  assert.equal("notes" in books[0], false, "unused notes should not be serialized into the browser payload");
+  assert.equal("contributors" in books[0], false);
+  assert.equal(new URL(requests.at(-1)!).searchParams.get("select")?.includes("notes"), false);
   assert.ok(requests.at(-1)?.includes("collection_slug=eq.new"));
 
   status = 503;
   payload = { message: "Database unavailable" };
   await assert.rejects(getPublicCollections(), /Unable to load public collections/);
   await assert.rejects(getPublicCatalogue("lefteris"), /Unable to load public catalogue/);
+  await assert.rejects(getPublicCollection("lefteris"), /Unable to load public collection/);
 });

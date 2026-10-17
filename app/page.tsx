@@ -1,25 +1,18 @@
 import { getTranslations } from "@/lib/i18n/server";
+import { Suspense } from "react";
+import { CollectionListSkeleton } from "@/components/catalogue-loading";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { getPublicCollections } from "@/lib/catalogue";
+import { getCachedPublicCollections } from "@/lib/catalogue-cache";
+import { getViewer } from "@/lib/catalogue-viewer";
 
-export const dynamic = "force-dynamic";
+
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ deleted?: string; view?: string }> }) {
   const t = await getTranslations();
   const { deleted, view } = await searchParams;
   const mine = view === "mine";
-  let collectionIds: string[] | undefined;
-  if (mine) {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) redirect("/login?next=" + encodeURIComponent("/?view=mine"));
-    const { data, error } = await supabase.from("collections").select("id").eq("owner_id", user.id);
-    if (error) throw new Error("Unable to load your collections.");
-    collectionIds = (data ?? []).map(collection => collection.id);
-  }
-  const collections = await getPublicCollections(collectionIds);
   return <div className="directory-shell">
     {deleted === "1" && <div className="global-notice" role="status">{t("Collection deleted.")}</div>}
     <header className="masthead">
@@ -33,7 +26,29 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         <Link href="/?view=mine" aria-current={mine ? "page" : undefined}>{t("My collections")}</Link>
       </nav>
       {mine && <p><Link className="button-link" href="/shelfies">{t("+ Import shelf photo")}</Link></p>}
-      <section aria-labelledby="collections-title">
+      <Suspense fallback={<CollectionListSkeleton label={t("Loading collections…")} />}><CollectionDirectory mine={mine} /></Suspense>
+    </main>
+  </div>;
+}
+
+async function CollectionDirectory({ mine }: { mine: boolean }) {
+  const t = await getTranslations();
+  let collections;
+  if (mine) {
+    const user = await getViewer();
+    if (!user) redirect("/login?next=" + encodeURIComponent("/?view=mine"));
+    const supabase = await createSupabaseServerClient();
+    const [allCollections, { data, error }] = await Promise.all([
+      getCachedPublicCollections(),
+      supabase.from("collections").select("id").eq("owner_id", user.id),
+    ]);
+    if (error) throw new Error("Unable to load your collections.");
+    const ownedIds = new Set((data ?? []).map(collection => collection.id));
+    collections = allCollections.filter(collection => ownedIds.has(collection.id));
+  } else {
+    collections = await getCachedPublicCollections();
+  }
+  return (<section aria-labelledby="collections-title">
         <div className="directory-heading"><h2 id="collections-title">{t(mine ? "My collections" : "All collections")}</h2><span>{collections.length}</span></div>
         <div className="collection-grid">{collections.map((collection) =>
           <Link className="collection-card" href={`/collections/${collection.slug}`} key={collection.id}>
@@ -45,7 +60,5 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           </Link>
         )}</div>
         {!collections.length && <p className="empty-admin">{t(mine ? "You have no collections yet. Import some books to create your first collection." : "There are no public collections yet.")}</p>}
-      </section>
-    </main>
-  </div>;
+      </section>);
 }

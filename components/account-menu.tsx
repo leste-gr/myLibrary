@@ -1,14 +1,13 @@
 import { getTranslations } from "@/lib/i18n/server";
 import Link from "next/link";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/catalogue-viewer";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { signOut } from "@/app/auth/actions";
 
 export async function AccountMenu() {
   const t = await getTranslations();
   if (!isSupabaseConfigured()) return null;
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getViewer();
   return <nav className="account-menu" aria-label={t("Account")}>
     {user ? <>
       <span className="account-email">{user.email}</span>

@@ -2,7 +2,7 @@
 import { useTranslations } from "@/components/language-provider";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { CatalogueBook, PublicCollection } from "@/lib/types";
 import { DeleteCollectionButton } from "@/components/delete-collection-button";
 import { DeleteBookButton } from "@/components/delete-book-button";
@@ -23,6 +23,8 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
 }) {
   const t = useTranslations();
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  const searchIndex = useMemo(() => initialBooks.map(book => ({ book, searchable: normalize([book.title, book.author, book.series, book.category, book.id, book.isbn13].join(" ")) })), [initialBooks]);
   const [category, setCategory] = useState("");
   const [author, setAuthor] = useState("");
   const [language, setLanguage] = useState("");
@@ -45,20 +47,19 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
   const authors = useMemo(() => [...new Set(initialBooks.map((book) => book.author))].sort(), [initialBooks]);
   const languages = useMemo(() => [...new Set(initialBooks.map((book) => book.language))].sort(), [initialBooks]);
   const filteredBooks = useMemo(() => {
-    const normalized = normalize(query.trim());
-    const isbnQuery = query.replace(/[^0-9X]/gi, "");
-    const isIsbnQuery = isbnQuery.length >= 9 && /^[0-9X\s-]+$/i.test(query);
-    const result = initialBooks.filter((book) => {
-      const searchable = normalize([book.title, book.author, book.series, book.category, book.id, book.isbn13].join(" "));
+    const normalized = normalize(deferredQuery.trim());
+    const isbnQuery = deferredQuery.replace(/[^0-9X]/gi, "");
+    const isIsbnQuery = isbnQuery.length >= 9 && /^[0-9X\s-]+$/i.test(deferredQuery);
+    const result = searchIndex.filter(({ book, searchable }) => {
       return (!category || book.category === category)
         && (!author || book.author === author)
         && (!language || book.language === language)
         && (searchable.includes(normalized) || (isIsbnQuery && book.isbn13?.includes(isbnQuery)));
-    });
+    }).map(({ book }) => book);
     if (sort === "title") result.sort((a, b) => a.title.localeCompare(b.title, "el"));
     if (sort === "author") result.sort((a, b) => a.author.localeCompare(b.author, "el"));
     return result;
-  }, [initialBooks, query, category, author, language, sort]);
+  }, [searchIndex, deferredQuery, category, author, language, sort]);
 
   useEffect(() => {
     if (!("IntersectionObserver" in window)) { setManualLoading(true); return; }
@@ -116,7 +117,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
               <label htmlFor="language">{t("Language")}</label><select id="language" value={language} onChange={(event) => setLanguage(event.target.value)}><option value="">{t("All")}</option>{languages.map((value) => <option key={value}>{value}</option>)}</select>
             </div></div>
           </aside>
-          <section id="catalogue" tabIndex={-1} aria-label={t("Collection books")}>
+          <section id="catalogue" aria-busy={query !== deferredQuery} tabIndex={-1} aria-label={t("Collection books")}>
             <div className="catalogue-toolbar"><div><h2>{category || t("All books")}</h2><p role="status" aria-live="polite" aria-atomic="true">{filteredBooks.length} {" " + t("of") + " "}{initialBooks.length} {" " + t("books")}</p></div><div className="sort-wrap"><label htmlFor="sort">{t("Sort by")}</label><select id="sort" value={sort} onChange={(event) => { setSort(event.target.value); setLimit(32); }}><option value="catalogue">{t("Catalogue order")}</option><option value="title">{t("Title A–Z")}</option><option value="author">{t("Author A–Z")}</option></select></div></div>
             {activeFilters.length > 0 && <div className="active-filters" aria-label={t("Active filters")}>{activeFilters.map((filter) => <button key={filter.label} className="filter-chip" type="button" aria-label={t("Remove: {0} — {1}", [filter.label, filter.value])} onClick={() => { filter.clear(); setLimit(32); }}>{filter.label}: {filter.value}<span aria-hidden="true"> ×</span></button>)}</div>}
             <div className="book-grid">

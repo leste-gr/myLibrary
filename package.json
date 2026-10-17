@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "test": "tsx --test lib/*.test.ts",
+    "test:catalogue-cache": "node scripts/test-catalogue-cache.mjs",
     "typecheck": "tsc --noEmit",
     "match:import": "tsx scripts/match-manual-import.ts",
     "covers:candidates": "tsx scripts/resolve-candidate-covers.ts",

@@ -2,16 +2,11 @@ export type CatalogueBook = {
   id: string;
   title: string;
   author: string;
-  contributors: string | null;
   series: string;
-  subseries: string | null;
-  volume: string | null;
   language: string;
   category: string;
   publisher: string | null;
-  notes: string | null;
   cover: string | null;
-  coverSource: string | null;
   isbn13: string | null;
 };
 
