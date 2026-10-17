@@ -54,6 +54,11 @@ async function searchDuckDuckGo(query: string, fetcher: typeof fetch) {
   return parseDuckDuckGoLinks(await response.text());
 }
 
+export async function findBookPageUrls(query: string, fetcher: typeof fetch = fetch) {
+  const results = await Promise.allSettled([searchDuckDuckGo(query, fetcher), search(query, fetcher)]);
+  return [...new Set(results.flatMap(result => result.status === "fulfilled" ? result.value : []))];
+}
+
 export async function findVerifiedBookPages(input: BookPageSearchInput, fetcher: typeof fetch = fetch) {
   const queries = buildBookPageSearchQueries(input).slice(0, 4);
   const searches = await Promise.allSettled(queries.flatMap((query) => [searchDuckDuckGo(query, fetcher), search(query, fetcher)]));

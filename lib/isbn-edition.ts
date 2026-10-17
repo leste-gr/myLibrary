@@ -1,6 +1,8 @@
 import { canonicalIsbn } from "./isbn";
+import { lookupIsbnWebMetadata } from "./isbn-web-metadata";
 
 export type IsbnEditionMetadata = {
+  metadataSource?: string;
   title: string | null;
   authors: string[];
   publishers: string[];
@@ -32,11 +34,13 @@ export async function lookupIsbnEdition(isbn: string, fetcher: Fetcher = fetch):
     Array.isArray(item?.volumeInfo?.industryIdentifiers) && item.volumeInfo.industryIdentifiers.some(identifier => canonicalIsbn(identifier.identifier ?? "") === isbn))?.volumeInfo;
   const authors = names(record?.authors);
   const publishers = names(record?.publishers);
-  return {
+  const metadata: IsbnEditionMetadata = {
     title: text(record?.title) ?? text(volume?.title),
     authors: authors.length ? authors : texts(volume?.authors),
     publishers: publishers.length ? publishers : texts(volume?.publisher ? [volume.publisher] : []),
     publishedDate: text(record?.publish_date) ?? text(volume?.publishedDate),
     language: text(volume?.language),
   };
+  if (!metadata.title) return await lookupIsbnWebMetadata(isbn, fetcher) ?? metadata;
+  return metadata;
 }
