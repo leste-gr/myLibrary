@@ -23,6 +23,8 @@ Apply `202610170033_default_missing_cover.sql` with the shared `/covers/cover-no
 
 `202610170034_universal_cover_fallback.sql` extends the default image to every empty cover, including pending ingestions. The shared `BookCoverImage` component also catches failed image loads and decode failures in cards, dialogs and owner edition views, including failures that occur before hydration. Existing confirmed-broken cover URLs can be retained for inspection while setting `cover_status = 'cover_not_found'` to display the default.
 
+Apply `202610170035_owner_cover_uploads.sql` before deploying owner cover uploads. It creates the private `book-covers` bucket, owner write policies, public-book/owner read policies and the owned-cover selection RPC. The application uses the signed-in user's session, not a service-role key, to upload and serve images. Cover files are limited to 4 MB; the server-action multipart request limit is 5 MB. The `sharp` dependency validates and normalizes uploads on the server.
+
 Never expose `SUPABASE_SERVICE_ROLE_KEY` in a browser bundle.
 
 ## 2. Configure the application

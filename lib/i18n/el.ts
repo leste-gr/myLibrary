@@ -401,5 +401,21 @@ export const el: Record<string, string> = {
   "Terms for using myLibrary, public book collections, and connected AI assistants.": "Όροι χρήσης του myLibrary, των δημόσιων συλλογών βιβλίων και των συνδεδεμένων βοηθών AI.",
   "Owner confirmed": "Επιβεβαίωση ιδιοκτήτη",
   "No ISBN": "Χωρίς ISBN",
-  "Unresolved": "Χωρίς αντιστοίχιση"
+  "Unresolved": "Χωρίς αντιστοίχιση",
+  "Edit book": "Επεξεργασία βιβλίου",
+  "Book ID": "Κωδικός βιβλίου",
+  "Upload your own cover": "Ανεβάστε το δικό σας εξώφυλλο",
+  "Your image replaces the current cover for this book and is kept instead of automated cover choices.": "Η εικόνα σας αντικαθιστά το τρέχον εξώφυλλο αυτού του βιβλίου και διατηρείται αντί των αυτόματων επιλογών.",
+  "Cover image": "Εικόνα εξωφύλλου",
+  "Upload cover": "Ανέβασμα εξωφύλλου",
+  "Uploading…": "Μεταφόρτωση…",
+  "JPG, PNG or WebP, up to 4 MB.": "JPG, PNG ή WebP, έως 4 MB.",
+  "New cover preview": "Προεπισκόπηση νέου εξωφύλλου",
+  "Your cover image has been saved.": "Η εικόνα εξωφύλλου σας αποθηκεύτηκε.",
+  "Choose a cover image to upload.": "Επιλέξτε μια εικόνα εξωφύλλου για ανέβασμα.",
+  "The cover image must be 4 MB or smaller.": "Η εικόνα εξωφύλλου πρέπει να είναι έως 4 MB.",
+  "Choose a JPG, PNG or WebP image.": "Επιλέξτε μια εικόνα JPG, PNG ή WebP.",
+  "This image could not be read. Choose a valid JPG, PNG or WebP file.": "Δεν ήταν δυνατή η ανάγνωση αυτής της εικόνας. Επιλέξτε ένα έγκυρο αρχείο JPG, PNG ή WebP.",
+  "Could not upload the cover. Please try again.": "Δεν ήταν δυνατό το ανέβασμα του εξωφύλλου. Δοκιμάστε ξανά.",
+  "Could not save the cover. Please try again.": "Δεν ήταν δυνατή η αποθήκευση του εξωφύλλου. Δοκιμάστε ξανά."
 };

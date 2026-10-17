@@ -244,5 +244,31 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     assert.equal(retryState.matching_status, "failed");
     assert.equal(retryState.retryable_count, 1);
     assert.equal(retryState.next_tick, true);
+
+    // A cover upload belongs to one physical book, survives automated choices,
+    // and follows the collection's public/private visibility in Storage.
+    const uploadedPath = `${alice}/${copyId}/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.webp`;
+    await claims(alice);
+    await db.query("insert into storage.objects(bucket_id,name) values ('book-covers',$1)", [uploadedPath]);
+    await rpc("set_owned_book_cover", [copyId, uploadedPath]);
+    assert.equal((await db.query<{ ingestion_status: string }>("select ingestion_status from public.manual_genai_imports where id=$1", [retryImport])).rows[0].ingestion_status, "completed", "an owner cover finishes previously blocked cover work");
+    const uploadUrl = `/api/book-covers/${copyId}/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.webp`;
+    assert.equal((await db.query<{ cover_url: string; cover_source: string }>("select cover_url,cover_source from public.copies where id=$1", [copyId])).rows[0].cover_url, uploadUrl);
+    await claims(bob);
+    await assert.rejects(() => rpc("set_owned_book_cover", [copyId, uploadedPath]), /ownership/);
+    await assert.rejects(() => db.query("insert into storage.objects(bucket_id,name) values ('book-covers',$1)", [`${alice}/${copyId}/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.webp`]), /row-level security/);
+    await db.exec("reset role");
+    await db.query("update public.copies set cover_url='/api/covers/9780140328721',cover_source='isbn-resolver' where id=$1", [copyId]);
+    assert.equal((await db.query<{ cover_url: string }>("select cover_url from public.copies where id=$1", [copyId])).rows[0].cover_url, uploadUrl, "automation cannot replace the uploaded cover");
+    assert.equal((await db.query<{ decision_source: string }>("select decision_source from public.copy_cover_selections where copy_id=$1", [copyId])).rows[0].decision_source, "owner");
+    await db.query("select set_config('request.jwt.claims','{}',false)");
+    await db.exec("set role anon");
+    assert.equal((await db.query("select * from storage.objects where name=$1", [uploadedPath])).rows.length, 1, "public books expose their cover");
+    await db.exec("reset role");
+    await db.query("update public.collections set is_public=false where id=$1", [a]);
+    await db.exec("set role anon");
+    assert.equal((await db.query("select * from storage.objects where name=$1", [uploadedPath])).rows.length, 0, "private collection covers stay private");
+    await claims(alice);
+    assert.equal((await db.query("select * from storage.objects where name=$1", [uploadedPath])).rows.length, 1, "the owner can still view a private cover");
   } finally { await db.close(); }
 });

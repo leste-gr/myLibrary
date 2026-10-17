@@ -1,6 +1,7 @@
 import { getTranslations } from "@/lib/i18n/server";
 import { DEFAULT_BOOK_COVER } from "@/lib/book-cover";
 import { BookCoverImage } from "@/components/book-cover-image";
+import { CoverUploadForm } from "@/components/cover-upload-form";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -21,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 export default async function CollectionBookEditPage({ params, searchParams }: {
   params: Promise<{ slug: string; legacyId: string }>;
-  searchParams: Promise<{ saved?: string; published?: string; rejected?: string; error?: string }>;
+  searchParams: Promise<{ saved?: string; published?: string; rejected?: string; error?: string; coverSaved?: string }>;
 }) {
   const t = await getTranslations();
   const { slug, legacyId } = await params;
@@ -50,6 +51,7 @@ export default async function CollectionBookEditPage({ params, searchParams }: {
   return <main className="admin-shell">
     <header className="admin-header"><div><p className="eyebrow">{t("EDIT COLLECTION")}</p><h1>{collection.name}</h1></div><nav><Link href={`/collections/${slug}`}>{t("Back to collection")}</Link></nav></header>
     {messages.error && <p className="form-error">{t(messages.error)}</p>}
+    {messages.coverSaved && <p className="auth-notice" role="status">{t("Your cover image has been saved.")}</p>}
     {messages.saved && <p className="draft-banner">{t("Your selection was saved as a draft. Review it and publish when ready.")}</p>}
     {messages.published && <p className="draft-banner">{t("The edition was published to the collection.")}</p>}
     {messages.rejected && <p className="draft-banner">{t("The candidate edition was rejected and will not be suggested again for this copy.")}</p>}
@@ -62,6 +64,7 @@ export default async function CollectionBookEditPage({ params, searchParams }: {
         </div></div>}
       </div>
     </section>
+    <CoverUploadForm copyId={copy.id} legacyId={copy.legacy_id} collectionSlug={slug} />
     <section className="manual-isbn"><h2>{t("Enter ISBN manually")}</h2><p>{t("Enter the ISBN-10 or ISBN-13 printed on the book. It will be converted and validated before being saved as a draft.")}</p><form action={saveManualIsbnDraft} className="manual-isbn-row"><input type="hidden" name="copyId" value={copy.id} /><input type="hidden" name="legacyId" value={copy.legacy_id} /><input type="hidden" name="collectionSlug" value={slug} /><label className="sr-only" htmlFor="manual-isbn">ISBN</label><input id="manual-isbn" name="isbn" inputMode="numeric" autoComplete="off" placeholder="978…" required /><button className="primary-button" type="submit">{t("Save ISBN")}</button></form></section>
     <h2>{t("Possible editions")}</h2>
     {!candidates.length ? <p className="empty-admin">{t("No candidate editions yet.")}</p> : <div className="candidate-grid">{candidates.map((candidate) => <article className={"candidate-card " + (candidate.selection_state !== "alternative" ? "suggested" : "")} key={candidate.id}><div><BookCoverImage src={candidate.cover_url} alt="" fallbackAlt={t("Cover unavailable")} loading="lazy" /></div><div>{candidate.selection_state === "algorithm_selected" && <span className="edition-suggested">{t("Automatic selection")}</span>}{candidate.selection_state === "owner_selected" && <span className="edition-suggested">{t("Owner's choice")}</span>}{candidate.selection_state === "owner_rejected" && <span className="edition-suggested">{t("Rejected")}</span>}<h3>{candidate.title ?? work?.title}</h3><p>{candidate.publishers.join(", ") || t("Unknown publisher")}</p><p>{candidate.published_date}</p><p>{t("Work") + " "}{candidate.work_confidence === null ? "—" : `${Math.round(candidate.work_confidence * 100)}%`} {" " + t("· Edition") + " "}{candidate.edition_confidence === null ? "—" : `${Math.round(candidate.edition_confidence * 100)}%`} {" " + t("· Cover") + " "}{candidate.cover_confidence === null ? t("unverified") : `${Math.round(candidate.cover_confidence * 100)}%`}</p><p>{candidate.auto_accept ? t("Meets the automatic acceptance threshold") : t("Requires owner's selection")}</p><code>{candidate.isbn13}</code><div className="publish-actions"><form action={saveEditionDraft}><input type="hidden" name="candidateId" value={candidate.id} /><input type="hidden" name="copyId" value={copy.id} /><input type="hidden" name="legacyId" value={copy.legacy_id} /><input type="hidden" name="collectionSlug" value={slug} /><button className="secondary-button" type="submit">{t("This is my copy")}</button></form>{candidate.selection_state !== "owner_rejected" && <form action={rejectEditionCandidate}><input type="hidden" name="candidateId" value={candidate.id} /><input type="hidden" name="legacyId" value={copy.legacy_id} /><input type="hidden" name="collectionSlug" value={slug} /><button className="danger-button" type="submit">{t("Reject")}</button></form>}</div></div></article>)}</div>}

@@ -123,7 +123,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
               {filteredBooks.slice(0, limit).map((book) => <article className="book-card-shell" key={book.id}><button type="button" className="book-card" onClick={() => openBook(book)}>
                 <div className="cover-wrap"><BookCoverImage src={book.cover} alt={t("Cover: ") + book.title} fallbackAlt={t("Cover unavailable")} loading="lazy" /></div>
                 <h3>{book.title}</h3><p className="book-author">{book.author}</p>{book.series && <p className="book-series">{book.series}</p>}{book.isbn13 && <p className="book-isbn">{book.isbn13}</p>}
-              </button>{canEdit && <div className="book-owner-actions"><Link className="edit-book-link" href={`/collections/${collection.slug}/books/${book.id}`}>{t("Edit ISBN and edition")}</Link><DeleteBookButton collectionId={collection.id} collectionSlug={collection.slug} legacyId={book.id} title={book.title} /></div>}</article>)}
+              </button></article>)}
             </div>
             {!filteredBooks.length && <div id="empty"><h3>{initialBooks.length ? t("No books found.") : t("This collection has no books yet.")}</h3>{initialBooks.length > 0 && <><p>{t("Try another search or remove a filter.")}</p><button type="button" onClick={reset}>{t("Show all")}</button></>}</div>}
             {filteredBooks.length > 0 && <div className="load-more" ref={sentinelRef}><p role="status" aria-live="polite">{t("Showing") + " "}{Math.min(limit, filteredBooks.length)} {" " + t("of") + " "}{filteredBooks.length} {" " + t("books")}</p>{filteredBooks.length > limit && !manualLoading && <p className="scroll-hint">{t("Scroll to discover more books")}</p>}{filteredBooks.length > limit && manualLoading && <button type="button" onClick={() => setLimit((value) => value + 32)}>{t("Show") + " "}{Math.min(32, filteredBooks.length - limit)} {" " + t("more books")}</button>}</div>}
@@ -131,15 +131,15 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
         </div>
       </main>
       <footer><span>{collection.name}</span><p>{t("Each record represents a physical volume in the collection.")}</p></footer>
-      <dialog ref={dialogRef} aria-labelledby="book-detail-title" onClose={() => setSelected(null)} onClick={(event) => { if (event.target === event.currentTarget) { const bounds = event.currentTarget.getBoundingClientRect(); if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) event.currentTarget.close(); } }}>
+      <dialog className="book-dialog" ref={dialogRef} aria-labelledby="book-detail-title" onClose={() => setSelected(null)} onClick={(event) => { if (event.target === event.currentTarget) { const bounds = event.currentTarget.getBoundingClientRect(); if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) event.currentTarget.close(); } }}>
         <button className="close-dialog" aria-label={t("Close")} onClick={() => { dialogRef.current?.close(); setSelected(null); }}>×</button>
-        {selected && <div className="detail-layout"><div className="detail-art"><div className="cover-wrap"><BookCoverImage src={selected.cover} alt={t("Cover: ") + selected.title} fallbackAlt={t("Cover unavailable")} /></div></div><div className="detail-copy"><p className="eyebrow">{t("FROM THE COLLECTION")}</p><h2 id="book-detail-title">{selected.title}</h2><p className="detail-author">{selected.author}</p><dl>
+        {selected && <div className="detail-layout"><div className="detail-art"><div className="cover-wrap"><BookCoverImage src={selected.cover} alt={t("Cover: ") + selected.title} fallbackAlt={t("Cover unavailable")} /></div></div><div className="detail-copy"><p className="eyebrow">{collection.name}</p><h2 id="book-detail-title">{selected.title}</h2><p className="detail-author">{selected.author}</p><dl>
           {selected.category && <><dt>{t("Category")}</dt><dd>{selected.category}</dd></>}
           {selected.language && <><dt>{t("Language")}</dt><dd>{selected.language}</dd></>}
           {selected.publisher && <><dt>{t("Publisher")}</dt><dd>{selected.publisher}</dd></>}
           {selected.isbn13 && <><dt>ISBN-13</dt><dd>{selected.isbn13}</dd></>}
-          <dt>{t("Password")}</dt><dd>{selected.id}</dd>
-        </dl></div></div>}
+          <dt>{t("Book ID")}</dt><dd>{selected.id}</dd>
+        </dl>{canEdit && <div className="book-owner-actions"><Link className="secondary-button" href={`/collections/${collection.slug}/books/${selected.id}`}>{t("Edit book")}</Link><DeleteBookButton collectionId={collection.id} collectionSlug={collection.slug} legacyId={selected.id} title={selected.title} /></div>}</div></div>}
       </dialog>
     </div>
   );

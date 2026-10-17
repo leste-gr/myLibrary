@@ -87,6 +87,8 @@ On an owned collection page, the owner can:
 - select any retained edition candidate, changing both ISBN and cover;
 - enter an ISBN manually, which is validated and canonicalized before use.
 
+Book edit and delete controls appear inside the book detail dialog after opening a book. The owner edit page also accepts a JPG, PNG or WebP cover image up to 4 MB. Uploads are decoded, resized to fit within 1600×2400, stripped of metadata and saved as WebP in the private `book-covers` bucket. The controlled image route follows the collection's public/private visibility. An uploaded cover overrides the image for that physical copy, retains owner provenance and survives later automatic edition/cover changes. It does not change the book's ISBN. A replacement upload gets a new immutable filename so cached old images do not hide the replacement.
+
 Owner decisions retain separate provenance and are not silently overwritten by subsequent automatic matching.
 
 Rejecting an edition records durable feedback, removes an automatic selection when necessary, and prevents the same ISBN from being proposed again for that physical copy.

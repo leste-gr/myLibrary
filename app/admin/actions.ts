@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { canonicalIsbn, isbnCoverPath } from "@/lib/isbn";
+import { randomUUID } from "node:crypto";
+import { prepareCoverUpload } from "@/lib/cover-upload";
 
 async function authenticatedClient() {
   const supabase = await createSupabaseServerClient();
@@ -16,6 +18,47 @@ async function authenticatedClient() {
 function editPath(collectionSlug: string, legacyId: string, query = "") {
   const base = collectionSlug ? `/collections/${collectionSlug}/books/${legacyId}` : `/admin/books/${legacyId}`;
   return base + query;
+}
+
+export async function uploadBookCover(formData: FormData) {
+  const copyId = String(formData.get("copyId") ?? "");
+  const legacyId = String(formData.get("legacyId") ?? "");
+  const slug = String(formData.get("collectionSlug") ?? "");
+  const { supabase, user } = await authenticatedClient();
+  const { data: collection } = await supabase.from("collections").select("id,slug")
+    .eq("slug", slug).eq("owner_id", user.id).maybeSingle();
+  if (!collection || !/^[0-9a-f-]{36}$/i.test(copyId)) throw new Error("Book not found.");
+  const { data: copy } = await supabase.from("copies").select("id,legacy_id")
+    .eq("id", copyId).eq("legacy_id", legacyId).eq("collection_id", collection.id).maybeSingle();
+  if (!copy) throw new Error("Book not found.");
+  const destination = editPath(collection.slug, copy.legacy_id);
+  const file = formData.get("cover");
+  let image: Buffer;
+  try {
+    if (!(file instanceof File)) throw new Error("Choose a cover image to upload.");
+    image = await prepareCoverUpload(file);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "This image could not be read. Choose a valid JPG, PNG or WebP file.";
+    redirect(destination + "?error=" + encodeURIComponent(message));
+  }
+  const path = `${user.id}/${copy.id}/${randomUUID()}.webp`;
+  const { error: uploadError } = await supabase.storage.from("book-covers").upload(path, image, {
+    contentType: "image/webp", cacheControl: "31536000", upsert: false,
+  });
+  if (uploadError) {
+    console.error("Owner cover upload failed", uploadError.message);
+    redirect(destination + "?error=" + encodeURIComponent("Could not upload the cover. Please try again."));
+  }
+  const { error: selectionError } = await supabase.rpc("set_owned_book_cover", { target_copy_id: copy.id, storage_path: path });
+  if (selectionError) {
+    await supabase.storage.from("book-covers").remove([path]);
+    console.error("Owner cover selection failed", selectionError.message);
+    redirect(destination + "?error=" + encodeURIComponent("Could not save the cover. Please try again."));
+  }
+  revalidatePath("/");
+  revalidatePath(`/collections/${collection.slug}`);
+  revalidatePath(destination);
+  redirect(destination + "?coverSaved=1");
 }
 
 export async function deleteCollection(formData: FormData) {
