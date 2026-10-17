@@ -11,7 +11,7 @@ This is the canonical contract for turning a shelfie into published books. Detai
 | 1. Extract and research book data | Implemented | The prompt identifies shelf books, then asks the user's LLM to verify an edition ISBN and direct public cover image. The same schema supports MCP and manual JSON upload. |
 | 2. Identify ISBN fallback | Implemented | Runs only for imported books without `coverUrl`; it retains ranked candidates and selects the leader. |
 | 3. Resolve cover fallback | Implemented | Runs only when Stage 1 did not supply a cover. It owns selected-ISBN, representative candidate, and metadata cover detection, in that order. |
-| 4. Owner refinement | Implemented | On their public collection page, the owner can inspect candidates, choose an edition, or enter an ISBN manually. |
+| 4. Owner refinement | Implemented | On their public collection page, the owner can inspect candidates, choose an edition, enter an ISBN manually, or upload an image file to use as cover. |
 
 Stage 2 progress is stored on the import record. Processing starts from the database insertion event and from the hourly Supabase `pg_cron` job `mylibrary-hourly-ingestion-retry`, scheduled at minute zero of every hour. Both invoke the same dispatcher and worker. Failed lookups become eligible at the next hourly tick. Processing claims older than ten minutes can be recovered. Atomic row claims prevent overlapping workers from processing the same book.
 
