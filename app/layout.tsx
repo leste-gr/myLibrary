@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { SiteFooter } from "@/components/site-footer";
 import { AccountMenu } from "@/components/account-menu";
+import Link from "next/link";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
@@ -22,7 +23,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const locale = await getLocale();
   return (
     <html lang={locale}>
-      <body><LanguageProvider locale={locale}><div className="global-navigation"><Suspense fallback={<span className="account-placeholder" aria-hidden="true" />}><AccountMenu /></Suspense><LanguageSwitcher /></div>{children}<SiteFooter /></LanguageProvider></body>
+      <body><LanguageProvider locale={locale}><div className="global-navigation"><Link href="/" className="directory-brand"><span aria-hidden="true">m.</span>myLibrary</Link><Suspense fallback={<span className="account-placeholder" aria-hidden="true" />}><AccountMenu /></Suspense><LanguageSwitcher /></div>{children}<SiteFooter /></LanguageProvider></body>
     </html>
   );
 }

@@ -1,5 +1,5 @@
 import { unstable_cache } from "next/cache";
-import { getPublicCatalogue, getPublicCollection, getPublicCollections } from "./catalogue";
+import { getPublicCatalogue, getPublicCollection, getPublicCollections, getPublicCollectionPreview } from "./catalogue";
 
 // Only anonymous public-view data enters this shared cache. Session and owner
 // checks stay request-scoped. Existing revalidatePath calls expire edited pages.
@@ -11,3 +11,5 @@ export const getCachedPublicCollection = unstable_cache(getPublicCollection,
   ["public-collection-v1", publicDataset], { revalidate: 30 });
 export const getCachedPublicCatalogue = unstable_cache(getPublicCatalogue,
   ["public-collection-books-v1", publicDataset], { revalidate: 30 });
+export const getCachedPublicCollectionPreview = unstable_cache(getPublicCollectionPreview,
+  ["public-collection-preview-v1", publicDataset], { revalidate: 30 });

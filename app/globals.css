@@ -97,3 +97,65 @@ body:has(dialog[open]){overflow:hidden}
 .skeleton-line.short { width: 60%; }
 .skeleton-cover { aspect-ratio: 2 / 3; border-radius: 6px; background: #e8e2d7; }
 .account-placeholder { display: inline-block; width: 9rem; min-height: 2rem; }
+
+/* Paper discovery: a compact masthead and shelves that lead into each collection. */
+.directory-brand{display:none}
+body:has(.directory-shell) .global-navigation{max-width:1180px;margin:auto;min-height:82px;gap:24px;background:var(--paper)}
+body:has(.directory-shell) .directory-brand{display:flex;align-items:center;gap:12px;margin-right:auto;text-decoration:none;color:var(--ink);font:500 25px var(--serif)}
+.directory-brand>span{display:grid;place-items:center;width:38px;height:40px;background:var(--wine);color:var(--white);font:24px var(--serif)}
+body:has(.directory-shell) .account-menu{background:transparent}
+.directory-shell{min-height:0}
+.directory-main{padding-top:38px;padding-bottom:36px}
+.directory-intro{max-width:760px;margin-bottom:28px}
+.directory-intro h1{font-size:clamp(36px,4.7vw,54px);line-height:1.12;letter-spacing:-1.5px;margin:12px 0 14px}
+.directory-intro>p:last-child{font-size:16px;margin:0}
+.directory-shell .collection-tabs{margin-bottom:22px}
+.directory-shell .collection-tabs a{padding-inline:14px}
+.directory-heading{border:0;padding:0;margin-bottom:20px;gap:16px}
+.directory-heading h2{font:500 25px/1.3 var(--serif)}
+.directory-heading>span{font:13px var(--sans);color:var(--muted);white-space:nowrap}
+.directory-shell .collection-grid{gap:24px;align-items:start}
+.discovery-card{padding:0;min-height:0;border-radius:7px;overflow:hidden;display:flex;flex-direction:column}
+.discovery-card:hover{transform:none;border-color:var(--line)}
+.discovery-card:has(a:hover),.discovery-card:focus-within{border-color:var(--wine)}
+.collection-preview-link{display:block;text-decoration:none}
+.collection-preview{display:flex;align-items:flex-end;justify-content:center;gap:16px;height:190px;padding:22px 20px 0;background:var(--sand);overflow:hidden}
+.collection-preview img,.preview-placeholder{width:112px;height:164px;object-fit:contain;object-position:bottom;filter:drop-shadow(3px 3px 4px #302c2726);flex-shrink:0;transition:transform .2s}
+.collection-preview img:nth-child(2),.preview-placeholder:nth-child(2){height:176px}
+.collection-preview-link:hover img{transform:translateY(-3px)}
+.preview-placeholder{display:flex;align-items:center;justify-content:center;background:var(--wine);color:var(--white);font:15px var(--serif);border-left:5px solid #ffffff20}
+.preview-placeholder:nth-child(2){background:#8a7957}.preview-placeholder:nth-child(3){background:#3d5a50}
+.collection-card-copy{padding:22px;display:flex;flex-direction:column;flex:1;min-width:0}
+.collection-card-copy>.eyebrow{font-size:10px;letter-spacing:1.5px;margin-bottom:10px}
+.collection-card-copy h3{font:500 24px/1.35 var(--serif);margin:0 0 12px;overflow-wrap:anywhere}
+.collection-card-copy h3 a{color:var(--ink);text-decoration:none}.collection-card-copy h3 a:hover{text-decoration:underline;text-underline-offset:4px}
+.collection-notes{border:0;margin:0 0 12px}
+.collection-notes>summary{display:list-item;list-style:disclosure-closed;color:var(--muted);font:13px/1.5 var(--sans);padding:8px 0;cursor:pointer;min-height:36px}
+.collection-notes[open]>summary{list-style:disclosure-open}
+.collection-notes p{font-size:14px;color:var(--muted);margin:4px 0 14px;overflow-wrap:anywhere}
+.collection-card-bottom{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;border-top:1px solid var(--line);padding-top:12px;margin-top:auto}
+.discovery-card dl{display:flex;gap:16px;margin:0;flex-wrap:wrap}
+.discovery-card dl div{display:flex;flex-direction:row;align-items:baseline;gap:5px}
+.discovery-card dd,.discovery-card dt{font:12px var(--sans);text-transform:none;letter-spacing:0;color:var(--muted)}
+.discovery-card dd{color:var(--ink);font-weight:600;order:-1}
+.discovery-card .collection-link{display:inline-flex;align-items:center;min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:4px;text-decoration:none;white-space:nowrap}
+.discovery-card .collection-link:hover{background:var(--wine);color:var(--white);border-color:var(--wine)}
+@media(max-width:760px){
+  body:has(.directory-shell) .global-navigation{padding:16px 6%;gap:14px}
+  body:has(.directory-shell) .directory-brand{font-size:22px}
+  body:has(.directory-shell) .global-navigation .account-menu{flex:0 1 auto}
+  .directory-main{padding-top:28px;padding-bottom:28px}
+  .directory-intro{margin-bottom:24px}
+  .directory-heading h2{font-size:22px}
+  .directory-shell .collection-grid{grid-template-columns:1fr}
+  .collection-preview{height:164px;gap:12px}
+  .collection-preview img,.preview-placeholder{width:92px;height:140px}
+  .collection-preview img:nth-child(2),.preview-placeholder:nth-child(2){height:150px}
+  .collection-card-copy{padding:20px}
+  .collection-card-copy h3{font-size:22px}
+}
+@media(max-width:380px){
+  .collection-preview{gap:8px;padding-inline:12px}
+  .collection-preview img,.preview-placeholder{width:78px}
+  .directory-heading{align-items:flex-start;flex-wrap:wrap;gap:6px}
+}

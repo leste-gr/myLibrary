@@ -1,5 +1,14 @@
 // Interface translations only. Book and collection data retain their original language.
 export const el: Record<string, string> = {
+  "A community of collections": "Μια κοινότητα συλλογών",
+  "Good books.": "Καλά βιβλία.",
+  "Interesting company.": "Ενδιαφέρουσα παρέα.",
+  "Explore the shelves people love to share.": "Ανακάλυψε τα ράφια που αγαπάμε να μοιραζόμαστε.",
+  "Explore collections": "Ανακάλυψε συλλογές",
+  "Explore collection": "Ανακάλυψε τη συλλογή",
+  "collections": "συλλογές",
+  "About this collection": "Σχετικά με τη συλλογή",
+  "Explore →": "Εξερεύνηση →",
   "This page could not be loaded.": "Η σελίδα δεν μπόρεσε να φορτωθεί.",
   "The data is unavailable right now. Please try again shortly.": "Τα δεδομένα δεν είναι διαθέσιμα αυτή τη στιγμή. Δοκίμασε ξανά σε λίγο.",
   "Try again": "Δοκίμασε ξανά",

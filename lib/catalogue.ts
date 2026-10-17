@@ -87,3 +87,13 @@ export async function getPublicCatalogue(slug: string): Promise<CatalogueBook[]>
     isbn13: row.isbn13,
   }));
 }
+
+// A directory preview needs only three covers, not the entire catalogue.
+export async function getPublicCollectionPreview(slug: string) {
+  const { data, error } = await publicClient().from("public_catalogue")
+    .select("legacy_id,title,cover_url")
+    .eq("collection_slug", slug).not("cover_url", "is", null)
+    .neq("cover_url", "").order("display_order", { ascending: true }).limit(3);
+  if (error) throw new Error("Unable to load collection preview.", { cause: error });
+  return data ?? [];
+}

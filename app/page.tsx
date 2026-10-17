@@ -4,7 +4,8 @@ import { CollectionListSkeleton } from "@/components/catalogue-loading";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { getCachedPublicCollections } from "@/lib/catalogue-cache";
+import { getCachedPublicCollections, getCachedPublicCollectionPreview } from "@/lib/catalogue-cache";
+import { BookCoverImage } from "@/components/book-cover-image";
 import { getViewer } from "@/lib/catalogue-viewer";
 
 
@@ -15,12 +16,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const mine = view === "mine";
   return <div className="directory-shell">
     {deleted === "1" && <div className="global-notice" role="status">{t("Collection deleted.")}</div>}
-    <header className="masthead">
-      <div className="brand"><span className="monogram" aria-hidden="true">Β.</span><span>myLibrary<small>{t("PUBLIC COLLECTIONS")}</small></span></div>
-      <nav className="site-nav"><Link href="/?view=mine">{t("My collections")}</Link></nav>
-    </header>
+    <a className="skip" href="#collections-title">{t("Explore collections")}</a>
     <main className="directory-main">
-      <section className="directory-intro"><p className="eyebrow">{t("MYLIBRARY")}</p><h1>{t(mine ? "My collections" : "Libraries worth exploring.")}</h1><p>{t(mine ? "Your books, across all your collections." : "Discover public collections from the community.")}</p></section>
+      <section className="directory-intro"><p className="eyebrow">{t("A community of collections")}</p><h1>{mine ? t("My collections") : <>{t("Good books.")}<br />{t("Interesting company.")}</>}</h1><p>{t(mine ? "Your books, across all your collections." : "Explore the shelves people love to share.")}</p></section>
       <nav className="collection-tabs" aria-label={t("Browse collections")}>
         <Link href="/" aria-current={!mine ? "page" : undefined}>{t("All collections")}</Link>
         <Link href="/?view=mine" aria-current={mine ? "page" : undefined}>{t("My collections")}</Link>
@@ -49,16 +47,33 @@ async function CollectionDirectory({ mine }: { mine: boolean }) {
     collections = await getCachedPublicCollections();
   }
   return (<section aria-labelledby="collections-title">
-        <div className="directory-heading"><h2 id="collections-title">{t(mine ? "My collections" : "All collections")}</h2><span>{collections.length}</span></div>
+        <div className="directory-heading"><h2 id="collections-title">{t(mine ? "My collections" : "Explore collections")}</h2><span>{collections.length} {t("collections")}</span></div>
         <div className="collection-grid">{collections.map((collection) =>
-          <Link className="collection-card" href={`/collections/${collection.slug}`} key={collection.id}>
+          <article className="collection-card discovery-card" key={collection.id}>
+            <Link className="collection-preview-link" href={`/collections/${collection.slug}`} aria-label={`${t("Explore collection")}: ${collection.name}`}>
+              <Suspense fallback={<PreviewShelf />}><CollectionPreview slug={collection.slug} /></Suspense>
+            </Link>
+            <div className="collection-card-copy">
             <p className="eyebrow">{t("PUBLIC COLLECTION")}</p>
-            <h2>{collection.name}</h2>
-            {collection.description && <p>{collection.description}</p>}
-            <dl><div><dt>{t("Books")}</dt><dd>{collection.bookCount}</dd></div><div><dt>{t("Authors")}</dt><dd>{collection.authorCount}</dd></div></dl>
-            <span className="collection-link">{t("Open collection →")}</span>
-          </Link>
+            <h3><Link href={`/collections/${collection.slug}`}>{collection.name}</Link></h3>
+            {collection.description && <details className="collection-notes"><summary>{t("About this collection")}</summary><p>{collection.description}</p></details>}
+            <div className="collection-card-bottom"><dl><div><dt>{t("Books")}</dt><dd>{collection.bookCount}</dd></div><div><dt>{t("Authors")}</dt><dd>{collection.authorCount}</dd></div></dl>
+            <Link className="collection-link" href={`/collections/${collection.slug}`}>{t("Explore →")}<span className="sr-only"> {collection.name}</span></Link></div>
+            </div>
+          </article>
         )}</div>
         {!collections.length && <p className="empty-admin">{t(mine ? "You have no collections yet. Import some books to create your first collection." : "There are no public collections yet.")}</p>}
       </section>);
+}
+
+function PreviewShelf() {
+  return <div className="collection-preview" aria-hidden="true">{[0, 1, 2].map(index => <span className="preview-placeholder" key={index}>myLibrary</span>)}</div>;
+}
+
+async function CollectionPreview({ slug }: { slug: string }) {
+  const books = await getCachedPublicCollectionPreview(slug).catch(() => []);
+  if (!books.length) return <PreviewShelf />;
+  return <div className="collection-preview" aria-hidden="true">{books.map(book =>
+    <BookCoverImage key={book.legacy_id} src={book.cover_url} alt="" fallbackAlt="" width={112} height={164} loading="lazy" decoding="async" />
+  )}</div>;
 }
