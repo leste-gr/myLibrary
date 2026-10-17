@@ -90,6 +90,7 @@ async function runManualGenaiImportMatching(supabase: SupabaseClient, importId: 
       work_confidence: candidate.workConfidence,
       edition_confidence: candidate.editionConfidence,
       auto_accept: candidate.autoAccept,
+      review_only: false,
       last_evaluated_at: new Date().toISOString(),
     }));
   });

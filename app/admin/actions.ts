@@ -7,6 +7,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { canonicalIsbn, isbnCoverPath } from "@/lib/isbn";
 import { randomUUID } from "node:crypto";
 import { prepareCoverUpload } from "@/lib/cover-upload";
+import { findBookIsbnCandidates } from "@/lib/book-isbn-search";
 
 async function authenticatedClient() {
   const supabase = await createSupabaseServerClient();
@@ -59,6 +60,31 @@ export async function uploadBookCover(formData: FormData) {
   revalidatePath(`/collections/${collection.slug}`);
   revalidatePath(destination);
   redirect(destination + "?coverSaved=1");
+}
+
+export async function searchBookIsbnCandidates(formData: FormData) {
+  const copyId = String(formData.get("copyId") ?? "");
+  const legacyId = String(formData.get("legacyId") ?? "");
+  const slug = String(formData.get("collectionSlug") ?? "");
+  const { supabase, user } = await authenticatedClient();
+  const { data: collection } = await supabase.from("collections").select("id,slug")
+    .eq("slug", slug).eq("owner_id", user.id).maybeSingle();
+  if (!collection || !/^[0-9a-f-]{36}$/i.test(copyId)) throw new Error("Book not found.");
+  const { data: copy } = await supabase.from("copies").select("id,legacy_id")
+    .eq("id", copyId).eq("legacy_id", legacyId).eq("collection_id", collection.id).maybeSingle();
+  if (!copy) throw new Error("Book not found.");
+  const destination = editPath(collection.slug, copy.legacy_id);
+  let message: string | null = null;
+  try {
+    await findBookIsbnCandidates(supabase, copy.id);
+  } catch (error) {
+    console.error("Owner ISBN search failed", error);
+    message = error instanceof Error && error.message === "ISBN providers are unavailable. Please try again."
+      ? error.message : "Could not search ISBN candidates. Please try again.";
+  }
+  if (message) redirect(destination + "?error=" + encodeURIComponent(message));
+  revalidatePath(destination);
+  redirect(destination + "?isbnSearched=1");
 }
 
 export async function deleteCollection(formData: FormData) {

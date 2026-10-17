@@ -270,5 +270,34 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     assert.equal((await db.query("select * from storage.objects where name=$1", [uploadedPath])).rows.length, 0, "private collection covers stay private");
     await claims(alice);
     assert.equal((await db.query("select * from storage.objects where name=$1", [uploadedPath])).rows.length, 1, "the owner can still view a private cover");
+
+    // Manual Stage 2 never publishes even an overwhelming top-ranked match.
+    const snapshot = async () => (await db.query<{ value: unknown }>(
+      "select to_jsonb(c)-'last_isbn_candidate_search_at'-'last_isbn_search_provider_failures' as value from public.copies c where id=$1", [copyId])).rows[0].value;
+    const beforeSearch = await snapshot();
+    const jobBefore = (await db.query("select * from public.manual_genai_imports where id=$1", [retryImport])).rows;
+    const observationsBefore = (await db.query("select * from public.book_observations where copy_id=$1 order by id", [copyId])).rows;
+    const candidate = (isbn13: string, score: number) => ({ isbn13, score, title: "Manual result", publishers: [], publishedDate: "1954", providerId: isbn13, confidence: 1, evidence: [], scoreBreakdown: {}, providerCount: 2, providerIdentifiers: {}, workConfidence: 1, editionConfidence: 1, autoAccept: true });
+    const results = [candidate("9780261102217", 9999), candidate("9780140328721", 500)];
+    assert.equal(await rpc("save_book_isbn_search", [copyId, JSON.stringify(results), 0]), 2);
+    assert.deepEqual(await snapshot(), beforeSearch, "ISBN, every book status, cover, and timestamps stay unchanged");
+    assert.deepEqual((await db.query("select * from public.manual_genai_imports where id=$1", [retryImport])).rows, jobBefore);
+    assert.deepEqual((await db.query("select * from public.book_observations where copy_id=$1 order by id", [copyId])).rows, observationsBefore);
+    const ranked = (await db.query<{ isbn13: string; review_only: boolean; auto_accept: boolean; manual_search_rank: number }>("select isbn13,review_only,auto_accept,manual_search_rank from public.edition_candidates where copy_id=$1 and manual_search_rank is not null order by manual_search_rank", [copyId])).rows;
+    assert.deepEqual(ranked.map(row => row.isbn13), results.map(row => row.isbn13));
+    assert.ok(ranked.every(row => row.review_only && !row.auto_accept));
+    await db.exec("reset role");
+    await rpc("apply_best_isbn_candidate", [copyId]);
+    assert.deepEqual(await snapshot(), beforeSearch, "review-only results cannot be automatically selected later");
+    await db.query("update public.copies set edition_verification_state='unresolved',cover_status='failed' where id=$1", [copyId]);
+    await claims(alice);
+    const failedSnapshot = await snapshot();
+    assert.equal(await rpc("save_book_isbn_search", [copyId, JSON.stringify(results), 1]), 2);
+    assert.deepEqual(await snapshot(), failedSnapshot, "manual search runs regardless of current book status");
+    assert.equal(await rpc("save_book_isbn_search", [copyId, "[]", 0]), 0);
+    assert.equal((await db.query("select id from public.edition_candidates where copy_id=$1 and manual_search_rank is not null", [copyId])).rows.length, 0);
+    assert.deepEqual(await snapshot(), failedSnapshot, "empty results do not change status either");
+    await claims(bob);
+    await assert.rejects(() => rpc("save_book_isbn_search", [copyId, JSON.stringify(results), 0]), /ownership/);
   } finally { await db.close(); }
 });

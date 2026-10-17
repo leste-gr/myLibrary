@@ -56,3 +56,7 @@ Automation publishes its best result, while alternative edition candidates and t
 ## Next implementation priority
 
 Measure Stage 2 accuracy on owner corrections, improve edition-specific scoring when title-only metadata produces ties, and retain provider response caching so repeated imports avoid redundant lookups.
+
+## Owner-requested Stage 2 search
+
+The edit-book page's Find ISBN candidates button runs the shared Stage 2 providers and ranker for that copy alone, irrespective of matching or cover status. It does not claim an ingestion job or update book, observation, ingestion, or cover statuses. Results are stored as review-only candidates and displayed in ranking order; database triggers and later automatic selection exclude them. Even a high-confidence result requires an explicit owner selection and publication. Empty successful searches clear the displayed search results; provider outages preserve previous results and report an error. Existing rejected candidates remain excluded. Normal ingestion retains its automatic matching behavior.

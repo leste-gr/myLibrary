@@ -85,3 +85,5 @@ The owner uploads the shelf photograph directly to a GenAI chat they choose. myL
 - Service-role credentials exist only in trusted tooling environments.
 - JSON size, count, types, ISBN checksums, and key field limits are validated.
 - Database backups and recovery are configured according to the Supabase plan.
+
+Owner ISBN search: apply migration 202610170036_owner_isbn_candidate_search.sql before deploying the edit-page changes. It adds review-only candidate persistence and per-copy search metadata, and prevents candidate-only searches from invoking automatic ISBN assignment. No Edge Function redeployment is required.

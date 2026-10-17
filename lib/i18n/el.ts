@@ -417,5 +417,15 @@ export const el: Record<string, string> = {
   "Choose a JPG, PNG or WebP image.": "Επιλέξτε μια εικόνα JPG, PNG ή WebP.",
   "This image could not be read. Choose a valid JPG, PNG or WebP file.": "Δεν ήταν δυνατή η ανάγνωση αυτής της εικόνας. Επιλέξτε ένα έγκυρο αρχείο JPG, PNG ή WebP.",
   "Could not upload the cover. Please try again.": "Δεν ήταν δυνατό το ανέβασμα του εξωφύλλου. Δοκιμάστε ξανά.",
-  "Could not save the cover. Please try again.": "Δεν ήταν δυνατή η αποθήκευση του εξωφύλλου. Δοκιμάστε ξανά."
+  "Could not save the cover. Please try again.": "Δεν ήταν δυνατή η αποθήκευση του εξωφύλλου. Δοκιμάστε ξανά.",
+  "Find ISBN candidates": "Αναζήτηση υποψήφιων ISBN",
+  "Searching ISBN candidates…": "Αναζήτηση υποψήφιων ISBN…",
+  "Search this book again. Results are ranked for your review; the ISBN and book status stay unchanged.": "Αναζητήστε ξανά αυτό το βιβλίο. Τα αποτελέσματα ταξινομούνται για έλεγχο· το ISBN και η κατάσταση του βιβλίου παραμένουν ίδια.",
+  "Found {0} ISBN candidates. Choose an edition to use it.": "Βρέθηκαν {0} υποψήφια ISBN. Επιλέξτε μια έκδοση για να τη χρησιμοποιήσετε.",
+  "Some ISBN providers were unavailable. These results may be incomplete; you can search again.": "Ορισμένες πηγές ISBN δεν ήταν διαθέσιμες. Τα αποτελέσματα μπορεί να είναι ελλιπή· μπορείτε να αναζητήσετε ξανά.",
+  "No ISBN candidates found. Try again later or enter an ISBN manually.": "Δεν βρέθηκαν υποψήφια ISBN. Δοκιμάστε αργότερα ή εισαγάγετε ISBN χειροκίνητα.",
+  "Rank {0}": "Κατάταξη {0}",
+  "Current edition": "Τρέχουσα έκδοση",
+  "ISBN providers are unavailable. Please try again.": "Οι πηγές ISBN δεν είναι διαθέσιμες. Δοκιμάστε ξανά.",
+  "Could not search ISBN candidates. Please try again.": "Η αναζήτηση υποψήφιων ISBN απέτυχε. Δοκιμάστε ξανά."
 };
