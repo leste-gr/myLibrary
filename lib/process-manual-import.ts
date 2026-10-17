@@ -73,6 +73,8 @@ async function runManualGenaiImportMatching(supabase: SupabaseClient, importId: 
       copy_id: observation.copy_id,
       isbn13: candidate.isbn13,
       title: candidate.title,
+      authors: candidate.authors,
+      language: candidate.language,
       publishers: candidate.publishers,
       published_date: candidate.publishedDate,
       provider: "isbn-matcher-v3",

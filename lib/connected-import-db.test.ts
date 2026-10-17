@@ -299,5 +299,40 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     assert.deepEqual(await snapshot(), failedSnapshot, "empty results do not change status either");
     await claims(bob);
     await assert.rejects(() => rpc("save_book_isbn_search", [copyId, JSON.stringify(results), 0]), /ownership/);
+
+    // Saving an ISBN draft must not publish its cover or metadata early.
+    await claims(alice);
+    const originalBook = await snapshot();
+    const details = { title: "The Fellowship of the Ring", authors: ["J. R. R. Tolkien"], publishers: ["Allen & Unwin"], publishedDate: "1954", language: "en" };
+    await db.exec("reset role");
+    const siblingId = (await db.query<{ id: string }>("insert into public.copies(legacy_id,work_id,collection_id,display_order,category,language) select 'same-work-sibling',work_id,collection_id,999,category,language from public.copies where id=$1 returning id", [copyId])).rows[0].id;
+    await claims(alice);
+    const siblingBefore = (await db.query("select c.*,w.title,w.author from public.copies c join public.works w on w.id=c.work_id where c.id=$1", [siblingId])).rows;
+    await rpc("save_owned_isbn_draft", [copyId, "9780261102217", JSON.stringify(details), null]);
+    assert.deepEqual(await snapshot(), originalBook, "a saved draft never changes the published copy");
+    const savedDraft = (await db.query<{ cover_url: string; edition_metadata: unknown }>("select cover_url,edition_metadata from public.copy_drafts where copy_id=$1", [copyId])).rows[0];
+    assert.equal((await db.query<{ source_url: string }>("select source_url from public.cover_assets where id=split_part($1,'/',4)::uuid", [savedDraft.cover_url])).rows[0].source_url, "/api/covers/9780261102217", "preview resolves the chosen ISBN");
+    assert.deepEqual(savedDraft.edition_metadata, { ...details, selectedCandidateId: null });
+    await claims(bob);
+    await assert.rejects(() => rpc("save_owned_isbn_draft", [copyId, "9780261102217", JSON.stringify(details), null]), /ownership/);
+    await assert.rejects(() => rpc("publish_copy_draft", [copyId]), /ownership/);
+    await claims(alice, true);
+    await assert.rejects(() => rpc("save_owned_isbn_draft", [copyId, "9780261102217", JSON.stringify(details), null]), /Browser/);
+    await claims(alice);
+    await rpc("publish_copy_draft", [copyId]);
+    const published = (await db.query<{ title: string; author: string; publisher: string; language: string; published_date: string; isbn13: string; cover_url: string }>("select w.title,w.author,c.publisher,c.language,e.published_date,e.isbn13,c.cover_url from public.copies c join public.works w on w.id=c.work_id join public.editions e on e.id=c.edition_id where c.id=$1", [copyId])).rows[0];
+    assert.deepEqual(published, { title: details.title, author: details.authors[0], publisher: details.publishers[0], language: "en", published_date: "1954", isbn13: "9780261102217", cover_url: uploadUrl });
+    assert.deepEqual((await db.query("select c.*,w.title,w.author from public.copies c join public.works w on w.id=c.work_id where c.id=$1", [siblingId])).rows, siblingBefore, "other copies sharing the old work are unchanged");
+    assert.equal((await db.query("select * from public.copy_drafts where copy_id=$1", [copyId])).rows.length, 0);
+    // Candidate and manual entry share the same draft transaction.
+    await rpc("save_book_isbn_search", [siblingId, JSON.stringify([candidate("9780140328721",500)]), 0]);
+    const chosenId = (await db.query<{id:string}>("select id from public.edition_candidates where copy_id=$1 and isbn13='9780140328721'", [siblingId])).rows[0].id;
+    const candidateDetails = { title: "Matilda", authors: ["Roald Dahl"], publishers: ["Puffin"], publishedDate: "1988", language: "en" };
+    await rpc("save_owned_isbn_draft", [siblingId, "9780140328721", JSON.stringify(candidateDetails), chosenId]);
+    const previewCover = (await db.query<{cover_url:string}>("select cover_url from public.copy_drafts where copy_id=$1", [siblingId])).rows[0].cover_url;
+    assert.equal((await db.query<{title:string}>("select title from public.editions where isbn13='9780140328721'")).rows[0].title, "Boundary book", "saving a draft does not edit a shared edition");
+    await rpc("publish_copy_draft", [siblingId]);
+    const candidatePublished = (await db.query<{title:string;author:string;cover_url:string}>("select w.title,w.author,c.cover_url from public.copies c join public.works w on w.id=c.work_id where c.id=$1", [siblingId])).rows[0];
+    assert.deepEqual(candidatePublished, {title:"Matilda",author:"Roald Dahl",cover_url:previewCover}, "published candidate uses exactly the previewed cover and metadata");
   } finally { await db.close(); }
 });

@@ -4,9 +4,10 @@ import { getTranslations } from "@/lib/i18n/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { canonicalIsbn, isbnCoverPath } from "@/lib/isbn";
+import { canonicalIsbn } from "@/lib/isbn";
 import { randomUUID } from "node:crypto";
 import { prepareCoverUpload } from "@/lib/cover-upload";
+import { saveIsbnDraft } from "@/lib/save-isbn-draft";
 import { findBookIsbnCandidates } from "@/lib/book-isbn-search";
 
 async function authenticatedClient() {
@@ -138,7 +139,7 @@ export async function saveEditionDraft(formData: FormData) {
   const collectionSlug = String(formData.get("collectionSlug") ?? "");
   if (!candidateId || !copyId || !legacyId) throw new Error("Missing edition selection.");
 
-  const { supabase, user } = await authenticatedClient();
+  const { supabase } = await authenticatedClient();
   const { data: candidate, error: candidateError } = await supabase
     .from("edition_candidates")
     .select("*")
@@ -147,42 +148,12 @@ export async function saveEditionDraft(formData: FormData) {
     .single();
   if (candidateError || !candidate) throw new Error("Edition candidate not found.");
 
-  await supabase.from("edition_candidates").update({ selection_state: "alternative" }).eq("copy_id", copyId).neq("selection_state", "owner_rejected");
-  const { error: selectionError } = await supabase.from("edition_candidates").update({ selection_state: "owner_selected" }).eq("id", candidateId);
-  if (selectionError) throw new Error("Could not select edition candidate.");
-
-  const { data: edition, error: editionError } = await supabase
-    .from("editions")
-    .upsert({
-      isbn13: candidate.isbn13,
-      title: candidate.title,
-      publishers: candidate.publishers,
-      published_date: candidate.published_date,
-      cover_url: candidate.cover_url,
-      provider: candidate.provider,
-      provider_id: candidate.provider_id,
-      metadata: { evidence: candidate.evidence },
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "isbn13" })
-    .select("id")
-    .single();
-  if (editionError || !edition) throw new Error("Could not save edition.");
-
-  const { data: coverAssetId, error: coverAssetError } = await supabase.rpc("prepare_candidate_cover_asset", { target_candidate_id: candidateId });
-  if (coverAssetError || !coverAssetId) throw new Error("Could not prepare cover asset.");
-
-  const { error: draftError } = await supabase.from("copy_drafts").upsert({
-    copy_id: copyId,
-    edition_id: edition.id,
-    cover_url: `/api/cover-assets/${coverAssetId}`,
-    created_by: user.id,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: "copy_id" });
-  if (draftError) throw new Error("Could not save draft.");
+  await saveIsbnDraft(supabase, copyId, candidate.isbn13, candidate);
 
   revalidatePath("/admin");
   revalidatePath("/admin/books/" + legacyId);
   if (collectionSlug) revalidatePath("/collections/" + collectionSlug);
+  revalidatePath(editPath(collectionSlug, legacyId));
   redirect(editPath(collectionSlug, legacyId, "?saved=1"));
 }
 
@@ -218,61 +189,13 @@ export async function saveManualIsbnDraft(formData: FormData) {
   if (!collection) throw new Error("Collection not found.");
   const { data: copy } = await supabase
     .from("copies")
-    .select("id,work:works(title)")
+    .select("id")
     .eq("id", copyId)
     .eq("collection_id", collection.id)
     .single();
   if (!copy) throw new Error("Book not found.");
 
-  const coverUrl = isbnCoverPath(isbn13);
-  const work = Array.isArray(copy.work) ? copy.work[0] : copy.work;
-  let { data: edition } = await supabase.from("editions").select("id").eq("isbn13", isbn13).maybeSingle();
-  if (!edition) {
-    const created = await supabase.from("editions").insert({
-      isbn13,
-      title: work?.title ?? null,
-      cover_url: coverUrl,
-      provider: "manual",
-      provider_id: `manual:${isbn13}`,
-      metadata: { evidence: ["manual ISBN entry"] },
-    }).select("id").single();
-    if (created.error || !created.data) throw new Error("Could not save ISBN.");
-    edition = created.data;
-  }
-
-  await supabase.from("edition_candidates").update({ suggested: false }).eq("copy_id", copyId);
-  const { data: manualCandidate, error: candidateError } = await supabase.from("edition_candidates").upsert({
-    copy_id: copyId,
-    isbn13,
-    title: work?.title ?? null,
-    publishers: [],
-    cover_url: coverUrl,
-    provider: "manual",
-    provider_id: `manual:${isbn13}`,
-    score: 1000,
-    suggested: true,
-    rank: 0,
-    evidence: ["manual ISBN entry"],
-    selection_state: "owner_selected",
-    confidence: 1,
-    algorithm_version: "manual-owner-v1",
-    score_breakdown: { manual_isbn: 1000 },
-    provider_count: 1,
-    last_evaluated_at: new Date().toISOString(),
-  }, { onConflict: "copy_id,isbn13" }).select("id").single();
-  if (candidateError || !manualCandidate) throw new Error("Could not save ISBN candidate.");
-
-  const { data: coverAssetId, error: coverAssetError } = await supabase.rpc("prepare_candidate_cover_asset", { target_candidate_id: manualCandidate.id });
-  if (coverAssetError || !coverAssetId) throw new Error("Could not prepare ISBN cover asset.");
-
-  const { error: draftError } = await supabase.from("copy_drafts").upsert({
-    copy_id: copyId,
-    edition_id: edition.id,
-    cover_url: `/api/cover-assets/${coverAssetId}`,
-    created_by: user.id,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: "copy_id" });
-  if (draftError) throw new Error("Could not save ISBN draft.");
+  await saveIsbnDraft(supabase, copyId, isbn13);
 
   revalidatePath("/collections/" + collectionSlug);
   revalidatePath(editPath(collectionSlug, legacyId));
@@ -291,6 +214,7 @@ export async function publishEditionDraft(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/admin/books/" + legacyId);
   if (collectionSlug) revalidatePath("/collections/" + collectionSlug);
+  revalidatePath(editPath(collectionSlug, legacyId));
   redirect(editPath(collectionSlug, legacyId, "?published=1"));
 }
 
