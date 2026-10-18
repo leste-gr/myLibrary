@@ -168,10 +168,9 @@ Primary goal: Identify the correct literary work and display a valid cover for i
    - No cover, only when no credible match exists.
 4. A representative cover is acceptable even when the publisher, publication year, format, or language differs.
 5. Never use the cover of another volume, adaptation, or unrelated work.
-6. Never assign an ISBN from a representative cover to the physical edition. Keep ISBN null unless independently verified.
-7. Record when a representative cover is used, but do not reduce book-identification confidence solely because the cover differs.
-8. Reconcile overlapping photographs and check titles, authors, volumes, and duplicates before importing.
-9. Never report an import as fully verified unless its bibliographic validation has actually been completed.
+6. Record when a representative cover is used, but do not reduce book-identification confidence solely because the cover differs.
+7. Reconcile overlapping photographs and check titles, authors, volumes, and duplicates before importing.
+8. Never report an import as fully verified unless its bibliographic validation has actually been completed.
 
 Success criterion: Maximize correct-work identification and cover coverage without introducing false bibliographic information.`;
 
@@ -182,9 +181,9 @@ Before calling this tool, the client MUST actively search for a cover image for 
 For each book:
 
 1. Search using its title, author, language, and series/volume where applicable.
-2. Seek the exact edition first. If unavailable, search for another edition of the same work in the same language, then another language. An exact-edition match or ISBN is NOT required to supply a cover.
+2. Seek the exact edition first. If unavailable, search for another edition of the same work in the same language, then another language. An exact-edition match is NOT required to supply a cover.
 3. Verify that the image represents the correct work and volume. Submit a direct public HTTPS image URL in coverUrl.
-4. Record representative-cover use and known differences in notes. Never assign the representative edition’s ISBN to the photographed book.
+4. Record representative-cover use and known differences in notes.
 5. Set coverUrl: null only after actively searching and finding no credible cover, or encountering a search/access blocker. Record the searches attempted and the specific unresolved issue in notes. “Backend cover resolution requested” alone is insufficient.
 
 Backend cover resolution is a fallback AFTER client-side searching, never a substitute for it. Do not skip searches because the collection is large; continue in batches until every book has been searched. If search tools are unavailable, disclose the blocker before importing.
@@ -211,7 +210,7 @@ PASS 1 — PHYSICAL INVENTORY
 4. Keep repeated physical copies as separate items. Use overlapping photos only as additional evidence, not as additional books.
 
 PASS 2 — LITERAL READING
-5. Inspect horizontal, vertical, rotated, small, and logo text. Identify title, subtitle, people, publisher/imprint, series, volume/part/issue, edition wording, year, language clues, and any complete visible ISBN.
+5. Inspect horizontal, vertical, rotated, small, and logo text. Identify title, subtitle, people, publisher/imprint, series, volume/part/issue, edition wording, year, language clues.
 6. rawVisibleText must preserve all meaningful literal text on the spine in its original script and approximate reading order, before correction or expansion.
 7. Do not translate Greek titles into English or English titles into Greek.
 
@@ -222,16 +221,14 @@ PASS 3 — BIBLIOGRAPHIC INTERPRETATION
 11. If several readings remain plausible, preserve the supported literal title or fragment, lower that field's confidence, and put concise alternatives in notes. Never silently replace an uncertain title. Do not invent a title from an author alone.
 12. publisher may be identified from an unmistakable logo. series and volume must be separate from the individual title. Preserve Roman numerals and meaningful issue labels.
 13. publicationYear is populated only when a four-digit year is visible. language is the likely language of this physical edition, not the author's nationality.
-14. visibleIsbn must be null unless every digit of a complete ISBN-10 or ISBN-13 is visibly readable and checksum-valid.
-15. Use [] when no author is supported and null for other unknown fields. Never use placeholders such as "Unknown", "Unreadable", or "Untitled".
-16. A meaningful title or title fragment is required. Omit a spine if no such fragment can be detected; mention the omission nowhere outside the JSON.
+14. Use [] when no author is supported and null for other unknown fields. Never use placeholders such as "Unknown", "Unreadable", or "Untitled".
+15. A meaningful title or title fragment is required. Omit a spine if no such fragment can be detected; mention the omission nowhere outside the JSON.
 
 PASS 4 — WEB VERIFICATION AND COVER
-17. After reading the spine literally, verify the literary work using title, author, series, and volume. Prefer a publisher, author, library, or reputable bookshop page. Correct-work identification and credible cover coverage are the primary goal; an exact physical-edition match is secondary.
-18. isbn is the canonical ISBN-13 for the independently verified physical edition. Retrieve it only from a credible edition page or catalogue record supported by the photographed book; never guess it or assign the ISBN of a representative cover. Keep isbn null unless independently verified. When a complete visibleIsbn is present, isbn must match it. A representative cover may coexist with an independently verified physical-edition ISBN, but the cover's edition must never replace that ISBN.
-19. coverUrl is a direct, public HTTPS URL for a cover image, not a search-results page or product page. Prefer the image declared in schema.org Book/Product data, then og:image or the page's primary product image. Reject placeholders, generic series art, thumbnails too small to identify, access-controlled URLs, data/blob URLs, and images from pages that describe another volume, adaptation, or unrelated work.
-20. Resolve covers in order: exact physical edition; another edition of the same work in the same language; a different-language edition of the same work; null only when no credible match exists. A representative cover is acceptable even when publisher, publication year, format, or language differs. Record “representative cover” and the known differences in notes. Preserve the photographed edition's title, language, and other bibliographic fields; never copy conflicting metadata from the cover's edition. Do not reduce book-identification confidence solely because the cover differs.
-21. Check that the cover depicts the same work, author, series, and volume and is not an adaptation. Different language or edition details alone do not invalidate a representative cover. Keep the source image URL stable and free of temporary authentication parameters when possible. Leave coverUrl null when no credible match exists so the backend fallback can run.
+16. After reading the spine literally, verify the literary work using title, author, series, and volume. Prefer a publisher, author, library, or reputable bookshop page. Correct-work identification and credible cover coverage are the primary goal; an exact physical-edition match is secondary.
+17. coverUrl is a direct, public HTTPS URL for a cover image, not a search-results page or product page. Prefer the image declared in schema.org Book/Product data, then og:image or the page's primary product image. Reject placeholders, generic series art, thumbnails too small to identify, access-controlled URLs, data/blob URLs, and images from pages that describe another volume, adaptation, or unrelated work.
+18. Resolve covers in order: exact physical edition; another edition of the same work in the same language; a different-language edition of the same work; null only when no credible match exists. A representative cover is acceptable even when publisher, publication year, format, or language differs. Record “representative cover” and the known differences in notes. Preserve the photographed edition's title, language, and other bibliographic fields; never copy conflicting metadata from the cover's edition. Do not reduce book-identification confidence solely because the cover differs.
+19. Check that the cover depicts the same work, author, series, and volume and is not an adaptation. Different language or edition details alone do not invalidate a representative cover. Keep the source image URL stable and free of temporary authentication parameters when possible. Leave coverUrl null when no credible match exists so the backend fallback can run.
 
 CONFIDENCE CALIBRATION
 - 0.95–1.00: directly and completely readable.
@@ -242,8 +239,8 @@ CONFIDENCE CALIBRATION
 confidence represents confidence that the physical item was separated correctly and its title identifies the book, independently of whether the cover matches the physical edition. fieldConfidence scores each interpreted field; use null when that field is absent.
 
 PASS 5 — FINAL CHECK
-22. Reconcile the JSON count with the physical count, check that neighbors were not merged, remove accidental duplicate detections, retain genuine repeated copies, and verify consecutive positions.
-23. Confirm every item has a meaningful title, every ISBN is complete and checksum-valid, every coverUrl is a direct public HTTPS image linked to the correct book page, and unknowns use [] or null correctly. Recheck titles, authors, series, and volumes across overlapping photos. Record representative covers and unresolved bibliographic validation in notes. Never report an import as fully verified unless its bibliographic validation has actually been completed; a successful write or a found cover is not proof of validation.`;
+20. Reconcile the JSON count with the physical count, check that neighbors were not merged, remove accidental duplicate detections, retain genuine repeated copies, and verify consecutive positions.
+21. Confirm every item has a meaningful title, every coverUrl is a direct public HTTPS image linked to the correct book page, and unknowns use [] or null correctly. Recheck titles, authors, series, and volumes across overlapping photos. Record representative covers and unresolved bibliographic validation in notes. Never report an import as fully verified unless its bibliographic validation has actually been completed; a successful write or a found cover is not proof of validation.`;
 
 export const SHELFIE_GENAI_PROMPT = `You are extracting a physical book inventory from shelf photographs that I attach in this chat.
 
@@ -266,8 +263,6 @@ Use this exact schema and field names:
       "editionStatement": null,
       "series": null,
       "volume": null,
-      "visibleIsbn": null,
-      "isbn": null,
       "coverUrl": null,
       "confidence": 0.9,
       "notes": null,

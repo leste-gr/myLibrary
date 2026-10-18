@@ -9,7 +9,7 @@ type Book = {
 };
 function first<T>(value: Relation<T>) { return Array.isArray(value) ? value[0] : value; }
 
-// Reuse Stage 2's providers/ranker without its import bookkeeping or auto-selection.
+// Owner-requested discovery saves review candidates without automatic selection.
 export async function findBookIsbnCandidates(supabase: SupabaseClient, copyId: string, search = findIsbnCandidates) {
   const { data, error } = await supabase.from("copies")
     .select("publisher,language,work:works(title,author,series),edition:editions(published_date)")

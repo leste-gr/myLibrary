@@ -2,9 +2,9 @@
 
 Supabase is the single source of truth for books, observations, and edition candidates. There is no static ISBN mapping dataset or file-based catalogue importer.
 
-The backend matches unresolved imported books against Open Library and Google Books. Candidates, evidence, confidence, and owner decisions are stored in Supabase. Assistant-supplied ISBN and cover results are accepted by the ingestion flow; backend discovery runs when no cover is supplied.
+Automatic ISBN matching during ingestion has been removed. Imports identify books and supply covers; missing covers go directly to cover resolution. Internal ISBN and edition fields remain available for owner refinement.
 
-Run `npm run match:import -- <id>` as a development tool for one import. Production processing is dispatched by the database insertion event. See [COVER_RESOLUTION.md](COVER_RESOLUTION.md) for provider ranking and cover resolution.
+The owner's Find ISBN candidates action uses Open Library and Google Books on demand and saves review-only results. Manual ISBN entry and candidate selection require owner publication. See [INGESTION_PIPELINE.md](INGESTION_PIPELINE.md) for the current flow.
 
 ## Review rules
 

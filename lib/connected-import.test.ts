@@ -45,7 +45,7 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
   const server = createShelfieMcpServer({
     listCollections: async () => [{ id, name: "My books", slug: "books" }],
     listCollectionBooks: async () => ({ collectionId: id, total: 1, offset: 0, limit: 100, hasMore: false, books: [{ id: "B1", title: "The Hobbit", author: "Tolkien", isbn13: null, series: null, volume: null, language: "en" }] }),
-    createCollection: async (name, description, books) => { writes++; assert.equal(books.books[0].title, "The Hobbit"); return { collectionId: id, name, slug: "collection-test", description, importId: id, imported: 1, duplicate: false }; },
+    createCollection: async (name, description, books) => { writes++; assert.equal(books.books[0].title, "The Hobbit"); assert.equal(books.books[0].isbn, null); assert.equal(books.books[0].visibleIsbn, null); return { collectionId: id, name, slug: "collection-test", description, importId: id, imported: 1, duplicate: false }; },
     updateCollection: async (_id, books) => { if (books.books[0].visibleIsbn) throw new Error("invalid ISBN"); writes++; assert.equal(books.books[0].title, "The Hobbit"); return { collectionId: id, slug: "books", importId: id, imported: 1, ignoredExisting: 0, duplicate: false }; },
   }, "https://library.test");
   const client = new Client({ name: "test", version: "1" });
@@ -69,14 +69,14 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
       assert.match(description, /Do not imply that backend fallback covers have been found or verified unless confirmed/);
       assert.doesNotMatch(description, /Use web search .*when available/);
       assert.match(description, /Different-language edition of the same work/);
-      assert.match(description, /Never assign an ISBN from a representative cover/);
+      assert.doesNotMatch(description, /ISBN|visibleIsbn/);
       assert.match(description, /do not reduce book-identification confidence solely/);
       assert.match(description, /Never report an import as fully verified/);
       assert.match(description, /PASS 1 — PHYSICAL INVENTORY/);
       assert.match(description, /PASS 4 — WEB VERIFICATION AND COVER/);
       assert.match(description, /PASS 5 — FINAL CHECK/);
       assert.match(description, /coverUrl is a direct, public HTTPS URL/);
-      assert.match(JSON.stringify(tool?.inputSchema), /"isbn"/);
+      assert.doesNotMatch(JSON.stringify(tool?.inputSchema), /"(?:isbn|visibleIsbn)"/);
       assert.match(JSON.stringify(tool?.inputSchema), /"coverUrl"/);
     }
     const prompts = await client.listPrompts();
@@ -87,7 +87,7 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     assert.match(promptText, /FINAL COVER CHECK/);
     assert.match(promptText, /If search tools are unavailable, disclose the blocker before importing/);
     assert.match(promptText, /Different-language edition of the same work/);
-    assert.match(promptText, /Never assign an ISBN from a representative cover/);
+    assert.doesNotMatch(promptText, /ISBN|visibleIsbn|"isbn"/);
     assert.match(promptText, /Never report an import as fully verified/);
     assert.doesNotMatch(promptText, /representative cover in the same language is allowed only/);
     assert.match(promptText, /PASS 1 — PHYSICAL INVENTORY/);
@@ -95,12 +95,12 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     assert.match(promptText, /coverUrl is a direct, public HTTPS URL/);
     const listed = await client.callTool({ name: "list_collection_books", arguments: { collectionId: id } });
     assert.equal((listed.structuredContent as { total: number }).total, 1);
-    const created = await client.callTool({ name: "create_collection", arguments: { name: "RPG", description: "Games", ...payload } });
+    const created = await client.callTool({ name: "create_collection", arguments: { name: "RPG", description: "Games", ...payload, books: [{ ...payload.books[0], isbn: "9780261102217", visibleIsbn: "9780261102217" }] } });
     assert.equal((created.structuredContent as { name: string }).name, "RPG");
     const good = await client.callTool({ name: "update_collection", arguments: { collectionId: id, ...payload } });
     assert.equal(good.isError, undefined);
     assert.equal((good.structuredContent as { collectionUrl: string }).collectionUrl, "https://library.test/collections/books");
-    const bad = await client.callTool({ name: "update_collection", arguments: { collectionId: id, ...payload, books: [{ ...payload.books[0], visibleIsbn: "9780000000000" }] } });
+    const bad = await client.callTool({ name: "update_collection", arguments: { collectionId: id, ...payload, books: [{ ...payload.books[0], coverUrl: "http://invalid.test/cover.jpg" }] } });
     assert.equal(bad.isError, true); assert.equal(writes, 2);
   } finally { await client.close(); await server.close(); }
 });

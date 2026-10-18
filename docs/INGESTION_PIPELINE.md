@@ -1,65 +1,26 @@
 # myLibrary ingestion pipeline
 
-This is the canonical contract for turning a shelfie into published books. Detailed Stage 1 behaviour is specified in [STAGE_1_MANUAL_GENAI_IMPORT.md](STAGE_1_MANUAL_GENAI_IMPORT.md). ISBN and non-ISBN cover methods are specified in [COVER_RESOLUTION.md](COVER_RESOLUTION.md).
-
-`owner's shelfie → external GenAI chat/MCP → book data + optional ISBN/cover → backend fallback when needed → optional owner correction`
+`owner's shelfie → external GenAI chat/MCP → book metadata and covers → cover fallback → optional owner ISBN refinement`
 
 ## Current stages
 
-| Stage | Status | Output |
-| --- | --- | --- |
-| 1. Extract and research book data | Implemented | The prompt identifies shelf books, then asks the user's LLM to verify an edition ISBN and direct public cover image. The same schema supports MCP and manual JSON upload. |
-| 2. Identify ISBN fallback | Implemented | Runs only for imported books without `coverUrl`; it retains ranked candidates and selects the leader. |
-| 3. Resolve cover fallback | Implemented | Runs only when Stage 1 did not supply a cover. It owns selected-ISBN, representative candidate, and metadata cover detection, in that order. |
-| 4. Owner refinement | Implemented | On their public collection page, the owner can inspect candidates, choose an edition, enter an ISBN manually, or upload an image file to use as cover. |
+1. The assistant identifies physical books, transcribes supported metadata, and searches for a direct public cover image for every book. Exact editions are preferred; representative covers of the same work and volume are allowed. ISBN research and ISBN tool inputs are excluded.
+2. The backend imports metadata and supplied covers atomically. Books without covers go directly to cover resolution, without automatic ISBN matching or edition selection.
+3. The owner can upload a cover, request ISBN candidates, or enter an ISBN manually. Candidate search saves review-only results; an edition is assigned only when the owner publishes a selection.
 
-Stage 2 progress is stored on the import record. Processing starts from the database insertion event and from the hourly Supabase `pg_cron` job `mylibrary-hourly-ingestion-retry`, scheduled at minute zero of every hour. Both invoke the same dispatcher and worker. Failed lookups become eligible at the next hourly tick. Processing claims older than ten minutes can be recovered. Atomic row claims prevent overlapping workers from processing the same book.
+Internal ISBN fields, existing edition assignments, and historical evidence remain intact. The legacy import matching columns are compatibility metadata marked completed; ingestion completion depends only on cover state.
 
-Each book has a `cover_status`: `pending → processing → completed | cover_not_found | failed`. A genuine negative lookup becomes `cover_not_found` and is excluded from subsequent runs. Timeouts, rate limits and incomplete provider searches become `failed`, with an error and next retry time. Existing covers are marked completed. Changing the edition or removing a cover reopens its cover work.
+## Cover processing
 
-Import `matching_status` describes Stage 2 only. The separate `ingestion_status` becomes `completed` once matching has finished and every remaining book has a cover or a terminal `cover_not_found` result. It remains pending, processing or failed while work needs attention. Completion is maintained by database triggers, including when books are removed or an owner supplies a cover.
+Database insertion events and the hourly Supabase cron job dispatch the same worker. Atomic per-book claims prevent overlapping work. Cover states are `pending → processing → completed | cover_not_found | failed`. Provider failures retry at the next hourly tick; stalled claims recover after ten minutes. Terminal misses do not retry automatically.
 
-Stage handoffs use database statuses rather than direct calls between ingestion sources. A supplied cover marks its observation `cover_provided` and is excluded from Stage 2. If every imported book has a cover, the import is completed immediately. Otherwise the import remains `pending`, and Stage 2 selects only `ready_for_matching` observations. A supplied ISBN+cover also completes its ISBN cover job so Stage 3 cannot refetch it.
+Existing selected ISBNs can resolve an ISBN cover. Books without an edition use representative candidate and metadata/web cover discovery. Cover fallback never discovers or assigns a new ISBN edition. Assistant-supplied covers are retained directly.
 
-## Stage handoffs
+The import's `ingestion_status` reflects its books' cover states. Matching provider failures cannot block cover processing. Existing covers, owner choices, and internal ISBN data are preserved when automatic matching is retired.
 
-### Stage 1 → Stage 2
+## Owner-requested ISBN search
 
-Every imported physical spine creates a published copy, a work, and a `manual_genai_json` observation containing normalized metadata and provenance. `visibleIsbn` preserves a checksum-valid number read from the photo; `isbn` may additionally contain a number verified from a matching edition page. `coverUrl` carries a direct public HTTPS image. The original JSON is represented by an import checksum; the shelf photograph remains outside myLibrary.
-
-Stage 2 must always select its strongest ISBN candidate automatically while retaining the remaining candidates for owner selection. A valid, visibly read ISBN is stronger evidence than a bibliographic text match but remains distinguishable from an owner override.
-
-### Stage 2 → Stage 3
-
-Stage 2 only identifies, ranks, and selects ISBN candidates. It does not probe images or assign cover assets. Edition selection queues an ISBN lookup for Stage 3. Stage 3 first resolves selected-ISBN jobs and attaches successful cover assets, then probes strong representative candidates, then searches metadata for copies still without covers. Candidate and metadata discovery only consider observations whose ISBN matching has finished.
-
-Stage 3 claims up to 100 books per request within the worker time budget. Each claimed book follows its applicable selected-ISBN or candidate/metadata path. A failure on one import or book does not prevent other eligible work from running. Work left by the batch or time limit is picked up on the next dispatch.
-
-Backend cover resolution begins only when Stage 1 did not provide a cover. Its results and negative lookups are cached by ISBN. Assistant-supplied public images retain `assistant-supplied` provenance and are used directly by that copy.
-
-When Stage 2 cannot select an ISBN, Stage 3 may instead select a conservative metadata cover using title, author, and publisher evidence. That fallback provides an image only and does not create an ISBN or edition mapping.
-
-### Stage 3 → Stage 4
-
-Automation publishes its best result, while alternative edition candidates and their evidence remain available to the owner. An owner selection or manually entered ISBN is audited as an override and is not silently replaced by later automation.
-
-## Cross-stage guarantees
-
-- A physical copy, work, and edition remain separate records.
-- Stage 1 imports are atomic and idempotent within a collection.
-- Invalid ISBNs never trigger metadata or cover replacement.
-- Original shelf photographs are never sent to or stored by myLibrary in the manual GenAI flow.
-- Provider results and covers are cached by normalized identifiers.
-- Public rendering never waits for ingestion or provider calls.
-- Automated evidence and owner decisions retain distinct provenance.
-
-## Next implementation priority
-
-Measure Stage 2 accuracy on owner corrections, improve edition-specific scoring when title-only metadata produces ties, and retain provider response caching so repeated imports avoid redundant lookups.
-
-## Owner-requested Stage 2 search
-
-The edit-book page's Find ISBN candidates button runs the shared Stage 2 providers and ranker for that copy alone, irrespective of matching or cover status. It does not claim an ingestion job or update book, observation, ingestion, or cover statuses. Results are stored as review-only candidates and displayed in ranking order; database triggers and later automatic selection exclude them. Even a high-confidence result requires an explicit owner selection and publication. Searches with no candidates clear the displayed search results and show “No ISBNs were matched,” including when providers are unavailable or quota-limited. Partial results remain ranked, with an informational notice when a provider was unavailable. Existing rejected candidates remain excluded. Normal ingestion retains its automatic matching behavior.
+Find ISBN candidates searches for one copy on demand, independent of ingestion status. It retains ranked review-only candidates without publishing metadata, selecting an edition, or changing cover/ingestion status. The owner explicitly chooses and publishes a result. Rejected candidates remain excluded.
 
 ## Owner ISBN drafts and publishing
 

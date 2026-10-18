@@ -19,8 +19,6 @@ const bookSchema = z.object({
   subtitle: optionalText(300), publisher: optionalText(200), language: optionalText(40),
   publicationYear: z.number().int().min(1400).max(2100).nullable().optional(),
   editionStatement: optionalText(160), series: optionalText(200), volume: optionalText(80),
-  visibleIsbn: optionalText(32).describe("Complete checksum-valid ISBN only when every digit is visible in the photo."),
-  isbn: optionalText(32).describe("Canonical ISBN for the independently verified physical edition; null unless verified. Never assign an ISBN from a representative cover."),
   coverUrl: optionalText(2048).describe("Direct public HTTPS cover-image URL for the same work and volume. Prefer exact edition, then same-language edition, then different-language edition; null only after a documented unsuccessful search or search/access blocker."),
   notes: optionalText(500).describe("Record representative-cover use and known differences. For null coverUrl, record searches attempted and the specific unresolved issue or search/access blocker; a backend-resolution request alone is insufficient. Include bibliographic uncertainties or corrections."),
   rawVisibleText: optionalText(1000).describe("All meaningful literal spine text before normalization or bibliographic correction."),
@@ -29,8 +27,8 @@ const bookSchema = z.object({
 const shelfieWriteProtocol = `When the source is one or more shelf photographs, you MUST apply the complete protocol below before constructing this tool call. Do not rely on a separate MCP prompt.\n\n${SHELFIE_EXTRACTION_PROTOCOL}`;
 
 export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
-  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.4.0" }, {
-    instructions: `You can list the owner's collections and books and import attached shelf photos. For a shelf photo, internally perform five passes before calling a write tool: (1) count and separate physical spines; (2) transcribe literal text; (3) resolve structured metadata from supported visual evidence; (4) verify the work and search for an independently verified physical-edition ISBN and a credible direct public cover image; (5) reconcile count, positions, overlapping photos, duplicates, titles, authors, series, volumes, ISBNs, and cover links. Preserve one item per physical book in shelf order. Never translate the photographed edition's catalogue title or invent bibliographic facts. visibleIsbn is only for a complete ISBN read from the photo. coverUrl must be a direct public HTTPS image. Omit spines without a meaningful title fragment. The complete protocol is available as the read_shelf_photo prompt and in the write-tool descriptions. Use create_collection for a requested new collection and update_collection for an existing collection. Never call a write tool without the user's explicit request.
+  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.5.0" }, {
+    instructions: `You can list the owner's collections and books and import attached shelf photos. For a shelf photo, internally perform five passes before calling a write tool: (1) count and separate physical spines; (2) transcribe literal text; (3) resolve structured metadata from supported visual evidence; (4) verify the work and search for a credible direct public cover image; (5) reconcile count, positions, overlapping photos, duplicates, titles, authors, series, volumes, and cover links. Preserve one item per physical book in shelf order. Never translate the photographed edition's catalogue title or invent bibliographic facts. coverUrl must be a direct public HTTPS image. Omit spines without a meaningful title fragment. The complete protocol is available as the read_shelf_photo prompt and in the write-tool descriptions. Use create_collection for a requested new collection and update_collection for an existing collection. Never call a write tool without the user's explicit request.
 
 ${BOOK_IDENTIFICATION_AND_COVER_RESOLUTION}
 
@@ -69,7 +67,7 @@ ${MANDATORY_CLIENT_COVER_SEARCH}`,
   });
   server.registerTool("update_collection", {
     title: "Add books to an existing collection",
-    description: `Add only new books from the complete mylibrary.shelfie.v1 JSON to an owned collection. The backend ignores books already present using ISBN when available, otherwise normalized title, authors, and volume. Existing books are retained and duplicates within the JSON are also ignored.\n\n${shelfieWriteProtocol}`,
+    description: `Add only new books from the complete mylibrary.shelfie.v1 JSON to an owned collection. The backend ignores books already present using normalized title, authors, and volume. Existing books are retained and duplicates within the JSON are also ignored.\n\n${shelfieWriteProtocol}`,
     inputSchema: { collectionId: z.string().uuid(), schemaVersion: z.literal("mylibrary.shelfie.v1"), books: z.array(bookSchema).min(1).max(100) },
     outputSchema: { collectionId: z.string(), slug: z.string(), importId: z.string().nullable(), imported: z.number(), ignoredExisting: z.number(), duplicate: z.boolean(), collectionUrl: z.string() },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }, _meta: { securitySchemes },

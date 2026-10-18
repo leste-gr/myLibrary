@@ -126,3 +126,7 @@ These rules appear in MCP initialization instructions, both write tools, and `re
 Both `create_collection` and `update_collection` require active cover searching for every book before submission, in batches when needed. A null `coverUrl` requires notes documenting the attempted searches and specific unresolved issue or access blocker. Backend fallback alone is not a reason to skip searching. If search tools are unavailable, the client must disclose this before importing.
 
 Before submission, every book must have either a verified same-work/same-volume cover URL or a documented unsuccessful search or blocker. After importing, the client reports total books, client-supplied cover URLs, and books left for backend fallback without claiming unconfirmed backend results.
+
+## Cover-only ingestion (2026-10-18)
+
+The current shared prompt and MCP import parameters exclude both `isbn` and `visibleIsbn`. Clients identify books and search for covers without researching ISBNs. The internal v1 model retains nullable ISBN fields for compatibility, but imports do not assign editions from them. Automatic backend ISBN matching has been removed; cover fallback runs directly. Owners can still search for candidates or submit an ISBN in the book editor and publish a reviewed draft. This supersedes earlier ISBN matching descriptions above.

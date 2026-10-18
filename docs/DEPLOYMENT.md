@@ -51,7 +51,7 @@ Verify that:
 5. The same JSON cannot be imported into that collection twice.
 6. Invalid JSON creates no partial records.
 7. A JSON file can create a named collection with an optional description.
-8. A valid visible ISBN creates an edition candidate and its `/api/covers/{isbn}` URL resolves.
+8. Imports do not create ISBN candidates; owner ISBN search, manual entry, draft preview, and publication remain available.
 
 The public page may be cached for up to 60 seconds. Mutations explicitly refresh application data where required.
 
@@ -89,3 +89,5 @@ The owner uploads the shelf photograph directly to a GenAI chat they choose. myL
 Owner ISBN search: apply migration 202610170036_owner_isbn_candidate_search.sql before deploying the edit-page changes. It adds review-only candidate persistence and per-copy search metadata, and prevents candidate-only searches from invoking automatic ISBN assignment. No Edge Function redeployment is required.
 
 ISBN draft preview: apply migration 202610170037_isbn_draft_metadata.sql before deploying. It adds private draft metadata, an owner-only browser draft RPC, and atomic publication of title, authors, publisher, language, publication date, and chosen cover. The existing browser-only publish wrapper remains in place. No Edge Function changes are needed.
+
+Cover-only ingestion: apply `202610180038_cover_only_ingestion.sql` before deploying the application. It removes automatic candidate selection, replaces import-time ISBN handling with cover-only imports, releases existing failed matching queues, and makes cover claims/completion independent of matching. Internal ISBN fields and owner ISBN workflows remain. The old matching claim RPC becomes a no-op for rollout compatibility. No Edge Function change is required. MCP clients should reconnect to refresh version 1.5.0 instructions and schemas.

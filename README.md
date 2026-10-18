@@ -50,6 +50,6 @@ See [Deployment](docs/DEPLOYMENT.md) for Supabase setup and Vercel publication.
 - `supabase/migrations/` contains the persistent schema and database functions.
 - `lib/manual-genai-import.ts` contains the Stage 1 prompt and JSON validator.
 - `docs/STAGE_1_MANUAL_GENAI_IMPORT.md` specifies the manual GenAI ingestion contract.
-- `npm run match:import`, `npm run covers:candidates`, and `npm run covers:metadata` are development tools for individual database-backed stages.
+- `npm run covers:candidates` and `npm run covers:metadata` are development tools for individual database-backed stages.
 
 Assistant-supplied ISBNs and covers are retained in the database. When no cover is supplied, external ISBN and cover providers remain available. Deleted collections are not reconstructed from local files. Existing static cover images remain available only for database records that explicitly reference them; they are not searched as a catalogue.

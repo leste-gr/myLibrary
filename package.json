@@ -10,7 +10,6 @@
     "test:catalogue-cache": "node scripts/test-catalogue-cache.mjs",
     "test:book-editor": "node scripts/test-book-editor.mjs",
     "typecheck": "tsc --noEmit",
-    "match:import": "tsx scripts/match-manual-import.ts",
     "covers:candidates": "tsx scripts/resolve-candidate-covers.ts",
     "covers:metadata": "tsx scripts/resolve-metadata-covers.ts"
   },
