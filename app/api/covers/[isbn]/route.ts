@@ -14,7 +14,7 @@ async function fetchImage(url: string, source: string): Promise<CoverResult> {
     const response = await fetch(url, {
       redirect: "follow",
       signal: AbortSignal.timeout(6000),
-      headers: { "User-Agent": "myLibrary-cover-resolver/1.0" },
+      headers: { "User-Agent": "Shelfie Street-cover-resolver/1.0" },
       next: { revalidate: 2592000 },
     });
     const contentType = response.headers.get("content-type")?.split(";", 1)[0] ?? "";

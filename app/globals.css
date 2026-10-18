@@ -165,3 +165,23 @@ body:has(.directory-shell) .account-menu{background:transparent}
   .collection-preview img,.preview-placeholder{width:78px}
   .directory-heading{align-items:flex-start;flex-wrap:wrap;gap:6px}
 }
+
+/* Shelfie Street: shared identity across public and owner pages. */
+:root{--paper:#f8f4e9;--white:#fffdf6;--ink:#263c32;--muted:#626b60;--wine:#244b3e;--line:#dcdccf;--sand:#e7e9dd}
+.global-navigation,body:has(.directory-shell) .global-navigation{max-width:1440px;margin:auto;min-height:86px;background:var(--paper);gap:22px;flex-wrap:wrap}
+.street-brand{display:flex;align-items:center;gap:11px;margin-right:auto;color:var(--wine);text-decoration:none;font:28px/.95 var(--serif);flex-shrink:0}
+.street-brand img,.collection-brand-mark{flex-shrink:0;object-fit:contain}
+.street-brand small{display:block;font:11px var(--sans);text-transform:uppercase;letter-spacing:4px;margin-top:7px}
+.account-menu{background:transparent}.global-navigation .account-menu{flex-wrap:wrap}
+.street-hero{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:40px;align-items:center;margin-bottom:28px}
+.street-hero .directory-intro{margin:0}.street-hero h1{font-size:clamp(38px,5vw,60px);line-height:1.08}.street-hero h1 em{color:var(--wine);font-weight:400}
+.street-hero .directory-intro>p{max-width:490px}.street-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}.street-actions a{text-decoration:none;min-height:44px;display:inline-flex;align-items:center}
+.street-art{height:240px;display:flex;align-items:flex-end;justify-content:center;gap:9px;padding:0 18px 14px;border-bottom:3px double var(--wine);background:radial-gradient(ellipse at 50% 70%,#e7e9d8 0 56%,transparent 57%)}
+.street-art>div{flex:1;max-width:110px;height:160px;background:#c0c9ac;border-radius:36px 36px 0 0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:12px 5px;border-left:5px solid #0000000b}
+.street-art>div:nth-child(2){height:210px;background:var(--wine);color:var(--paper);border-radius:4px}.street-art>div:nth-child(3){height:183px;background:#e3b857;border-radius:4px 30px 0 0}
+.street-art span{font:17px var(--serif);writing-mode:vertical-rl;height:80px}.street-art>div:nth-child(2) span{writing-mode:horizontal-tb;height:auto;text-align:center;font-size:15px}.street-art i{display:block;width:26px;height:46px;border:1px solid currentColor;border-radius:18px 18px 0 0;margin-top:18px;opacity:.65}
+.collection-preview{background:#e7e9dd;border-bottom:5px solid #d2d5c2}.discovery-card:nth-child(even) .collection-preview{background:#efe3ca;border-color:#e0d1b1}
+.preview-placeholder{padding:10px;text-align:center}.preview-placeholder:nth-child(2){background:#a7833f}.preview-placeholder:nth-child(3){background:#53745b}
+.primary-button,.secondary-button,.button-link,.edition-open,.edition-save{border-radius:5px}.primary-button:hover,.edition-open:hover,.edition-save:hover{background:#18392e}.cover-wrap{border-radius:7px 7px 2px 2px;background:var(--sand)}.cover-wrap img{background:var(--sand)}
+.site-footer>span{color:var(--wine);font:20px var(--serif)}.login-card,.genai-step,.cover-upload,.candidate-card{border-radius:8px}.edit-mode{background:#e9dfbc;color:var(--wine)}
+@media(max-width:760px){.global-navigation,body:has(.directory-shell) .global-navigation{gap:14px;padding:16px 6%}.street-brand{font-size:24px}.street-hero{display:block}.street-art{display:none}.street-hero h1{font-size:42px}.global-navigation .account-menu{flex:1 1 100%;order:3}.global-navigation .account-email{flex-basis:auto}.street-hero{margin-bottom:24px}.street-actions{gap:8px}.street-actions a{font-size:13px;padding:10px 12px}}

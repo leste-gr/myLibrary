@@ -15,7 +15,7 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
   const { data: { user } } = await supabase.auth.getUser();
   if (user) redirect(next ?? "/login");
   return <main className="login-card">
-    <Link href="/">{t("← myLibrary")}</Link><p className="eyebrow">{t("MYLIBRARY")}</p>
+    <Link href="/">{t("← Shelfie Street")}</Link><p className="eyebrow">{t("SHELFIE STREET")}</p>
     <h1>{t("Register with email")}</h1>
     <p>{t("Use your own email address, including Yahoo, Outlook, or any other provider.")}</p>
     {params.error && <p className="form-error" role="alert">{t(params.error)}</p>}

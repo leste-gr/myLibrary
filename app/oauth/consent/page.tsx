@@ -48,7 +48,7 @@ export default async function ConsentPage({ searchParams }: { searchParams: Prom
   if (!("authorization_id" in data)) redirect(data.redirect_url);
   const enabled = await client.rpc("assistant_authorization_allowed", { target_authorization_id: id });
   const canApprove = !enabled.error && enabled.data === true && scopesAllowed(data.scope);
-  return <main className="login-card"><p className="eyebrow">{t("MYLIBRARY")}</p><h1>{t("Connect application")}</h1><p><strong>{data.client.name}</strong> {" " + t("requests access to your library.")}</p>
+  return <main className="login-card"><p className="eyebrow">{t("SHELFIE STREET")}</p><h1>{t("Connect application")}</h1><p><strong>{data.client.name}</strong> {" " + t("requests access to your library.")}</p>
     <p>{t("Account:") + " "}{user.email}</p><ul><li>{t("Read your collections and their books.")}</li><li>{t("Create collections and add books when you request it.")}</li><li>{t("Imported books appear on the collection's public page.")}</li><li>{t("Cannot delete collections or books.")}</li></ul>
     <p className="privacy-note">{t("The photo stays in your AI chat. You can revoke access from connected applications.")}</p>
     <p className="privacy-note">{t("Return to:") + " "}{new URL(data.redirect_uri).origin}<br />{t("Identity permissions:") + " "}{data.scope || t("none")}</p>

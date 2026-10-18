@@ -16,7 +16,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ copy
       return new Response(null, { status: 307, headers: { Location: new URL(data.source_url, request.url).toString(), "Cache-Control": "public, max-age=86400, s-maxage=2592000", "X-Cover-Source": data.provider } });
     }
     const source = new URL(data.source_url); if (data.provider !== "web-page" && !ALLOWED_HOSTS.has(source.hostname)) throw new Error();
-    const image = await fetchPublicResource(source, { maxBytes: 8 * 1024 * 1024, acceptedTypes: (type) => type.startsWith("image/") && type !== "image/svg+xml", headers: { "User-Agent": "myLibrary-cover-resolver/1.0" }, timeoutMs: 10_000 });
+    const image = await fetchPublicResource(source, { maxBytes: 8 * 1024 * 1024, acceptedTypes: (type) => type.startsWith("image/") && type !== "image/svg+xml", headers: { "User-Agent": "Shelfie Street-cover-resolver/1.0" }, timeoutMs: 10_000 });
     return new Response(image.bytes, { headers: { "Content-Type": image.contentType, "Cache-Control": "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=604800", "X-Cover-Source": data.provider } });
   } catch { return new Response("Cover unavailable", { status: 404, headers: { "Cache-Control": "public, s-maxage=300" } }); }
 }

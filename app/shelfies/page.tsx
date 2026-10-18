@@ -33,10 +33,10 @@ export default async function ShelfiePage({ searchParams }: { searchParams: Prom
     <p className="eyebrow">{t("ADD BOOKS")}</p>
     <h1>{t("Import from a shelf photo")}</h1>
     <p className="shelfie-lead">{t("Read the photo with your own AI and review the books before adding them.")}</p>
-    <section className="assistant-callout"><h2>{t("Directly from ChatGPT")}</h2><p>{assistantConfigured() ? t("Connect myLibrary and ask the chat to send your books for review.") : t("The direct connection is being prepared. You can already paste a response below.")}</p><Link href="/shelfies/connect">{t("How to connect →")}</Link></section>
+    <section className="assistant-callout"><h2>{t("Directly from ChatGPT")}</h2><p>{assistantConfigured() ? t("Connect Shelfie Street and ask the chat to send your books for review.") : t("The direct connection is being prepared. You can already paste a response below.")}</p><Link href="/shelfies/connect">{t("How to connect →")}</Link></section>
     {drafts?.error && <p className="form-error" role="alert">{t("Could not load draft imports. Try refreshing the page.")}</p>}
     {Boolean(drafts?.data?.length) && <section className="draft-inbox"><h2>{t("Waiting for review")}</h2>{drafts?.data?.map((draft) => <Link key={draft.id} href={`/shelfies/review/${draft.id}`}>{t("Review") + " "}{Array.isArray(draft.payload?.books) ? draft.payload.books.length : ""} {" " + t("books ·") + " "}{new Date(draft.created_at).toLocaleDateString(locale === "el" ? "el-GR" : "en-GB")}</Link>)}</section>}
     <ShelfieReview userId={user.id} collections={ordered} />
-    <p className="privacy-note">{t("Your photo is never sent to myLibrary. The terms and privacy policy of your chosen AI chat apply.")}</p>
+    <p className="privacy-note">{t("Your photo is never sent to Shelfie Street. The terms and privacy policy of your chosen AI chat apply.")}</p>
   </main>;
 }

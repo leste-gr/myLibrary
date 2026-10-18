@@ -138,7 +138,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
     <div className="catalogue-shell">
       <a className="skip" href="#catalogue">{t("Skip to books")}</a>
       <header className="masthead">
-        <div className="brand"><span className="monogram" aria-hidden="true">Β.</span><span>{collection.name}<small>{t("PUBLIC COLLECTION")}</small></span></div>
+        <div className="brand"><img className="collection-brand-mark" src="/icon.svg" alt="" width={38} height={44} /><span>{collection.name}<small>{t("PUBLIC COLLECTION")}</small></span></div>
         <nav className="site-nav"><Link href="/">{t("All collections")}</Link>{canEdit ? <><Link className="button-link" href={`/shelfies?collection=${collection.slug}`}>{t("+ Import shelf photo")}</Link><span className="edit-mode">{t("Editing enabled")}</span></> : viewerSignedIn ? <Link href="/?view=mine">{t("My collections")}</Link> : <Link href="/login">{t("Log in")}</Link>}</nav>
       </header>
       <main>

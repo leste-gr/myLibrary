@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   if (callerOrigin && callerOrigin !== origin && callerOrigin !== "https://chatgpt.com") return Response.json({ error: "Origin not allowed." }, { status: 403 });
   let auth: Awaited<ReturnType<typeof authenticateAssistant>>;
   try { auth = await authenticateAssistant(request); }
-  catch { return Response.json({ error: "Connect your myLibrary account to continue." }, { status: 401, headers: { "Cache-Control": "no-store", "WWW-Authenticate": `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource", scope="openid email offline_access"` } }); }
+  catch { return Response.json({ error: "Connect your Shelfie Street account to continue." }, { status: 401, headers: { "Cache-Control": "no-store", "WWW-Authenticate": `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource", scope="openid email offline_access"` } }); }
   const server = createShelfieMcpServer({
     async listCollections() {
       const { data, error } = await auth.supabase.from("collections").select("id,name,slug").eq("owner_id", auth.userId).order("created_at");

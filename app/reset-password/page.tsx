@@ -15,7 +15,7 @@ export default async function ResetPasswordPage({ searchParams }: { searchParams
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect(emailAuthPath("/forgot-password", next, { error: t("Open a valid password reset link from your email.") }));
   if (params.updated === "1") return <main className="login-card"><h1>{t("Password changed")}</h1><p role="status">{t("Your new password has been saved.")}</p><Link className="button-link" href={next ?? "/login"}>{t("Continue")}</Link></main>;
-  return <main className="login-card"><Link href="/">{t("← myLibrary")}</Link><h1>{t("New password")}</h1>
+  return <main className="login-card"><Link href="/">{t("← Shelfie Street")}</Link><h1>{t("New password")}</h1>
     {params.error && <p className="form-error" role="alert">{t(params.error)}</p>}
     <form action={setNewPassword} className="form-stack">
       {next && <input type="hidden" name="next" value={next} />}

@@ -27,7 +27,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 
   return <main className="login-card">
     <Link href="/">{t("← All collections")}</Link>
-    <p className="eyebrow">{t("MYLIBRARY")}</p>
+    <p className="eyebrow">{t("SHELFIE STREET")}</p>
     <h1>{t("Log in or register")}</h1>
     {!configured ? <div className="form-error">{t("Account management is not available yet. Please try again later.")}</div> :
       <>

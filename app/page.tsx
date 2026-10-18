@@ -18,7 +18,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     {deleted === "1" && <div className="global-notice" role="status">{t("Collection deleted.")}</div>}
     <a className="skip" href="#collections-title">{t("Explore collections")}</a>
     <main className="directory-main">
-      <section className="directory-intro"><p className="eyebrow">{t("A community of collections")}</p><h1>{mine ? t("My collections") : <>{t("Good books.")}<br />{t("Interesting company.")}</>}</h1><p>{t(mine ? "Your books, across all your collections." : "Explore the shelves people love to share.")}</p></section>
+      <section className="street-hero"><div className="directory-intro"><p className="eyebrow">{t("Welcome to Shelfie Street")}</p><h1>{mine ? t("My collections") : <>{t("Every shelf")}<br /><em>{t("has a story.")}</em></>}</h1><p>{t(mine ? "Your books, across all your collections." : "Find your next read on someone else’s shelf. Make a little room for yours.")}</p>{!mine && <div className="street-actions"><a className="primary-button" href="#collections-title">{t("Explore the shelves ↓")}</a><Link className="secondary-button" href="/shelfies">{t("Add your books")}</Link></div>}</div>{!mine && <div className="street-art" aria-hidden="true"><div><span>{t("Stories")}</span><i /></div><div><span>SHELFIE<br />STREET</span><i /></div><div><span>{t("New worlds")}</span><i /></div></div>}</section>
       <nav className="collection-tabs" aria-label={t("Browse collections")}>
         <Link href="/" aria-current={!mine ? "page" : undefined}>{t("All collections")}</Link>
         <Link href="/?view=mine" aria-current={mine ? "page" : undefined}>{t("My collections")}</Link>
@@ -47,7 +47,7 @@ async function CollectionDirectory({ mine }: { mine: boolean }) {
     collections = await getCachedPublicCollections();
   }
   return (<section aria-labelledby="collections-title">
-        <div className="directory-heading"><h2 id="collections-title">{t(mine ? "My collections" : "Explore collections")}</h2><span>{collections.length} {t("collections")}</span></div>
+        <div className="directory-heading"><h2 id="collections-title">{t(mine ? "My collections" : "Around the shelves")}</h2><span>{collections.length} {t("collections")}</span></div>
         <div className="collection-grid">{collections.map((collection) =>
           <article className="collection-card discovery-card" key={collection.id}>
             <Link className="collection-preview-link" href={`/collections/${collection.slug}`} aria-label={`${t("Explore collection")}: ${collection.name}`}>
@@ -58,7 +58,7 @@ async function CollectionDirectory({ mine }: { mine: boolean }) {
             <h3><Link href={`/collections/${collection.slug}`}>{collection.name}</Link></h3>
             {collection.description && <details className="collection-notes"><summary>{t("About this collection")}</summary><p>{collection.description}</p></details>}
             <div className="collection-card-bottom"><dl><div><dt>{t("Books")}</dt><dd>{collection.bookCount}</dd></div><div><dt>{t("Authors")}</dt><dd>{collection.authorCount}</dd></div></dl>
-            <Link className="collection-link" href={`/collections/${collection.slug}`}>{t("Explore →")}<span className="sr-only"> {collection.name}</span></Link></div>
+            <Link className="collection-link" href={`/collections/${collection.slug}`}>{t("Step inside →")}<span className="sr-only"> {collection.name}</span></Link></div>
             </div>
           </article>
         )}</div>
@@ -67,7 +67,7 @@ async function CollectionDirectory({ mine }: { mine: boolean }) {
 }
 
 function PreviewShelf() {
-  return <div className="collection-preview" aria-hidden="true">{[0, 1, 2].map(index => <span className="preview-placeholder" key={index}>myLibrary</span>)}</div>;
+  return <div className="collection-preview" aria-hidden="true">{[0, 1, 2].map(index => <span className="preview-placeholder" key={index}>Shelfie Street</span>)}</div>;
 }
 
 async function CollectionPreview({ slug }: { slug: string }) {
