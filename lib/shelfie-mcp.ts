@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { MANDATORY_CLIENT_COVER_SEARCH, BOOK_IDENTIFICATION_AND_COVER_RESOLUTION, SHELFIE_EXTRACTION_PROTOCOL, SHELFIE_GENAI_PROMPT, MAX_IMPORT_BYTES, parseManualGenaiImport, type ManualGenaiImport } from "./manual-genai-import";
+import { COVER_SEARCH_FIRST, MANDATORY_CLIENT_COVER_SEARCH, BOOK_IDENTIFICATION_AND_COVER_RESOLUTION, SHELFIE_EXTRACTION_PROTOCOL, SHELFIE_GENAI_PROMPT, MAX_IMPORT_BYTES, parseManualGenaiImport, type ManualGenaiImport } from "./manual-genai-import";
 
 export type ShelfieTools = {
   listCollections: () => Promise<{ id: string; name: string; slug: string }[]>;
@@ -19,16 +19,29 @@ const bookSchema = z.object({
   subtitle: optionalText(300), publisher: optionalText(200), language: optionalText(40),
   publicationYear: z.number().int().min(1400).max(2100).nullable().optional(),
   editionStatement: optionalText(160), series: optionalText(200), volume: optionalText(80),
-  coverUrl: optionalText(2048).describe("Direct public HTTPS cover-image URL for the same work and volume. Prefer exact edition, then same-language edition, then different-language edition; null only after a documented unsuccessful search or search/access blocker."),
+  coverUrl: z.string().trim().min(1).max(2048).nullable().describe("Direct public HTTPS cover-image URL for the same work and volume. Prefer exact edition, then same-language edition, then different-language edition; null only after a documented unsuccessful search or search/access blocker."),
   notes: optionalText(500).describe("Record representative-cover use and known differences. For null coverUrl, record searches attempted and the specific unresolved issue or search/access blocker; a backend-resolution request alone is insufficient. Include bibliographic uncertainties or corrections."),
   rawVisibleText: optionalText(1000).describe("All meaningful literal spine text before normalization or bibliographic correction."),
   fieldConfidence: z.object({ title: optionalConfidence, authors: optionalConfidence, publisher: optionalConfidence, series: optionalConfidence, volume: optionalConfidence }).nullable().optional(),
 });
 const shelfieWriteProtocol = `When the source is one or more shelf photographs, you MUST apply the complete protocol below before constructing this tool call. Do not rely on a separate MCP prompt.\n\n${SHELFIE_EXTRACTION_PROTOCOL}`;
 
+// Validate the whole batch before calling a write callback; clients must repair
+// an incomplete cover submission without leaving a partially created collection.
+function reviewedCoverImport(input: unknown): ManualGenaiImport {
+  const payload = parseManualGenaiImport(input);
+  const unexplained = payload.books.filter(book => !book.coverUrl && !book.notes?.trim());
+  if (unexplained.length) {
+    throw new Error(`Import not performed. Search for cover URLs before retrying. Missing covers without search explanations: ${unexplained.map(book => `${book.position}: ${book.title}`).join("; ")}. Search each book using web/image tools and submit a direct HTTPS coverUrl. If a search finds no credible cover or is blocked, explicitly submit coverUrl: null and explain the queries/sources tried and the specific outcome in notes. Do not ask the user to request cover searching again.`);
+  }
+  return payload;
+}
+
 export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
-  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.5.0" }, {
-    instructions: `You can list the owner's collections and books and import attached shelf photos. For a shelf photo, internally perform five passes before calling a write tool: (1) count and separate physical spines; (2) transcribe literal text; (3) resolve structured metadata from supported visual evidence; (4) verify the work and search for a credible direct public cover image; (5) reconcile count, positions, overlapping photos, duplicates, titles, authors, series, volumes, and cover links. Preserve one item per physical book in shelf order. Never translate the photographed edition's catalogue title or invent bibliographic facts. coverUrl must be a direct public HTTPS image. Omit spines without a meaningful title fragment. The complete protocol is available as the read_shelf_photo prompt and in the write-tool descriptions. Use create_collection for a requested new collection and update_collection for an existing collection. Never call a write tool without the user's explicit request.
+  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.6.0" }, {
+    instructions: `${COVER_SEARCH_FIRST}
+
+You can list the owner's collections and books and import attached shelf photos. For a shelf photo, internally perform five passes before calling a write tool: (1) count and separate physical spines; (2) transcribe literal text; (3) resolve structured metadata from supported visual evidence; (4) verify the work and search for a credible direct public cover image; (5) reconcile count, positions, overlapping photos, duplicates, titles, authors, series, volumes, and cover links. Preserve one item per physical book in shelf order. Never translate the photographed edition's catalogue title or invent bibliographic facts. coverUrl must be a direct public HTTPS image. Omit spines without a meaningful title fragment. The complete protocol is available as the read_shelf_photo prompt and in the write-tool descriptions. Use create_collection for a requested new collection and update_collection for an existing collection. Never call a write tool without the user's explicit request.
 
 ${BOOK_IDENTIFICATION_AND_COVER_RESOLUTION}
 
@@ -53,13 +66,15 @@ ${MANDATORY_CLIENT_COVER_SEARCH}`,
     catch { return { isError: true, content: [{ type: "text", text: "Unable to list this collection. Check access and try again." }] }; }
   });
   server.registerTool("create_collection", {
-    title: "Create and populate a library collection", description: `Create a collection and atomically import the supplied book JSON. Submit the complete mylibrary.shelfie.v1 payload. Repeating the exact same name and payload returns the original import.\n\n${shelfieWriteProtocol}`,
+    title: "Create and populate a library collection", description: `${COVER_SEARCH_FIRST}
+
+Create a collection and atomically import the supplied book JSON. Submit the complete mylibrary.shelfie.v1 payload. Repeating the exact same name and payload returns the original import.\n\n${shelfieWriteProtocol}`,
     inputSchema: { name: z.string().trim().min(1).max(120), description: z.string().trim().max(1000).nullable().optional(), schemaVersion: z.literal("mylibrary.shelfie.v1"), books: z.array(bookSchema).min(1).max(100) },
     outputSchema: { collectionId: z.string(), slug: z.string(), importId: z.string(), imported: z.number(), duplicate: z.boolean(), name: z.string().optional(), description: z.string().nullable().optional(), collectionUrl: z.string() },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }, _meta: { securitySchemes },
   }, async ({ name, description, ...input }) => {
     try {
-      const result = await tools.createCollection(name, description ?? null, parseManualGenaiImport(input));
+      const result = await tools.createCollection(name, description ?? null, reviewedCoverImport(input));
       const output = { ...result, collectionUrl: `${origin}/collections/${result.slug}` };
       return { structuredContent: output, content: [{ type: "text", text: JSON.stringify(output) }] };
     }
@@ -67,18 +82,20 @@ ${MANDATORY_CLIENT_COVER_SEARCH}`,
   });
   server.registerTool("update_collection", {
     title: "Add books to an existing collection",
-    description: `Add only new books from the complete mylibrary.shelfie.v1 JSON to an owned collection. The backend ignores books already present using normalized title, authors, and volume. Existing books are retained and duplicates within the JSON are also ignored.\n\n${shelfieWriteProtocol}`,
+    description: `${COVER_SEARCH_FIRST}
+
+Add only new books from the complete mylibrary.shelfie.v1 JSON to an owned collection. The backend ignores books already present using normalized title, authors, and volume. Existing books are retained and duplicates within the JSON are also ignored.\n\n${shelfieWriteProtocol}`,
     inputSchema: { collectionId: z.string().uuid(), schemaVersion: z.literal("mylibrary.shelfie.v1"), books: z.array(bookSchema).min(1).max(100) },
     outputSchema: { collectionId: z.string(), slug: z.string(), importId: z.string().nullable(), imported: z.number(), ignoredExisting: z.number(), duplicate: z.boolean(), collectionUrl: z.string() },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }, _meta: { securitySchemes },
   }, async ({ collectionId, ...input }) => {
     try {
       if (new TextEncoder().encode(JSON.stringify(input)).byteLength > MAX_IMPORT_BYTES) throw new Error("Payload exceeds 1 MB.");
-      const result = await tools.updateCollection(collectionId, parseManualGenaiImport(input));
+      const result = await tools.updateCollection(collectionId, reviewedCoverImport(input));
       const output = { ...result, collectionUrl: `${origin}/collections/${result.slug}` };
       return { structuredContent: output, content: [{ type: "text", text: JSON.stringify(output) }] };
     } catch (error) { return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : "Collection could not be updated." }] }; }
   });
-  server.registerPrompt("read_shelf_photo", { title: "Import a shelf photo into myLibrary", description: "Apply the complete five-pass shelf extraction protocol and prepare a reviewed myLibrary import." }, () => ({ messages: [{ role: "user", content: { type: "text", text: SHELFIE_GENAI_PROMPT.replace("Return ONLY valid JSON. Do not use Markdown fences and do not add commentary.", "Apply all rules below to the attached shelf photos and build the complete tool input for create_collection or update_collection. If the destination is not already clear, ask whether to create a named collection or append to an existing one. Show a concise count and uncertainty summary, then obtain explicit confirmation before calling a write tool.") } }] }));
+  server.registerPrompt("read_shelf_photo", { title: "Import a shelf photo into myLibrary", description: "Apply the complete five-pass shelf extraction protocol and prepare a reviewed myLibrary import." }, () => ({ messages: [{ role: "user", content: { type: "text", text: SHELFIE_GENAI_PROMPT.replace("Return ONLY valid JSON. Do not use Markdown fences and do not add commentary.", "Apply all rules below to the attached shelf photos and build the complete tool input for create_collection or update_collection. If the destination is not already clear, ask whether to create a named collection or append to an existing one. Search for covers now without asking whether to search. If the user has already requested the import and the destination is clear, complete it without additional confirmation; otherwise ask only for the missing destination or import instruction. Report the imported count, cover count, and remaining uncertainties.") } }] }));
   return server;
 }

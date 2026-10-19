@@ -8,7 +8,7 @@ import { createShelfieMcpServer } from "./shelfie-mcp";
 import { parseManualGenaiText, MAX_IMPORT_BYTES } from "./manual-genai-import";
 import { safeReturnPath } from "./safe-return-path";
 
-const payload = { schemaVersion: "mylibrary.shelfie.v1", books: [{ position: 1, title: "The Hobbit", authors: ["Tolkien"], confidence: .9, visibleIsbn: null }] };
+const payload = { schemaVersion: "mylibrary.shelfie.v1", books: [{ position: 1, title: "The Hobbit", authors: ["Tolkien"], confidence: .9, visibleIsbn: null, coverUrl: "https://images.example.test/hobbit.jpg" }] };
 
 test("paste accepts JSON fences and BOM without silently repairing invalid output", () => {
   const json = JSON.stringify(payload);
@@ -52,6 +52,7 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport); await client.connect(clientTransport);
   try {
+    assert.ok(client.getInstructions()?.startsWith("SEARCH FOR COVERS BEFORE IMPORTING."));
     assert.match(client.getInstructions() ?? "", /Different-language edition of the same work/);
     assert.match(client.getInstructions() ?? "", /Never report an import as fully verified/);
     assert.match(client.getInstructions() ?? "", /MUST actively search for a cover image for EVERY book/);
@@ -60,6 +61,7 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     for (const name of ["create_collection", "update_collection"]) {
       const tool = listedTools.find((item) => item.name === name);
       const description = tool?.description ?? "";
+      assert.ok(description.startsWith("SEARCH FOR COVERS BEFORE IMPORTING."));
       assert.match(description, /MANDATORY CLIENT-SIDE COVER SEARCH/);
       assert.match(description, /MUST actively search for a cover image for EVERY book/);
       assert.match(description, /continue in batches until every book has been searched/);
@@ -93,6 +95,8 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     assert.match(promptText, /PASS 1 — PHYSICAL INVENTORY/);
     assert.match(promptText, /PASS 4 — WEB VERIFICATION AND COVER/);
     assert.match(promptText, /coverUrl is a direct, public HTTPS URL/);
+    assert.doesNotMatch(promptText, /obtain explicit confirmation/);
+    assert.match(promptText, /without additional confirmation/);
     const listed = await client.callTool({ name: "list_collection_books", arguments: { collectionId: id } });
     assert.equal((listed.structuredContent as { total: number }).total, 1);
     const created = await client.callTool({ name: "create_collection", arguments: { name: "RPG", description: "Games", ...payload, books: [{ ...payload.books[0], isbn: "9780261102217", visibleIsbn: "9780261102217" }] } });
@@ -102,5 +106,19 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     assert.equal((good.structuredContent as { collectionUrl: string }).collectionUrl, "https://library.test/collections/books");
     const bad = await client.callTool({ name: "update_collection", arguments: { collectionId: id, ...payload, books: [{ ...payload.books[0], coverUrl: "http://invalid.test/cover.jpg" }] } });
     assert.equal(bad.isError, true); assert.equal(writes, 2);
+    for (const name of ["create_collection", "update_collection"]) {
+      const destination = name === "create_collection" ? { name: "RPG" } : { collectionId: id };
+      const unexplained = await client.callTool({ name, arguments: { ...destination, ...payload, books: [{ ...payload.books[0], coverUrl: null }] } });
+      assert.equal(unexplained.isError, true);
+      assert.match(JSON.stringify(unexplained.content), /Import not performed.*Search for cover URLs/);
+      assert.equal(writes, 2, "no write callback runs for unexplained missing covers");
+      const { coverUrl: _cover, ...withoutCover } = payload.books[0];
+      const omitted = await client.callTool({ name, arguments: { ...destination, ...payload, books: [withoutCover] } });
+      assert.equal(omitted.isError, true, "coverUrl must be explicitly supplied");
+      assert.equal(writes, 2);
+    }
+    const searched = await client.callTool({ name: "update_collection", arguments: { collectionId: id, ...payload, books: [{ ...payload.books[0], coverUrl: null, notes: "Searched title/author in publisher catalogue and Open Library; matching book pages had no cover image." }] } });
+    assert.equal(searched.isError, undefined, "documented unsuccessful searches remain importable");
+    assert.equal(writes, 3);
   } finally { await client.close(); await server.close(); }
 });

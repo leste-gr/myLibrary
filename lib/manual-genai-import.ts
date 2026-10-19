@@ -155,6 +155,12 @@ export function parseManualGenaiImport(value: unknown): ManualGenaiImport {
   return { schemaVersion: MANUAL_GENAI_SCHEMA_VERSION, books };
 }
 
+export const COVER_SEARCH_FIRST = `SEARCH FOR COVERS BEFORE IMPORTING.
+A request to import shelf photos includes finding cover URLs for every identified book. Start web/image searches yourself; do not ask whether to search, wait for another user prompt, or offer to search later. Do not submit a metadata-only import and leave cover research to the backend.
+Search title + author + volume, inspect matching publisher/bookshop/catalogue pages, and extract a direct HTTPS image URL from the page or image results. If one catalogue has no cover, try other sources and representative editions of the same work and volume, including another language. Continue in batches until every book has been searched.
+For each book, explicitly supply coverUrl. Use null only after an unsuccessful search or a real search/access blocker, and explain the queries/sources tried and the specific outcome in notes. Never invent a search or a URL. If no search tools are available, disclose that limitation honestly.
+When the user has requested the import and the destination is clear, complete searching and importing without asking for additional confirmation.`;
+
 export const BOOK_IDENTIFICATION_AND_COVER_RESOLUTION = `BOOK IDENTIFICATION AND COVER RESOLUTION
 
 Primary goal: Identify the correct literary work and display a valid cover for it. Matching the exact physical edition is desirable but secondary.
@@ -197,7 +203,9 @@ Before submitting, confirm that every book has either:
 
 After importing, report the total number of books, the number of cover URLs supplied by the client, and the number left for backend fallback. Do not imply that backend fallback covers have been found or verified unless confirmed.`;
 
-export const SHELFIE_EXTRACTION_PROTOCOL = `${BOOK_IDENTIFICATION_AND_COVER_RESOLUTION}
+export const SHELFIE_EXTRACTION_PROTOCOL = `${COVER_SEARCH_FIRST}
+
+${BOOK_IDENTIFICATION_AND_COVER_RESOLUTION}
 
 ${MANDATORY_CLIENT_COVER_SEARCH}
 
