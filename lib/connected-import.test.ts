@@ -5,7 +5,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { verifyAssistantToken } from "./assistant-auth";
 import { createShelfieMcpServer } from "./shelfie-mcp";
-import { parseManualGenaiText, MAX_IMPORT_BYTES } from "./manual-genai-import";
+import { parseManualGenaiText, MAX_IMPORT_BYTES, SHELFIE_EXTRACTION_PROTOCOL } from "./manual-genai-import";
 import { safeReturnPath } from "./safe-return-path";
 
 const payload = { schemaVersion: "mylibrary.shelfie.v1", books: [{ position: 1, title: "The Hobbit", authors: ["Tolkien"], confidence: .9, visibleIsbn: null, coverUrl: "https://images.example.test/hobbit.jpg" }] };
@@ -52,32 +52,16 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport); await client.connect(clientTransport);
   try {
-    assert.ok(client.getInstructions()?.startsWith("SEARCH FOR COVERS BEFORE IMPORTING."));
-    assert.match(client.getInstructions() ?? "", /Different-language edition of the same work/);
-    assert.match(client.getInstructions() ?? "", /Never report an import as fully verified/);
-    assert.match(client.getInstructions() ?? "", /MUST actively search for a cover image for EVERY book/);
+    assert.equal(client.getInstructions(), SHELFIE_EXTRACTION_PROTOCOL);
     const listedTools = (await client.listTools()).tools;
     assert.deepEqual(listedTools.map((tool) => tool.name).sort(), ["create_collection", "list_collection_books", "list_collections", "update_collection"]);
     for (const name of ["create_collection", "update_collection"]) {
       const tool = listedTools.find((item) => item.name === name);
       const description = tool?.description ?? "";
-      assert.ok(description.startsWith("SEARCH FOR COVERS BEFORE IMPORTING."));
-      assert.match(description, /MANDATORY CLIENT-SIDE COVER SEARCH/);
-      assert.match(description, /MUST actively search for a cover image for EVERY book/);
-      assert.match(description, /continue in batches until every book has been searched/);
-      assert.match(description, /Record the searches attempted and the specific unresolved issue in notes/);
-      assert.match(description, /FINAL COVER CHECK/);
-      assert.match(description, /number of cover URLs supplied by the client/);
-      assert.match(description, /Do not imply that backend fallback covers have been found or verified unless confirmed/);
-      assert.doesNotMatch(description, /Use web search .*when available/);
-      assert.match(description, /Different-language edition of the same work/);
-      assert.doesNotMatch(description, /ISBN|visibleIsbn/);
-      assert.match(description, /do not reduce book-identification confidence solely/);
-      assert.match(description, /Never report an import as fully verified/);
-      assert.match(description, /PASS 1 — PHYSICAL INVENTORY/);
-      assert.match(description, /PASS 4 — WEB VERIFICATION AND COVER/);
-      assert.match(description, /PASS 5 — FINAL CHECK/);
-      assert.match(description, /coverUrl is a direct, public HTTPS URL/);
+      assert.ok(description.startsWith(SHELFIE_EXTRACTION_PROTOCOL));
+      assert.match(description, /YOU MUST INVOKE WEB SEARCH TOOLS/);
+      assert.match(description, /booksSearched === totalBooks/);
+      assert.match(description, /Use a real file-generation tool/);
       assert.doesNotMatch(JSON.stringify(tool?.inputSchema), /"(?:isbn|visibleIsbn)"/);
       assert.match(JSON.stringify(tool?.inputSchema), /"coverUrl"/);
     }
@@ -85,18 +69,9 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     assert.deepEqual(prompts.prompts.map((prompt) => prompt.name), ["read_shelf_photo"]);
     const shelfiePrompt = await client.getPrompt({ name: "read_shelf_photo" });
     const promptText = shelfiePrompt.messages[0]?.content.type === "text" ? shelfiePrompt.messages[0].content.text : "";
-    assert.match(promptText, /MANDATORY CLIENT-SIDE COVER SEARCH/);
-    assert.match(promptText, /FINAL COVER CHECK/);
-    assert.match(promptText, /If search tools are unavailable, disclose the blocker before importing/);
-    assert.match(promptText, /Different-language edition of the same work/);
+    assert.ok(promptText.includes(SHELFIE_EXTRACTION_PROTOCOL));
+    assert.match(promptText, /coversFound \+ coversMissing === totalBooks/);
     assert.doesNotMatch(promptText, /ISBN|visibleIsbn|"isbn"/);
-    assert.match(promptText, /Never report an import as fully verified/);
-    assert.doesNotMatch(promptText, /representative cover in the same language is allowed only/);
-    assert.match(promptText, /PASS 1 — PHYSICAL INVENTORY/);
-    assert.match(promptText, /PASS 4 — WEB VERIFICATION AND COVER/);
-    assert.match(promptText, /coverUrl is a direct, public HTTPS URL/);
-    assert.doesNotMatch(promptText, /obtain explicit confirmation/);
-    assert.match(promptText, /without additional confirmation/);
     const listed = await client.callTool({ name: "list_collection_books", arguments: { collectionId: id } });
     assert.equal((listed.structuredContent as { total: number }).total, 1);
     const created = await client.callTool({ name: "create_collection", arguments: { name: "RPG", description: "Games", ...payload, books: [{ ...payload.books[0], isbn: "9780261102217", visibleIsbn: "9780261102217" }] } });

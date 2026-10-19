@@ -155,100 +155,90 @@ export function parseManualGenaiImport(value: unknown): ManualGenaiImport {
   return { schemaVersion: MANUAL_GENAI_SCHEMA_VERSION, books };
 }
 
-export const COVER_SEARCH_FIRST = `SEARCH FOR COVERS BEFORE IMPORTING.
-A request to import shelf photos includes finding cover URLs for every identified book. Start web/image searches yourself; do not ask whether to search, wait for another user prompt, or offer to search later. Do not submit a metadata-only import and leave cover research to the backend.
-Search title + author + volume, inspect matching publisher/bookshop/catalogue pages, and extract a direct HTTPS image URL from the page or image results. If one catalogue has no cover, try other sources and representative editions of the same work and volume, including another language. Continue in batches until every book has been searched.
-For each book, explicitly supply coverUrl. Use null only after an unsuccessful search or a real search/access blocker, and explain the queries/sources tried and the specific outcome in notes. Never invent a search or a URL. If no search tools are available, disclose that limitation honestly.
-When the user has requested the import and the destination is clear, complete searching and importing without asking for additional confirmation.`;
+export const SHELFIE_EXTRACTION_PROTOCOL = `CRITICAL: MANDATORY COVER SEARCH AND COMPLETION GATE
 
-export const BOOK_IDENTIFICATION_AND_COVER_RESOLUTION = `BOOK IDENTIFICATION AND COVER RESOLUTION
+Cover discovery is a required deliverable, not an optional enhancement.
 
-Primary goal: Identify the correct literary work and display a valid cover for it. Matching the exact physical edition is desirable but secondary.
+The task is NOT complete when the books have been identified. It is complete only when every identified book has undergone an individual, client-side cover search and the resulting JSON has been validated.
 
-1. Read each spine literally before normalizing the title. Never invent or silently replace uncertain titles.
-2. Verify the work using its title, author, series, and volume. Preserve the language of the photographed edition in the catalogue.
-3. Resolve covers in this priority order:
-   - Exact physical edition.
-   - Different edition of the same work in the same language.
-   - Different-language edition of the same work.
-   - No cover, only when no credible match exists.
-4. A representative cover is acceptable even when the publisher, publication year, format, or language differs.
-5. Never use the cover of another volume, adaptation, or unrelated work.
-6. Record when a representative cover is used, but do not reduce book-identification confidence solely because the cover differs.
-7. Reconcile overlapping photographs and check titles, authors, volumes, and duplicates before importing.
-8. Never report an import as fully verified unless its bibliographic validation has actually been completed.
+PHASE 1 — Inventory
 
-Success criterion: Maximize correct-work identification and cover coverage without introducing false bibliographic information.`;
+1. Identify all physical books in the photographs.
+2. Construct the complete inventory with bibliographic metadata.
+3. Count the books and assign consecutive positions.
+4. Do not generate the final downloadable file yet.
 
-export const MANDATORY_CLIENT_COVER_SEARCH = `MANDATORY CLIENT-SIDE COVER SEARCH
+PHASE 2 — Mandatory web searches
 
-Before calling this tool, the client MUST actively search for a cover image for EVERY book in the import payload. Searching only selected books and leaving the rest to backend fallback does not satisfy this requirement.
+YOU MUST INVOKE WEB SEARCH TOOLS. Do not rely exclusively on internal knowledge or backend cover resolution.
 
-For each book:
+For EVERY book in the inventory:
 
-1. Search using its title, author, language, and series/volume where applicable.
-2. Seek the exact edition first. If unavailable, search for another edition of the same work in the same language, then another language. An exact-edition match is NOT required to supply a cover.
-3. Verify that the image represents the correct work and volume. Submit a direct public HTTPS image URL in coverUrl.
-4. Record representative-cover use and known differences in notes.
-5. Set coverUrl: null only after actively searching and finding no credible cover, or encountering a search/access blocker. Record the searches attempted and the specific unresolved issue in notes. “Backend cover resolution requested” alone is insufficient.
+1. Search the web using the book’s title and author.
+2. Search for the exact edition, prioritizing the photographed language.
+3. If unsuccessful, search other editions of the same work.
+4. Search publisher websites, bookstores, Google Books, Open Library, and image search results as appropriate.
+5. Extract a direct HTTPS image URL, not a product-page URL.
+6. Verify that the image corresponds to the correct work and volume.
+7. Assign the verified URL to coverUrl.
+8. If no suitable cover is found, document the actual searches and their outcomes in notes.
 
-Backend cover resolution is a fallback AFTER client-side searching, never a substitute for it. Do not skip searches because the collection is large; continue in batches until every book has been searched. If search tools are unavailable, disclose the blocker before importing.
+Do not stop after searching a subset of the books.
 
-FINAL COVER CHECK
+Search in batches if necessary. Continue until every book has been processed.
 
-Before submitting, confirm that every book has either:
+PHASE 3 — Search audit
 
-- A verified cover URL for the correct work and volume; or
-- A documented unsuccessful search or access blocker.
+Maintain an internal audit table with the following information for EVERY book:
 
-After importing, report the total number of books, the number of cover URLs supplied by the client, and the number left for backend fallback. Do not imply that backend fallback covers have been found or verified unless confirmed.`;
+* Position and title
+* Search performed: YES/NO
+* Search queries used
+* Sources examined
+* Cover URL found: YES/NO
+* URL verified: YES/NO
+* Reason for failure, if applicable
 
-export const SHELFIE_EXTRACTION_PROTOCOL = `${COVER_SEARCH_FIRST}
+Before proceeding, assert:
 
-${BOOK_IDENTIFICATION_AND_COVER_RESOLUTION}
+booksSearched === totalBooks
 
-${MANDATORY_CLIENT_COVER_SEARCH}
+If this condition is false, continue searching.
 
-Complete these passes internally before constructing the import:
+A null coverUrl is acceptable only when a real search was attempted and the failure is documented.
 
-PASS 1 — PHYSICAL INVENTORY
-1. Detect and count every distinct physical spine across all attached photos before extracting metadata.
-2. Preserve shelf order: top shelf to bottom shelf and left to right within each shelf. position starts at 1, is consecutive, and is unique.
-3. Do not merge neighboring books or split one wide spine. A boxed set visible as one physical object is one item unless its volumes are visibly separate.
-4. Keep repeated physical copies as separate items. Use overlapping photos only as additional evidence, not as additional books.
+Never invent URLs, search results, or verification outcomes.
 
-PASS 2 — LITERAL READING
-5. Inspect horizontal, vertical, rotated, small, and logo text. Identify title, subtitle, people, publisher/imprint, series, volume/part/issue, edition wording, year, language clues.
-6. rawVisibleText must preserve all meaningful literal text on the spine in its original script and approximate reading order, before correction or expansion.
-7. Do not translate Greek titles into English or English titles into Greek.
+PHASE 4 — Completion validation
 
-PASS 3 — BIBLIOGRAPHIC INTERPRETATION
-8. title is the best-supported complete title of this work or volume, not merely the largest word or the series name. Separate a clear secondary title into subtitle.
-9. authors contains people responsible for the work, not publishers, series names, or promotional text. Preserve Greek names in Greek and Latin names in Latin when printed that way.
-10. You may normalize capitalization, punctuation, spacing, accents, and obvious OCR errors. You may expand a partially read title or name only when at least two independent visible clues support it, such as author plus series, title fragment plus publisher, or title plus volume. Preserve the literal reading in rawVisibleText and explain the correction briefly in notes.
-11. If several readings remain plausible, preserve the supported literal title or fragment, lower that field's confidence, and put concise alternatives in notes. Never silently replace an uncertain title. Do not invent a title from an author alone.
-12. publisher may be identified from an unmistakable logo. series and volume must be separate from the individual title. Preserve Roman numerals and meaningful issue labels.
-13. publicationYear is populated only when a four-digit year is visible. language is the likely language of this physical edition, not the author's nationality.
-14. Use [] when no author is supported and null for other unknown fields. Never use placeholders such as "Unknown", "Unreadable", or "Untitled".
-15. A meaningful title or title fragment is required. Omit a spine if no such fragment can be detected; mention the omission nowhere outside the JSON.
+Before generating the JSON file, calculate:
 
-PASS 4 — WEB VERIFICATION AND COVER
-16. After reading the spine literally, verify the literary work using title, author, series, and volume. Prefer a publisher, author, library, or reputable bookshop page. Correct-work identification and credible cover coverage are the primary goal; an exact physical-edition match is secondary.
-17. coverUrl is a direct, public HTTPS URL for a cover image, not a search-results page or product page. Prefer the image declared in schema.org Book/Product data, then og:image or the page's primary product image. Reject placeholders, generic series art, thumbnails too small to identify, access-controlled URLs, data/blob URLs, and images from pages that describe another volume, adaptation, or unrelated work.
-18. Resolve covers in order: exact physical edition; another edition of the same work in the same language; a different-language edition of the same work; null only when no credible match exists. A representative cover is acceptable even when publisher, publication year, format, or language differs. Record “representative cover” and the known differences in notes. Preserve the photographed edition's title, language, and other bibliographic fields; never copy conflicting metadata from the cover's edition. Do not reduce book-identification confidence solely because the cover differs.
-19. Check that the cover depicts the same work, author, series, and volume and is not an adaptation. Different language or edition details alone do not invalidate a representative cover. Keep the source image URL stable and free of temporary authentication parameters when possible. Leave coverUrl null when no credible match exists so the backend fallback can run.
+* totalBooks: Number of physical books identified
+* booksSearched: Number of books individually searched
+* coversFound: Number of verified direct cover URLs
+* coversMissing: Number of books without verified covers
 
-CONFIDENCE CALIBRATION
-- 0.95–1.00: directly and completely readable.
-- 0.80–0.94: clear with minor normalization.
-- 0.60–0.79: partially obscured but reconstructed from multiple strong clues.
-- 0.40–0.59: uncertain but still a meaningful supported reading.
-- Below 0.40: normally leave the optional field unknown rather than speculate.
-confidence represents confidence that the physical item was separated correctly and its title identifies the book, independently of whether the cover matches the physical edition. fieldConfidence scores each interpreted field; use null when that field is absent.
+The following conditions MUST hold:
 
-PASS 5 — FINAL CHECK
-20. Reconcile the JSON count with the physical count, check that neighbors were not merged, remove accidental duplicate detections, retain genuine repeated copies, and verify consecutive positions.
-21. Confirm every item has a meaningful title, every coverUrl is a direct public HTTPS image linked to the correct book page, and unknowns use [] or null correctly. Recheck titles, authors, series, and volumes across overlapping photos. Record representative covers and unresolved bibliographic validation in notes. Never report an import as fully verified unless its bibliographic validation has actually been completed; a successful write or a found cover is not proof of validation.`;
+booksSearched === totalBooks
+
+coversFound + coversMissing === totalBooks
+
+Every book with a null coverUrl MUST have documented search attempts in its notes.
+
+If any condition fails, do not generate the final file. Continue the unfinished work.
+
+PHASE 5 — Deliverable
+
+Generate the complete JSON file using the requested schema.
+
+Use a real file-generation tool and provide a working download link. Do not invent sandbox paths.
+
+After generating the file, verify that it exists, is valid JSON, contains all identified books, and passes the completion checks.
+
+If web search tools are unavailable or searches are blocked, explicitly report the limitation. Do not claim that the searches were performed.
+
+IMPORTANT: Never substitute a promise to search later, a metadata-only JSON file, or backend cover fallback for the mandatory client-side search. Do not report completion unless the required searches actually occurred.`;
 
 export const SHELFIE_GENAI_PROMPT = `You are extracting a physical book inventory from shelf photographs that I attach in this chat.
 
