@@ -370,5 +370,25 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     await db.exec("set role anon");
     assert.equal((await db.query<{reading_status:string}>("select reading_status from public.public_catalogue where legacy_id=$1",[scanned.legacyId])).rows[0].reading_status,"radar","public visitors can see the saved status");
     await assert.rejects(()=>rpc("set_owned_book_reading_status",[a,scanned.legacyId,"read"]),/permission denied/);
+
+    // Bulk status updates are atomic, collection-scoped and browser-owner-only.
+    await claims(alice);
+    assert.equal(await rpc("set_owned_books_reading_status",[a,[scanned.legacyId,"stage-boundary"],"read"]),2);
+    assert.equal(await reading(),"read");
+    await assert.rejects(()=>rpc("set_owned_books_reading_status",[a,[scanned.legacyId,secondOwner.legacyId],"unread"]),/no longer belong/);
+    assert.equal(await reading(),"read","mixed collection batch changes no books");
+    await assert.rejects(()=>rpc("set_owned_books_reading_status",[a,[scanned.legacyId,"missing"],"radar"]),/no longer belong/);
+    assert.equal(await reading(),"read","missing book batch changes no books");
+    for (const ids of [[],[scanned.legacyId,scanned.legacyId],[null]]) {
+      await assert.rejects(()=>rpc("set_owned_books_reading_status",[a,ids,"unread"]),/distinct books/);
+    }
+    await assert.rejects(()=>rpc("set_owned_books_reading_status",[a,[scanned.legacyId],"invalid"]),/Invalid reading status/);
+    assert.equal(await rpc("set_owned_books_reading_status",[a,[scanned.legacyId,"stage-boundary"],"radar"]),2);
+    await claims(bob);
+    await assert.rejects(()=>rpc("set_owned_books_reading_status",[a,[scanned.legacyId],"read"]),/ownership/);
+    await claims(alice,true);
+    await assert.rejects(()=>rpc("set_owned_books_reading_status",[a,[scanned.legacyId],"read"]),/Browser/);
+    await db.exec("reset role; set role anon");
+    await assert.rejects(()=>rpc("set_owned_books_reading_status",[a,[scanned.legacyId],"read"]),/permission denied/);
   } finally { await db.close(); }
 });

@@ -12,6 +12,7 @@ export async function AccountMenu() {
     {user ? <>
       <span className="account-email">{user.email}</span>
       <Link href="/?view=mine">{t("My collections")}</Link>
+      <Link href="/radar">{t("On my radar")}</Link>
       <Link href="/shelfies/connections">{t("Connected applications")}</Link>
       <form action={signOut}><button type="submit" className="secondary-button">{t("Log out")}</button></form>
     </> : <Link href="/login">{t("Log in / Register")}</Link>}

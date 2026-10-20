@@ -2,7 +2,9 @@
 import { useTranslations } from "@/components/language-provider";
 
 import Link from "next/link";
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { isReadingStatus, type ReadingStatus } from "@/lib/reading-status";
+import { changeBooksReadingStatus } from "@/app/collections/reading-status-actions";
 import type { CatalogueBook, PublicCollection } from "@/lib/types";
 import { DeleteCollectionButton } from "@/components/delete-collection-button";
 import { DeleteBookButton } from "@/components/delete-book-button";
@@ -23,9 +25,17 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
   viewerSignedIn?: boolean;
 }) {
   const t = useTranslations();
+  const [books, setBooks] = useState(initialBooks);
+  useEffect(() => { setBooks(initialBooks); }, [initialBooks]);
+  const [readingFilter, setReadingFilter] = useState("");
+  const [chosenBooks, setChosenBooks] = useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState<ReadingStatus>("read");
+  const [bulkPending, startBulkTransition] = useTransition();
+  const [bulkError, setBulkError] = useState("");
+  const [bulkNotice, setBulkNotice] = useState("");
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
-  const searchIndex = useMemo(() => initialBooks.map(book => ({ book, searchable: normalize([book.title, book.author, book.series, book.category, book.id, book.isbn13].join(" ")) })), [initialBooks]);
+  const searchIndex = useMemo(() => books.map(book => ({ book, searchable: normalize([book.title, book.author, book.series, book.category, book.id, book.isbn13].join(" ")) })), [books]);
   const [category, setCategory] = useState("");
   const [author, setAuthor] = useState("");
   const [language, setLanguage] = useState("");
@@ -43,6 +53,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
     { label: t("Category"), value: category, clear: () => setCategory("") },
     { label: t("Author"), value: author, clear: () => setAuthor("") },
     { label: t("Language"), value: language, clear: () => setLanguage("") },
+    { label: t("Reading status"), value: readingFilter ? (readingFilter === "read" ? t("Read") : readingFilter === "radar" ? t("On my radar") : t("Unread")) : "", clear: () => setReadingFilter("") },
   ].filter((filter) => filter.value);
 
   const categories = useMemo(() => [...new Set(initialBooks.map((book) => book.category))].sort(), [initialBooks]);
@@ -56,12 +67,13 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
       return (!category || book.category === category)
         && (!author || book.author === author)
         && (!language || book.language === language)
+        && (!readingFilter || book.readingStatus === readingFilter)
         && (searchable.includes(normalized) || (isIsbnQuery && book.isbn13?.includes(isbnQuery)));
     }).map(({ book }) => book);
     if (sort === "title") result.sort((a, b) => a.title.localeCompare(b.title, "el"));
     if (sort === "author") result.sort((a, b) => a.author.localeCompare(b.author, "el"));
     return result;
-  }, [searchIndex, deferredQuery, category, author, language, sort]);
+  }, [searchIndex, deferredQuery, category, author, language, readingFilter, sort]);
 
   useEffect(() => {
     function restoreBook() {
@@ -73,7 +85,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
         const saved = JSON.parse(sessionStorage.getItem(`catalogue-return:${collection.slug}`) ?? "null");
         if (saved?.bookId === id && [saved.query, saved.category, saved.author, saved.language, saved.sort].every(value => typeof value === "string")) {
           setQuery(saved.query); setCategory(saved.category); setAuthor(saved.author);
-          setLanguage(saved.language); setSort(saved.sort);
+          setLanguage(saved.language); setSort(saved.sort); setReadingFilter(isReadingStatus(saved.readingFilter) ? saved.readingFilter : "");
         }
       } catch { /* Returning to a book also works when storage is unavailable. */ }
       setReturnBook(id);
@@ -88,7 +100,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
     const index = filteredBooks.findIndex(book => book.id === returnBook);
     if (index < 0) {
       // An edit may change the title or author so it no longer matches the old filters.
-      setQuery(""); setCategory(""); setAuthor(""); setLanguage("");
+      setQuery(""); setCategory(""); setAuthor(""); setLanguage(""); setReadingFilter("");
       return;
     }
     if (index >= limit) { setLimit(Math.ceil((index + 1) / 32) * 32); return; }
@@ -102,7 +114,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
   }, [returnBook, filteredBooks, limit, query, deferredQuery]);
 
   function rememberBook(id: string) {
-    try { sessionStorage.setItem(`catalogue-return:${collection.slug}`, JSON.stringify({ bookId: id, query, category, author, language, sort })); } catch { /* Optional view persistence. */ }
+    try { sessionStorage.setItem(`catalogue-return:${collection.slug}`, JSON.stringify({ bookId: id, query, category, author, language, sort, readingFilter })); } catch { /* Optional view persistence. */ }
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}#book-${encodeURIComponent(id)}`);
     dialogRef.current?.close();
   }
@@ -121,6 +133,30 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
     return () => observer.disconnect();
   }, [limit, filteredBooks]);
 
+  useEffect(() => { setChosenBooks(new Set()); setBulkError(""); }, [query, category, author, language, readingFilter]);
+  const displayedBooks = filteredBooks.slice(0, limit);
+  const displayedSelected = displayedBooks.length > 0 && displayedBooks.every(book => chosenBooks.has(book.id));
+  function chooseBooks(ids: string[], checked: boolean) {
+    const next = new Set(chosenBooks);
+    ids.forEach(id => checked ? next.add(id) : next.delete(id));
+    if (next.size > 1000) { setBulkError("Select up to 1,000 books at a time."); return; }
+    setChosenBooks(next); setBulkError(""); setBulkNotice("");
+  }
+  function applyBulkStatus() {
+    const ids = [...chosenBooks];
+    if (!ids.length) return;
+    setBulkError(""); setBulkNotice("");
+    startBulkTransition(async () => {
+      try {
+        const result = await changeBooksReadingStatus(collection.slug, ids, bulkStatus);
+        if (result.error) { setBulkError(result.error); return; }
+        setBooks(previous => previous.map(book => ids.includes(book.id) ? { ...book, readingStatus: bulkStatus } : book));
+        setChosenBooks(new Set());
+        setBulkNotice(t("Updated {0} books.", [result.updated]));
+      } catch { setBulkError("Could not update the selected books. Please try again."); }
+    });
+  }
+
   function openBook(book: CatalogueBook) {
     setSelected(book);
     requestAnimationFrame(() => dialogRef.current?.showModal());
@@ -131,6 +167,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
     setCategory("");
     setAuthor("");
     setLanguage("");
+    setReadingFilter("");
     setSort("catalogue");
     setLimit(32);
   }
@@ -156,21 +193,32 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
         </div>
         <div className="catalogue-layout">
           <aside aria-label={t("Book filters")}>
-            <button className="filter-toggle" type="button" aria-expanded={filtersOpen} aria-controls="catalogue-filters" onClick={() => setFiltersOpen(!filtersOpen)}>{t("Filters")}{[category, author, language].filter(Boolean).length > 0 && ` (${[category, author, language].filter(Boolean).length})`}<span aria-hidden="true">{filtersOpen ? "−" : "+"}</span></button>
+            <button className="filter-toggle" type="button" aria-expanded={filtersOpen} aria-controls="catalogue-filters" onClick={() => setFiltersOpen(!filtersOpen)}>{t("Filters")}{[category, author, language, readingFilter].filter(Boolean).length > 0 && ` (${[category, author, language, readingFilter].filter(Boolean).length})`}<span aria-hidden="true">{filtersOpen ? "−" : "+"}</span></button>
             <div id="catalogue-filters" className={`filter-body${filtersOpen ? " is-open" : ""}`}><div className="filter-heading"><h2>{t("Filters")}</h2><button type="button" onClick={reset} disabled={!activeFilters.length && sort === "catalogue"}>{t("Clear")}</button></div><div className="select-filters" onChange={() => setLimit(32)}>
               <label htmlFor="category">{t("Category")}</label><select id="category" value={category} onChange={(event) => setCategory(event.target.value)}><option value="">{t("All")}</option>{categories.map((value) => <option key={value}>{value}</option>)}</select>
               <label htmlFor="author">{t("Author")}</label><select id="author" value={author} onChange={(event) => setAuthor(event.target.value)}><option value="">{t("All")}</option>{authors.map((value) => <option key={value}>{value}</option>)}</select>
               <label htmlFor="language">{t("Language")}</label><select id="language" value={language} onChange={(event) => setLanguage(event.target.value)}><option value="">{t("All")}</option>{languages.map((value) => <option key={value}>{value}</option>)}</select>
+              <label htmlFor="reading-filter">{t("Reading status")}</label><select id="reading-filter" value={readingFilter} onChange={event => setReadingFilter(event.target.value)}><option value="">{t("All reading statuses")}</option><option value="unread">{t("Unread")}</option><option value="read">{t("Read")}</option><option value="radar">{t("On my radar")}</option></select>
             </div></div>
           </aside>
           <section id="catalogue" aria-busy={query !== deferredQuery} tabIndex={-1} aria-label={t("Collection books")}>
             <div className="catalogue-toolbar"><div><h2>{category || t("All books")}</h2><p role="status" aria-live="polite" aria-atomic="true">{filteredBooks.length} {" " + t("of") + " "}{initialBooks.length} {" " + t("books")}</p></div><div className="sort-wrap"><label htmlFor="sort">{t("Sort by")}</label><select id="sort" value={sort} onChange={(event) => { setSort(event.target.value); setLimit(32); }}><option value="catalogue">{t("Catalogue order")}</option><option value="title">{t("Title A–Z")}</option><option value="author">{t("Author A–Z")}</option></select></div></div>
             {activeFilters.length > 0 && <div className="active-filters" aria-label={t("Active filters")}>{activeFilters.map((filter) => <button key={filter.label} className="filter-chip" type="button" aria-label={t("Remove: {0} — {1}", [filter.label, filter.value])} onClick={() => { filter.clear(); setLimit(32); }}>{filter.label}: {filter.value}<span aria-hidden="true"> ×</span></button>)}</div>}
+            {canEdit && <div className="bulk-reading-toolbar" aria-label={t("Bulk reading status")}>
+              <label className="bulk-select-label"><input type="checkbox" checked={displayedSelected} disabled={bulkPending || !displayedBooks.length} onChange={event => chooseBooks(displayedBooks.map(book => book.id), event.target.checked)} />{t("Select displayed books")}</label>
+              <span role="status">{t("{0} selected", [chosenBooks.size])}</span>
+              <label htmlFor="bulk-reading-status">{t("Mark selected as")}</label>
+              <select id="bulk-reading-status" value={bulkStatus} disabled={bulkPending} onChange={event => { if (isReadingStatus(event.target.value)) setBulkStatus(event.target.value); }}><option value="unread">{t("Unread")}</option><option value="read">{t("Read")}</option><option value="radar">{t("On my radar")}</option></select>
+              <button className="button-link" type="button" disabled={bulkPending || !chosenBooks.size} onClick={applyBulkStatus}>{bulkPending ? t("Saving…") : t("Apply status")}</button>
+              {chosenBooks.size > 0 && <button className="secondary-button" disabled={bulkPending} type="button" onClick={() => setChosenBooks(new Set())}>{t("Clear selection")}</button>}
+            </div>}
+            {bulkError && <p className="reading-error" role="alert">{t(bulkError)}</p>}
+            {bulkNotice && <p role="status">{bulkNotice}</p>}
             <div className="book-grid">
-              {filteredBooks.slice(0, limit).map((book) => <article className="book-card-shell" id={`book-${book.id}`} key={book.id}><button type="button" className="book-card" onClick={() => openBook(book)}>
+              {displayedBooks.map((book) => <article className="book-card-shell" id={`book-${book.id}`} key={book.id}>{canEdit && <label className="book-selection"><input type="checkbox" checked={chosenBooks.has(book.id)} disabled={bulkPending} aria-label={t("Select {0}", [book.title])} onChange={event => chooseBooks([book.id], event.target.checked)} /><span>{t("Select book")}</span></label>}<button type="button" className="book-card" onClick={() => openBook(book)}>
                 <div className="cover-wrap"><BookCoverImage src={book.cover} alt={t("Cover: ") + book.title} fallbackAlt={t("Cover unavailable")} loading="lazy" /></div>
                 <h3>{book.title}</h3><p className="book-author">{book.author}</p>{book.series && <p className="book-series">{book.series}</p>}{book.isbn13 && <p className="book-isbn">{book.isbn13}</p>}
-              </button><BookReadingStatus slug={collection.slug} legacyId={book.id} title={book.title} status={book.readingStatus} canEdit={canEdit} /></article>)}
+              </button><BookReadingStatus slug={collection.slug} legacyId={book.id} title={book.title} status={book.readingStatus} canEdit={canEdit} disabled={bulkPending} onSaved={status => setBooks(previous => previous.map(item => item.id === book.id ? { ...item, readingStatus: status } : item))} /></article>)}
             </div>
             {!filteredBooks.length && <div id="empty"><h3>{initialBooks.length ? t("No books found.") : t("This collection has no books yet.")}</h3>{initialBooks.length > 0 && <><p>{t("Try another search or remove a filter.")}</p><button type="button" onClick={reset}>{t("Show all")}</button></>}</div>}
             {filteredBooks.length > 0 && <div className="load-more" ref={sentinelRef}><p role="status" aria-live="polite">{t("Showing") + " "}{Math.min(limit, filteredBooks.length)} {" " + t("of") + " "}{filteredBooks.length} {" " + t("books")}</p>{filteredBooks.length > limit && !manualLoading && <p className="scroll-hint">{t("Scroll to discover more books")}</p>}{filteredBooks.length > limit && manualLoading && <button type="button" onClick={() => setLimit((value) => value + 32)}>{t("Show") + " "}{Math.min(32, filteredBooks.length - limit)} {" " + t("more books")}</button>}</div>}
