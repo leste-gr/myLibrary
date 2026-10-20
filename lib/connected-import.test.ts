@@ -54,6 +54,7 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
   await server.connect(serverTransport); await client.connect(clientTransport);
   try {
     assert.equal(client.getInstructions(), SHELFIE_MCP_INSTRUCTIONS);
+    assert.doesNotMatch(client.getInstructions() ?? "", /IF THE CLIENT CANNOT SEARCH/);
     const listedTools = (await client.listTools()).tools;
     assert.deepEqual(listedTools.map((tool) => tool.name).sort(), ["create_collection", "list_collection_books", "list_collections", "update_collection"]);
     for (const name of ["create_collection", "update_collection"]) {
@@ -63,7 +64,7 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
       assert.match(description, /Search for a cover for EACH identified book/);
       assert.match(description, /create the collection ONCE/);
       assert.match(description, /submit JSON directly as tool arguments/);
-      assert.match(description, /ask the user to enable search or explicitly authorize/);
+      assert.doesNotMatch(description, /IF THE CLIENT CANNOT SEARCH|ask the user to enable search|Check the client.s actual capabilities/);
       assert.doesNotMatch(description, /Use a real file-generation tool|PHASE 5|booksSearched === totalBooks/);
       assert.doesNotMatch(JSON.stringify(tool?.inputSchema), /"(?:isbn|visibleIsbn)"/);
       assert.match(JSON.stringify(tool?.inputSchema), /"coverUrl"/);
@@ -73,6 +74,7 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     const shelfiePrompt = await client.getPrompt({ name: "read_shelf_photo" });
     const promptText = shelfiePrompt.messages[0]?.content.type === "text" ? shelfiePrompt.messages[0].content.text : "";
     assert.ok(promptText.startsWith(SHELFIE_MCP_INSTRUCTIONS));
+    assert.doesNotMatch(promptText, /IF THE CLIENT CANNOT SEARCH|ask the user to enable search/);
     assert.match(promptText, /Call create_collection/);
     assert.match(promptText, /at most 100 books/);
     assert.doesNotMatch(promptText, /Use a real file-generation tool|PHASE 5/);
@@ -102,8 +104,6 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     const searched = await client.callTool({ name: "update_collection", arguments: { collectionId: id, ...payload, books: [{ ...payload.books[0], coverUrl: null, notes: "Searched title/author in publisher catalogue and Open Library; matching book pages had no cover image." }] } });
     assert.equal(searched.isError, undefined, "documented unsuccessful searches remain importable");
     assert.equal(writes, 3);
-    const blocked = await client.callTool({ name: "update_collection", arguments: { collectionId: id, ...payload, books: [{ ...payload.books[0], coverUrl: null, notes: "User explicitly authorized import with missing covers: web search tools are unavailable in this client; no cover search was performed." }] } });
-    assert.equal(blocked.isError, undefined, "honest capability blockers remain importable after user authorization");
-    assert.equal(writes, 4);
+
   } finally { await client.close(); await server.close(); }
 });
