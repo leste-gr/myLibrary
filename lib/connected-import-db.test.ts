@@ -320,5 +320,33 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     await rpc("publish_copy_draft", [siblingId]);
     const candidatePublished = (await db.query<{title:string;author:string;cover_url:string}>("select w.title,w.author,c.cover_url from public.copies c join public.works w on w.id=c.work_id where c.id=$1", [siblingId])).rows[0];
     assert.deepEqual(candidatePublished, {title:"Matilda",author:"Roald Dahl",cover_url:previewCover}, "published candidate uses exactly the previewed cover and metadata");
+
+    // Camera/manual ISBN creation is owner-only, atomic and idempotent.
+    await claims(alice);
+    const scanMetadata = { title: "Camera book", authors: ["Scan author"], publishers: ["Scan press"], language: "en", publishedDate: "2024" };
+    const scanRequest = "88888888-1111-4111-8111-111111111111";
+    const importCount = (await db.query("select id from public.manual_genai_imports")).rows.length;
+    const scanned = await rpc("add_owned_isbn_book", [a, "9780306406157", JSON.stringify(scanMetadata), scanRequest]);
+    assert.equal(scanned.duplicate, false);
+    const added = (await db.query<{ title: string; isbn13: string; edition_verification_state: string }>("select w.title,e.isbn13,c.edition_verification_state from public.copies c join public.works w on w.id=c.work_id join public.editions e on e.id=c.edition_id where c.id=$1", [scanned.copyId])).rows[0];
+    assert.deepEqual(added, { title: "Camera book", isbn13: "9780306406157", edition_verification_state: "owner_confirmed" });
+    assert.equal((await db.query("select id from public.manual_genai_imports")).rows.length, importCount, "owner scans never enter shelf-photo matching queues");
+    assert.equal((await db.query<{source_type:string}>("select source_type from public.book_observations where copy_id=$1",[scanned.copyId])).rows[0].source_type,"barcode");
+    const retryScan = await rpc("add_owned_isbn_book", [a,"9780306406157",JSON.stringify(scanMetadata),scanRequest]);
+    assert.equal(retryScan.copyId,scanned.copyId); assert.equal(retryScan.duplicate,true);
+    const repeatedScan = await rpc("add_owned_isbn_book", [a,"9780306406157",JSON.stringify(scanMetadata),"88888888-2222-4222-8222-222222222222"]);
+    assert.equal(repeatedScan.copyId,scanned.copyId); assert.equal(repeatedScan.duplicate,true);
+    await assert.rejects(() => rpc("add_owned_isbn_book",[b,"9780306406157",JSON.stringify(scanMetadata),scanRequest]),/ownership/);
+    await assert.rejects(() => rpc("add_owned_isbn_book",[a,"9780306406158",JSON.stringify(scanMetadata),scanRequest]),/checksum/);
+    const countBeforeInvalid = (await db.query("select id from public.copies")).rows.length;
+    await assert.rejects(() => rpc("add_owned_isbn_book",[a,"9780131103627",JSON.stringify({...scanMetadata,title:""}),"88888888-3333-4333-8333-333333333333"]),/details/);
+    assert.equal((await db.query("select id from public.copies")).rows.length,countBeforeInvalid,"invalid details create no partial book");
+    await claims(alice,true);
+    await assert.rejects(() => rpc("add_owned_isbn_book",[a,"9780306406157",JSON.stringify(scanMetadata),scanRequest]),/Browser/);
+    await claims(bob);
+    const secondOwner = await rpc("add_owned_isbn_book",[b,"9780306406157",JSON.stringify({...scanMetadata,title:"Another owner's copy"}),"88888888-4444-4444-8444-444444444444"]);
+    assert.notEqual(secondOwner.copyId,scanned.copyId);
+    await db.exec("reset role");
+    assert.equal((await db.query<{title:string}>("select w.title from public.copies c join public.works w on w.id=c.work_id where c.id=$1",[scanned.copyId])).rows[0].title,"Camera book","shared ISBN never rewrites another owner's book");
   } finally { await db.close(); }
 });
