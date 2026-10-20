@@ -4,7 +4,7 @@ import { useTranslations } from "@/components/language-provider";
 import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { isReadingStatus, type ReadingStatus } from "@/lib/reading-status";
-import { changeBooksReadingStatus } from "@/app/collections/reading-status-actions";
+import { changeBooksReadingStatus } from "@/lib/reading-status-client";
 import type { CatalogueBook, PublicCollection } from "@/lib/types";
 import { DeleteCollectionButton } from "@/components/delete-collection-button";
 import { DeleteBookButton } from "@/components/delete-book-button";

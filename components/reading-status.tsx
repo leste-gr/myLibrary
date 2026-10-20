@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useTranslations } from "./language-provider";
-import { changeReadingStatus } from "@/app/collections/reading-status-actions";
+import { changeReadingStatus } from "@/lib/reading-status-client";
 import { isReadingStatus, type ReadingStatus as Status } from "@/lib/reading-status";
 
 export function BookReadingStatus({ slug, legacyId, title, status, canEdit, disabled = false, onSaved }: {

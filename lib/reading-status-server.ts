@@ -1,11 +1,10 @@
-"use server";
-
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isReadingStatus } from "@/lib/reading-status";
 
 export async function changeReadingStatus(slug: string, legacyId: string, status: string) {
-  if (!isReadingStatus(status) || !slug || !legacyId || slug.length > 200 || legacyId.length > 200) {
+  if (!isReadingStatus(status) || typeof slug !== "string" || typeof legacyId !== "string"
+    || !slug || !legacyId || slug.length > 200 || legacyId.length > 200) {
     return { error: "Could not save reading status. Please try again." };
   }
   try {
