@@ -1,4 +1,7 @@
+import type { ReadingStatus } from "./reading-status";
+
 export type CatalogueBook = {
+  readingStatus: ReadingStatus;
   id: string;
   title: string;
   author: string;

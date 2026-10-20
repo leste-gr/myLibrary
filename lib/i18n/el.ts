@@ -487,4 +487,12 @@ export const el: Record<string, string> = {
   "Could not look up this ISBN. Please try again.": "Η αναζήτηση του ISBN απέτυχε. Δοκίμασε ξανά.",
   "Could not add this book. Please try again.": "Η προσθήκη του βιβλίου απέτυχε. Δοκίμασε ξανά.",
   "Check the ISBN and book details before adding.": "Έλεγξε το ISBN και τα στοιχεία του βιβλίου πριν από την προσθήκη.",
+  "Read": "Διαβασμένο",
+  "Unread": "Αδιάβαστο",
+  "On my radar": "Στο ραντάρ μου",
+  "Reading status": "Κατάσταση ανάγνωσης",
+  "Reading status for {0}": "Κατάσταση ανάγνωσης για {0}",
+  "Saving…": "Αποθήκευση…",
+  "Could not save reading status. Please try again.": "Δεν ήταν δυνατή η αποθήκευση της κατάστασης ανάγνωσης. Δοκίμασε ξανά.",
+  "Please sign in to change reading status.": "Συνδέσου για να αλλάξεις την κατάσταση ανάγνωσης.",
 };

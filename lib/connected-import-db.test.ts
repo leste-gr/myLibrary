@@ -348,5 +348,27 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     assert.notEqual(secondOwner.copyId,scanned.copyId);
     await db.exec("reset role");
     assert.equal((await db.query<{title:string}>("select w.title from public.copies c join public.works w on w.id=c.work_id where c.id=$1",[scanned.copyId])).rows[0].title,"Camera book","shared ISBN never rewrites another owner's book");
+
+    // Reading status belongs to the physical copy and changes on the catalogue.
+    await claims(alice);
+    const reading = async () => (await db.query<{reading_status:string}>("select reading_status from public.copies where id=$1",[scanned.copyId])).rows[0].reading_status;
+    assert.equal(await reading(),"unread");
+    await rpc("set_owned_book_reading_status",[a,scanned.legacyId,"read"]);
+    assert.equal(await reading(),"read");
+    await rpc("set_owned_book_reading_status",[a,scanned.legacyId,"radar"]);
+    assert.equal(await reading(),"radar");
+    await assert.rejects(()=>rpc("set_owned_book_reading_status",[a,scanned.legacyId,"invalid"]),/Invalid reading status/);
+    assert.equal(await reading(),"radar");
+    await assert.rejects(()=>rpc("set_owned_book_reading_status",[a,"missing-book","read"]),/not found/);
+    await claims(bob);
+    await assert.rejects(()=>rpc("set_owned_book_reading_status",[a,scanned.legacyId,"read"]),/ownership/);
+    assert.equal((await db.query<{reading_status:string}>("select reading_status from public.copies where id=$1",[secondOwner.copyId])).rows[0].reading_status,"unread","same ISBN in another collection retains its own status");
+    await claims(alice,true);
+    await assert.rejects(()=>rpc("set_owned_book_reading_status",[a,scanned.legacyId,"read"]),/Browser/);
+    await db.exec("reset role");
+    await db.query("update public.collections set is_public=true where id=$1",[a]);
+    await db.exec("set role anon");
+    assert.equal((await db.query<{reading_status:string}>("select reading_status from public.public_catalogue where legacy_id=$1",[scanned.legacyId])).rows[0].reading_status,"radar","public visitors can see the saved status");
+    await assert.rejects(()=>rpc("set_owned_book_reading_status",[a,scanned.legacyId,"read"]),/permission denied/);
   } finally { await db.close(); }
 });

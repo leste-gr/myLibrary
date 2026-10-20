@@ -1,8 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import { supabaseConfig } from "./supabase/config";
+import { isReadingStatus, type ReadingStatus } from "./reading-status";
 import type { CatalogueBook, PublicCollection } from "./types";
 
 type PublicRow = {
+  reading_status: ReadingStatus;
   legacy_id: string;
   title: string;
   author: string;
@@ -67,7 +69,7 @@ export async function getPublicCatalogue(slug: string): Promise<CatalogueBook[]>
 
   const { data, error } = await supabase
     .from("public_catalogue")
-    .select("legacy_id,title,author,series,language,category,publisher,cover_url,isbn13")
+    .select("legacy_id,title,author,series,language,category,publisher,cover_url,isbn13,reading_status")
     .eq("collection_slug", slug)
     .order("display_order", { ascending: true });
 
@@ -77,6 +79,7 @@ export async function getPublicCatalogue(slug: string): Promise<CatalogueBook[]>
 
   return (data as PublicRow[]).map((row) => ({
     id: row.legacy_id,
+    readingStatus: isReadingStatus(row.reading_status) ? row.reading_status : "unread",
     title: row.title,
     author: row.author,
     series: row.series ?? "",

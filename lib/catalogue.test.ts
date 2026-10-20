@@ -38,10 +38,12 @@ test("catalogue uses only Supabase and distinguishes empty results from failures
   const requestCount = requests.length;
   assert.deepEqual(await getPublicCollections([]), []);
   assert.equal(requests.length, requestCount, "an owner without collections must never fall back to all collections");
-  payload = [{ legacy_id: "db-book", title: "Database book", author: "Author", contributors: null, series: null, subseries: null, volume: null, language: "en", category: "Fiction", publisher: null, notes: null, cover_url: "https://example.test/cover.jpg", cover_source: "assistant-supplied", isbn13: null }];
+  payload = [{ legacy_id: "db-book", title: "Database book", author: "Author", contributors: null, series: null, subseries: null, volume: null, language: "en", category: "Fiction", publisher: null, notes: null, cover_url: "https://example.test/cover.jpg", cover_source: "assistant-supplied", isbn13: null, reading_status: "radar" }];
   const books = await getPublicCatalogue("new");
   assert.equal(books.length, 1);
   assert.equal(books[0].id, "db-book");
+  assert.equal(books[0].readingStatus, "radar");
+  assert.ok(new URL(requests.at(-1)!).searchParams.get("select")?.includes("reading_status"));
   assert.equal(books[0].cover, "https://example.test/cover.jpg");
   assert.equal("notes" in books[0], false, "unused notes should not be serialized into the browser payload");
   assert.equal("contributors" in books[0], false);
