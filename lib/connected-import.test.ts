@@ -5,7 +5,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { verifyAssistantToken } from "./assistant-auth";
 import { createShelfieMcpServer } from "./shelfie-mcp";
-import { parseManualGenaiText, MAX_IMPORT_BYTES, SHELFIE_EXTRACTION_PROTOCOL } from "./manual-genai-import";
+import { SHELFIE_MCP_INSTRUCTIONS } from "./shelfie-mcp-instructions";
+import { parseManualGenaiText, MAX_IMPORT_BYTES, SHELFIE_GENAI_PROMPT } from "./manual-genai-import";
 import { safeReturnPath } from "./safe-return-path";
 
 const payload = { schemaVersion: "mylibrary.shelfie.v1", books: [{ position: 1, title: "The Hobbit", authors: ["Tolkien"], confidence: .9, visibleIsbn: null, coverUrl: "https://images.example.test/hobbit.jpg" }] };
@@ -52,16 +53,18 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport); await client.connect(clientTransport);
   try {
-    assert.equal(client.getInstructions(), SHELFIE_EXTRACTION_PROTOCOL);
+    assert.equal(client.getInstructions(), SHELFIE_MCP_INSTRUCTIONS);
     const listedTools = (await client.listTools()).tools;
     assert.deepEqual(listedTools.map((tool) => tool.name).sort(), ["create_collection", "list_collection_books", "list_collections", "update_collection"]);
     for (const name of ["create_collection", "update_collection"]) {
       const tool = listedTools.find((item) => item.name === name);
       const description = tool?.description ?? "";
-      assert.ok(description.startsWith(SHELFIE_EXTRACTION_PROTOCOL));
-      assert.match(description, /YOU MUST INVOKE WEB SEARCH TOOLS/);
-      assert.match(description, /booksSearched === totalBooks/);
-      assert.match(description, /Use a real file-generation tool/);
+      assert.ok(description.startsWith(SHELFIE_MCP_INSTRUCTIONS));
+      assert.match(description, /Search for a cover for EACH identified book/);
+      assert.match(description, /create the collection ONCE/);
+      assert.match(description, /submit JSON directly as tool arguments/);
+      assert.match(description, /ask the user to enable search or explicitly authorize/);
+      assert.doesNotMatch(description, /Use a real file-generation tool|PHASE 5|booksSearched === totalBooks/);
       assert.doesNotMatch(JSON.stringify(tool?.inputSchema), /"(?:isbn|visibleIsbn)"/);
       assert.match(JSON.stringify(tool?.inputSchema), /"coverUrl"/);
     }
@@ -69,8 +72,12 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     assert.deepEqual(prompts.prompts.map((prompt) => prompt.name), ["read_shelf_photo"]);
     const shelfiePrompt = await client.getPrompt({ name: "read_shelf_photo" });
     const promptText = shelfiePrompt.messages[0]?.content.type === "text" ? shelfiePrompt.messages[0].content.text : "";
-    assert.ok(promptText.includes(SHELFIE_EXTRACTION_PROTOCOL));
-    assert.match(promptText, /coversFound \+ coversMissing === totalBooks/);
+    assert.ok(promptText.startsWith(SHELFIE_MCP_INSTRUCTIONS));
+    assert.match(promptText, /Call create_collection/);
+    assert.match(promptText, /at most 100 books/);
+    assert.doesNotMatch(promptText, /Use a real file-generation tool|PHASE 5/);
+    assert.match(SHELFIE_GENAI_PROMPT, /Use a real file-generation tool/);
+    assert.match(SHELFIE_GENAI_PROMPT, /booksSearched === totalBooks/);
     assert.doesNotMatch(promptText, /ISBN|visibleIsbn|"isbn"/);
     const listed = await client.callTool({ name: "list_collection_books", arguments: { collectionId: id } });
     assert.equal((listed.structuredContent as { total: number }).total, 1);
@@ -95,5 +102,8 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     const searched = await client.callTool({ name: "update_collection", arguments: { collectionId: id, ...payload, books: [{ ...payload.books[0], coverUrl: null, notes: "Searched title/author in publisher catalogue and Open Library; matching book pages had no cover image." }] } });
     assert.equal(searched.isError, undefined, "documented unsuccessful searches remain importable");
     assert.equal(writes, 3);
+    const blocked = await client.callTool({ name: "update_collection", arguments: { collectionId: id, ...payload, books: [{ ...payload.books[0], coverUrl: null, notes: "User explicitly authorized import with missing covers: web search tools are unavailable in this client; no cover search was performed." }] } });
+    assert.equal(blocked.isError, undefined, "honest capability blockers remain importable after user authorization");
+    assert.equal(writes, 4);
   } finally { await client.close(); await server.close(); }
 });

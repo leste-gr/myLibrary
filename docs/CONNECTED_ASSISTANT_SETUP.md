@@ -237,3 +237,9 @@ and then lets the user continue to their library or pending plugin consent.
 Existing accounts can sign in using email/password without sending an email.
 Do not create an account or send test messages to someone else's address; the
 owner completes registration and chooses their own password.
+
+## MCP import workflow and client capabilities
+
+MCP imports use the dedicated tool workflow in `lib/shelfie-mcp-instructions.ts`; the website's downloadable-file prompt is for manual JSON import. The assistant inventories photos, researches covers, then calls `create_collection` once and `update_collection` for any later batches (maximum 100 books per call). It must check write results and return the confirmed collection URL/counts. Connecting or listing collections does not constitute an import.
+
+The myLibrary MCP server supplies collection/import tools, not a browser or search engine. The client must provide its own web/image search capability. If it cannot search, it should explain that actual limitation and ask the user to enable browsing or explicitly authorize importing with documented missing covers. It must not claim to have searched. File creation is not required for direct MCP import. Reconnect after instruction/schema changes; a new chat also avoids retaining conflicting earlier file-delivery instructions.

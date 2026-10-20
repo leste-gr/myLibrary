@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { SHELFIE_EXTRACTION_PROTOCOL, SHELFIE_GENAI_PROMPT, MAX_IMPORT_BYTES, parseManualGenaiImport, type ManualGenaiImport } from "./manual-genai-import";
+import { SHELFIE_MCP_INSTRUCTIONS } from "./shelfie-mcp-instructions";
+import { SHELFIE_GENAI_PROMPT, MAX_IMPORT_BYTES, parseManualGenaiImport, type ManualGenaiImport } from "./manual-genai-import";
 
 export type ShelfieTools = {
   listCollections: () => Promise<{ id: string; name: string; slug: string }[]>;
@@ -36,8 +37,8 @@ function reviewedCoverImport(input: unknown): ManualGenaiImport {
 }
 
 export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
-  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.7.0" }, {
-    instructions: SHELFIE_EXTRACTION_PROTOCOL,
+  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.8.0" }, {
+    instructions: SHELFIE_MCP_INSTRUCTIONS,
   });
   const securitySchemes = [{ type: "oauth2", scopes: ["openid"] }];
   server.registerTool("list_collections", {
@@ -58,7 +59,7 @@ export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
     catch { return { isError: true, content: [{ type: "text", text: "Unable to list this collection. Check access and try again." }] }; }
   });
   server.registerTool("create_collection", {
-    title: "Create and populate a library collection", description: `${SHELFIE_EXTRACTION_PROTOCOL}
+    title: "Create and populate a library collection", description: `${SHELFIE_MCP_INSTRUCTIONS}
 
 Create a collection and atomically import the supplied book JSON. Submit the complete mylibrary.shelfie.v1 payload. Repeating the exact same name and payload returns the original import.`,
     inputSchema: { name: z.string().trim().min(1).max(120), description: z.string().trim().max(1000).nullable().optional(), schemaVersion: z.literal("mylibrary.shelfie.v1"), books: z.array(bookSchema).min(1).max(100) },
@@ -74,7 +75,7 @@ Create a collection and atomically import the supplied book JSON. Submit the com
   });
   server.registerTool("update_collection", {
     title: "Add books to an existing collection",
-    description: `${SHELFIE_EXTRACTION_PROTOCOL}
+    description: `${SHELFIE_MCP_INSTRUCTIONS}
 
 Add only new books from the complete mylibrary.shelfie.v1 JSON to an owned collection. The backend ignores books already present using normalized title, authors, and volume. Existing books are retained and duplicates within the JSON are also ignored.`,
     inputSchema: { collectionId: z.string().uuid(), schemaVersion: z.literal("mylibrary.shelfie.v1"), books: z.array(bookSchema).min(1).max(100) },
@@ -88,6 +89,12 @@ Add only new books from the complete mylibrary.shelfie.v1 JSON to an owned colle
       return { structuredContent: output, content: [{ type: "text", text: JSON.stringify(output) }] };
     } catch (error) { return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : "Collection could not be updated." }] }; }
   });
-  server.registerPrompt("read_shelf_photo", { title: "Import a shelf photo into myLibrary", description: "Apply the five-phase cover search and completion gate and prepare a reviewed myLibrary import." }, () => ({ messages: [{ role: "user", content: { type: "text", text: SHELFIE_GENAI_PROMPT.replace("Return ONLY valid JSON. Do not use Markdown fences and do not add commentary.", "Apply all rules below to the attached shelf photos and build the complete tool input for create_collection or update_collection. If the destination is not already clear, ask whether to create a named collection or append to an existing one. Search for covers now without asking whether to search. If the user has already requested the import and the destination is clear, complete it without additional confirmation; otherwise ask only for the missing destination or import instruction. Report the imported count, cover count, and remaining uncertainties.") } }] }));
+  server.registerPrompt("read_shelf_photo", {
+    title: "Import a shelf photo into myLibrary",
+    description: "Inventory shelf photos, search covers and import through the collection tools.",
+  }, () => ({ messages: [{ role: "user", content: {
+    type: "text",
+    text: `${SHELFIE_MCP_INSTRUCTIONS}\n\nUse the following book payload inside the selected import tool, together with its destination arguments:\n${SHELFIE_GENAI_PROMPT.slice(SHELFIE_GENAI_PROMPT.indexOf("Use this exact schema and field names:"))}`,
+  } }] }));
   return server;
 }
