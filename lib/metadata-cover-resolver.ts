@@ -56,49 +56,63 @@ export function rankMetadataCovers(input: MetadataCoverInput, candidates: Omit<M
     .map(({ accepted: _accepted, ...candidate }) => candidate);
 }
 
-async function fetchJson<T>(url: URL, attempts = 3): Promise<T | null> {
-  for (let attempt = 0; attempt < attempts; attempt++) {
+async function fetchJson<T>(url: URL, fetcher: typeof fetch, signal?: AbortSignal, attempts = 3): Promise<T | null> {
+  for (let attempt = 0; attempt < (signal ? 2 : attempts); attempt++) {
+    signal?.throwIfAborted();
     try {
-      const response = await fetch(url, { headers: { Accept: "application/json", "User-Agent": "myLibrary-metadata-cover/1.0" }, signal: AbortSignal.timeout(10_000), cache: "no-store" });
+      const response = await fetcher(url, { headers: { Accept: "application/json", "User-Agent": "myLibrary-metadata-cover/1.0" }, signal: AbortSignal.timeout(signal ? 4000 : 10_000), cache: "no-store" });
       if (response.ok) return response.json() as Promise<T>;
       if (response.status === 404) return null;
     } catch { /* retry transient provider failures */ }
-    await new Promise((resolve) => setTimeout(resolve, 750 * (2 ** attempt)));
+    signal?.throwIfAborted();
+    if (attempt + 1 < (signal ? 2 : attempts)) await new Promise((resolve) => setTimeout(resolve, 750 * (2 ** attempt)));
   }
   throw new ProviderUnavailableError("Metadata provider unavailable after bounded retries.");
 }
 
-export async function findMetadataCoverCandidates(input: MetadataCoverInput) {
+export async function findMetadataCoverCandidates(input: MetadataCoverInput, options: { signal?: AbortSignal; fetcher?: typeof fetch } = {}): Promise<MetadataCoverCandidate[]> {
+  const fetcher: typeof fetch = (url, init) => (options.fetcher ?? fetch)(url, { ...init,
+    signal: options.signal ? AbortSignal.any([options.signal, ...(init?.signal ? [init.signal] : [])]) : init?.signal });
+  options.signal?.throwIfAborted();
   const raw: Omit<MetadataCoverCandidate, "score" | "evidence">[] = [];
   let providerFailed = false;
   const recordFailure = () => { providerFailed = true; return null; };
   const openLibraryQueries = [{ parameter: "title", value: input.title }];
   const namedContributors = usefulAuthors(input.authors);
   if (namedContributors.length >= 2) openLibraryQueries.push({ parameter: "q", value: `author:"${namedContributors[0]}" ${namedContributors.slice(1).map((name) => `"${name}"`).join(" ")}` });
-  for (const query of openLibraryQueries) {
-    const openLibrary = new URL("https://openlibrary.org/search.json");
-    openLibrary.searchParams.set(query.parameter, query.value);
-    openLibrary.searchParams.set("limit", "10");
-    openLibrary.searchParams.set("fields", "key,title,subtitle,author_name,publisher,cover_i");
-    const openPayload = await fetchJson<{ docs?: { key?: string; title?: string; subtitle?: string; author_name?: string[]; publisher?: string[]; cover_i?: number }[] }>(openLibrary).catch(recordFailure);
-    for (const doc of openPayload?.docs ?? []) if (doc.cover_i && doc.title) raw.push({ provider: "openlibrary", providerId: String(doc.cover_i), sourceUrl: `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`, sourcePageUrl: doc.key ? `https://openlibrary.org${doc.key}` : null, title: doc.subtitle ? `${doc.title}: ${doc.subtitle}` : doc.title, authors: doc.author_name ?? [], publisher: doc.publisher?.[0] ?? null });
-  }
-
+  const openLibraryUrls = openLibraryQueries.map(query => {
+    const url = new URL("https://openlibrary.org/search.json");
+    url.searchParams.set(query.parameter, query.value);
+    url.searchParams.set("limit", "10");
+    url.searchParams.set("fields", "key,title,subtitle,author_name,publisher,cover_i");
+    return url;
+  });
   const google = new URL("https://www.googleapis.com/books/v1/volumes");
   google.searchParams.set("q", `intitle:"${input.title.replaceAll('"', '')}"`);
   google.searchParams.set("maxResults", "20");
   google.searchParams.set("printType", "books");
   google.searchParams.set("fields", "items(id,volumeInfo(title,authors,publisher,imageLinks))");
-  const googlePayload = await fetchJson<{ items?: { id?: string; volumeInfo?: { title?: string; authors?: string[]; publisher?: string; imageLinks?: Record<string, string> } }[] }>(google).catch(recordFailure);
+  // Query independent providers together so an unavailable catalogue cannot
+  // consume the interactive tool's entire budget before another provider runs.
+  const [openPayloads,googlePayload] = await Promise.all([
+    Promise.all(openLibraryUrls.map(url => fetchJson<{ docs?: { key?: string; title?: string; subtitle?: string; author_name?: string[]; publisher?: string[]; cover_i?: number }[] }>(url,fetcher,options.signal).catch(recordFailure))),
+    fetchJson<{ items?: { id?: string; volumeInfo?: { title?: string; authors?: string[]; publisher?: string; imageLinks?: Record<string, string> } }[] }>(google,fetcher,options.signal).catch(recordFailure),
+  ]);
+  options.signal?.throwIfAborted();
+  for (const openPayload of openPayloads) {
+    for (const doc of openPayload?.docs ?? []) if (doc.cover_i && doc.title) raw.push({ provider: "openlibrary", providerId: String(doc.cover_i), sourceUrl: `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`, sourcePageUrl: doc.key ? `https://openlibrary.org${doc.key}` : null, title: doc.subtitle ? `${doc.title}: ${doc.subtitle}` : doc.title, authors: doc.author_name ?? [], publisher: doc.publisher?.[0] ?? null });
+  }
   for (const item of googlePayload?.items ?? []) {
     const info = item.volumeInfo; const image = info?.imageLinks?.extraLarge ?? info?.imageLinks?.large ?? info?.imageLinks?.medium ?? info?.imageLinks?.thumbnail ?? info?.imageLinks?.smallThumbnail;
     if (!item.id || !info?.title || !image) continue;
     try { const source = new URL(image.replace(/^http:/, "https:")); if (!ALLOWED_COVER_HOSTS.has(source.hostname)) continue; source.searchParams.set("zoom", "2"); raw.push({ provider: "google-books", providerId: item.id, sourceUrl: source.toString(), title: info.title, authors: info.authors ?? [], publisher: info.publisher ?? null }); } catch { /* invalid provider URL */ }
   }
+  options.signal?.throwIfAborted();
   const catalogueMatches = rankMetadataCovers(input, raw);
   if (catalogueMatches.length) return catalogueMatches;
 
-  const pages = await findVerifiedBookPages({ title: input.title, authors: usefulAuthors(input.authors), publisher: input.publisher, series: input.series ?? null, volume: input.volume ?? null });
+  const pages = await findVerifiedBookPages({ title: input.title, authors: usefulAuthors(input.authors), publisher: input.publisher, series: input.series ?? null, volume: input.volume ?? null }, fetcher);
+  options.signal?.throwIfAborted();
   if (!pages.length && providerFailed) throw new ProviderUnavailableError("Cover search incomplete because a metadata provider failed.");
   return pages.map((page) => ({
     provider: "web-page" as const,

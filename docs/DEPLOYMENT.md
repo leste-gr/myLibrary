@@ -113,3 +113,12 @@ MCP 1.8.0 uses `lib/shelfie-mcp-instructions.ts` for initialization, import-tool
 MCP 1.8.1 removes the entire “IF THE CLIENT CANNOT SEARCH” section from MCP initialization, import-tool descriptions, and the named prompt. Cover searching, batch imports, and existing validation remain. The website prompt is unchanged. No database migration is required.
 
 Reading-status saves use the same-origin JSON route `/api/reading-status`. Single and bulk updates keep their existing session checks and owner-only database RPCs. Cache invalidation now runs in the Route Handler, so the response does not wait for the collection or radar to render again. The client updates its books after acknowledgement; a later page visit reloads invalidated public data. No database migration is required. Run `npm run test:reading-status` after building to verify saves finish without catalogue reads, next-visit cache freshness, access checks, and write failures.
+
+MCP 1.9.0 adds `update_covers` for server-side discovery, image verification and
+conditional saving of missing covers. Apply `202610220042_assistant_update_covers.sql`
+before deploying the application. It adds two ownership/connection-checked RPCs;
+anonymous execution is revoked. It does not modify existing books during migration.
+The MCP route allows up to 300 seconds, with bounded per-book search and database
+requests and batches of 1–5 books. Server initialization and the tool description
+instruct clients to follow `nextCursor` until `hasMore` is false. Existing covers,
+owner uploads, ISBNs, reading statuses and the website copy-paste prompt are preserved.

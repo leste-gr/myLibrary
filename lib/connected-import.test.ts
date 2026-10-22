@@ -43,7 +43,9 @@ test("assistant JWT requires correct signature, issuer, audience, expiry and OAu
 test("MCP exposes collection browsing and reviewed import tools", async () => {
   const id = "11111111-1111-4111-8111-111111111111";
   let writes = 0;
+  const coverCalls: unknown[][] = [];
   const server = createShelfieMcpServer({
+    updateCovers: async (...args) => { coverCalls.push(args); return { collectionId: id, slug: "books", processed: 1, updated: 1, notFound: 0, failed: 0, skipped: 0, remaining: 0, hasMore: false, nextCursor: null, warning: null, results: [{ id, legacyId: "B1", title: "The Hobbit", status: "updated", coverUrl: "https://images.example.test/hobbit.jpg", message: null }] }; },
     listCollections: async () => [{ id, name: "My books", slug: "books" }],
     listCollectionBooks: async () => ({ collectionId: id, total: 1, offset: 0, limit: 100, hasMore: false, books: [{ id: "B1", title: "The Hobbit", author: "Tolkien", isbn13: null, series: null, volume: null, language: "en" }] }),
     createCollection: async (name, description, books) => { writes++; assert.equal(books.books[0].title, "The Hobbit"); assert.equal(books.books[0].isbn, null); assert.equal(books.books[0].visibleIsbn, null); return { collectionId: id, name, slug: "collection-test", description, importId: id, imported: 1, duplicate: false }; },
@@ -56,7 +58,7 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     assert.equal(client.getInstructions(), SHELFIE_MCP_INSTRUCTIONS);
     assert.doesNotMatch(client.getInstructions() ?? "", /IF THE CLIENT CANNOT SEARCH/);
     const listedTools = (await client.listTools()).tools;
-    assert.deepEqual(listedTools.map((tool) => tool.name).sort(), ["create_collection", "list_collection_books", "list_collections", "update_collection"]);
+    assert.deepEqual(listedTools.map((tool) => tool.name).sort(), ["create_collection", "list_collection_books", "list_collections", "update_collection", "update_covers"]);
     for (const name of ["create_collection", "update_collection"]) {
       const tool = listedTools.find((item) => item.name === name);
       const description = tool?.description ?? "";
@@ -69,6 +71,19 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
       assert.doesNotMatch(JSON.stringify(tool?.inputSchema), /"(?:isbn|visibleIsbn)"/);
       assert.match(JSON.stringify(tool?.inputSchema), /"coverUrl"/);
     }
+    const covers = listedTools.find(tool => tool.name === "update_covers")!;
+    assert.equal(covers.annotations?.readOnlyHint, false);
+    assert.doesNotMatch(JSON.stringify(covers.inputSchema), /"(?:isbn|coverUrl)"/);
+    const repaired = await client.callTool({ name: "update_covers", arguments: { collectionId: id } });
+    assert.equal(repaired.isError, undefined);
+    assert.equal((repaired.structuredContent as { updated: number }).updated, 1);
+    assert.equal((repaired.structuredContent as { collectionUrl: string }).collectionUrl, "https://library.test/collections/books");
+    assert.deepEqual(coverCalls, [[id, null, 3]]);
+    await client.callTool({ name: "update_covers", arguments: { collectionId: id, after: id, limit: 5 } });
+    assert.deepEqual(coverCalls[1], [id, id, 5]);
+    const invalidBatch = await client.callTool({ name: "update_covers", arguments: { collectionId: id, limit: 6 } });
+    assert.equal(invalidBatch.isError, true);
+    assert.equal(coverCalls.length, 2);
     const prompts = await client.listPrompts();
     assert.deepEqual(prompts.prompts.map((prompt) => prompt.name), ["read_shelf_photo"]);
     const shelfiePrompt = await client.getPrompt({ name: "read_shelf_photo" });

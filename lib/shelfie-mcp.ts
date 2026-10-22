@@ -1,9 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import type { CoverUpdateResult } from "./update-covers";
 import { SHELFIE_MCP_INSTRUCTIONS } from "./shelfie-mcp-instructions";
 import { SHELFIE_GENAI_PROMPT, MAX_IMPORT_BYTES, parseManualGenaiImport, type ManualGenaiImport } from "./manual-genai-import";
 
 export type ShelfieTools = {
+  updateCovers: (collectionId: string, after: string | null, limit: number) => Promise<CoverUpdateResult>;
   listCollections: () => Promise<{ id: string; name: string; slug: string }[]>;
   listCollectionBooks: (collectionId: string, limit: number, offset: number) => Promise<{ collectionId: string; total: number; offset: number; limit: number; hasMore: boolean; books: { id: string; title: string; author: string; isbn13: string | null; series: string | null; volume: string | null; language: string }[] }>;
   createCollection: (name: string, description: string | null, payload: ManualGenaiImport) => Promise<ImportResult>;
@@ -37,7 +39,7 @@ function reviewedCoverImport(input: unknown): ManualGenaiImport {
 }
 
 export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
-  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.8.1" }, {
+  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.9.0" }, {
     instructions: SHELFIE_MCP_INSTRUCTIONS,
   });
   const securitySchemes = [{ type: "oauth2", scopes: ["openid"] }];
@@ -88,6 +90,26 @@ Add only new books from the complete mylibrary.shelfie.v1 JSON to an owned colle
       const output = { ...result, collectionUrl: `${origin}/collections/${result.slug}` };
       return { structuredContent: output, content: [{ type: "text", text: JSON.stringify(output) }] };
     } catch (error) { return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : "Collection could not be updated." }] }; }
+  });
+  server.registerTool("update_covers", {
+    title: "Find and save missing book covers",
+    description: "Search online on the server for books whose stored cover URL is null in an owned collection, verify suitable direct HTTPS images, and save the URLs. Existing covers and owner uploads are preserved. Use list_collections for the collection ID. Each call processes a small batch to avoid timeouts. Start without after; while hasMore is true, call update_covers again with the exact nextCursor as after until the whole collection has been checked. Continue based on hasMore, not remaining: remaining includes documented misses and failures already checked. Report cumulative updated/notFound/failed counts honestly. Retrying from the start searches still-missing covers again. The tool performs its own online searches; the client does not need to find or submit cover URLs.",
+    inputSchema: { collectionId: z.string().uuid(), after: z.string().uuid().nullable().default(null), limit: z.number().int().min(1).max(5).default(3) },
+    outputSchema: { collectionId: z.string(), slug: z.string(), collectionUrl: z.string(),
+      processed: z.number(), updated: z.number(), notFound: z.number(), failed: z.number(), skipped: z.number(), remaining: z.number(), warning: z.string().nullable(),
+      hasMore: z.boolean(), nextCursor: z.string().nullable(), results: z.array(z.object({
+        id: z.string(), legacyId: z.string(), title: z.string(), status: z.enum(["updated","not_found","failed","skipped"]),
+        coverUrl: z.string().nullable(), message: z.string().nullable(),
+      })) },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }, _meta: { securitySchemes },
+  }, async ({ collectionId, after, limit }) => {
+    try {
+      const result = await tools.updateCovers(collectionId,after,limit);
+      const output = { ...result,collectionUrl: `${origin}/collections/${result.slug}` };
+      return { structuredContent: output,content: [{ type: "text",text: JSON.stringify(output) }] };
+    } catch (error) {
+      return { isError: true,content: [{ type: "text",text: error instanceof Error ? error.message : "Missing covers could not be updated." }] };
+    }
   });
   server.registerPrompt("read_shelf_photo", {
     title: "Import a shelf photo into myLibrary",

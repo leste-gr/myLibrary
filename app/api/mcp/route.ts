@@ -1,11 +1,13 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { authenticateAssistant } from "@/lib/assistant-auth";
 import { assistantConfigured, assistantConfig } from "@/lib/assistant-config";
+import { revalidatePath } from "next/cache";
+import { updateCollectionCovers } from "@/lib/update-covers";
 import { createShelfieMcpServer } from "@/lib/shelfie-mcp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   if (!assistantConfigured()) return Response.json({ error: "Assistant connection is not enabled. Use the paste-and-review import." }, { status: 503 });
@@ -16,6 +18,13 @@ export async function POST(request: Request) {
   try { auth = await authenticateAssistant(request); }
   catch { return Response.json({ error: "Connect your Shelfie Street account to continue." }, { status: 401, headers: { "Cache-Control": "no-store", "WWW-Authenticate": `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource", scope="openid email offline_access"` } }); }
   const server = createShelfieMcpServer({
+    async updateCovers(collectionId, after, limit) {
+      const result = await updateCollectionCovers(auth.supabase,collectionId,after,limit);
+      if (result.updated) {
+        revalidatePath("/"); revalidatePath(`/collections/${result.slug}`); revalidatePath("/radar");
+      }
+      return result;
+    },
     async listCollections() {
       const { data, error } = await auth.supabase.from("collections").select("id,name,slug").eq("owner_id", auth.userId).order("created_at");
       if (error) throw error; return data ?? [];

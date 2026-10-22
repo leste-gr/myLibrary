@@ -137,7 +137,7 @@ and dynamic registration. Continue with Google and approve the named application
 on the consent screen.
 
 The connected server exposes `list_collections`, `list_collection_books`,
-`create_collection`, and `update_collection`. Collection creation and imports
+`create_collection`, `update_collection`, and `update_covers`. Collection creation and imports
 require an explicit user request. `create_collection` receives the name and complete
 book JSON atomically; `update_collection` adds only books not already present in
 the owned collection. Existing-book identity uses ISBN when supplied, otherwise
@@ -242,4 +242,23 @@ owner completes registration and chooses their own password.
 
 MCP imports use the dedicated tool workflow in `lib/shelfie-mcp-instructions.ts`; the website's downloadable-file prompt is for manual JSON import. The assistant inventories photos, researches covers, then calls `create_collection` once and `update_collection` for any later batches (maximum 100 books per call). It must check write results and return the confirmed collection URL/counts. Connecting or listing collections does not constitute an import.
 
-The myLibrary MCP server supplies collection/import tools, not a browser or search engine. The client must provide its own web/image search capability. File creation is not required for direct MCP import. Reconnect after instruction/schema changes; a new chat also avoids retaining conflicting earlier file-delivery instructions.
+The shelf-photo import workflow uses the client’s web/image search capability. The separate `update_covers` tool performs its own online cover searches on the server for books already in a collection. File creation is not required for direct MCP import. Reconnect after instruction/schema changes; a new chat also avoids retaining conflicting earlier file-delivery instructions.
+
+## Repair missing covers (MCP 1.9.0)
+
+Ask the connected assistant to find missing covers in an existing collection. It obtains
+`collectionId` from `list_collections`, then calls `update_covers({ collectionId })`.
+The server searches Open Library, Google Books and verified book pages, decodes the
+image to check it is usable, and conditionally saves the direct HTTPS URL. Existing
+covers and owner uploads are preserved. ISBN and bibliographic metadata are unchanged.
+Only the owner’s connected, consented OAuth session can list and save these covers.
+
+Calls process three books by default (`limit`: 1–5). While `hasMore` is true, the
+assistant must call again with the exact `nextCursor` as `after`; it should continue
+without requesting another user prompt. A stable book-ID cursor avoids skipping
+books as successful updates shrink the missing-cover list. `remaining` includes
+already-searched misses and failures, so it is not the continuation condition.
+Results distinguish `updated`, `not_found`, `failed`, and `skipped` (a concurrent
+cover was preserved). A transient count-refresh failure returns a warning and an
+estimated remaining count while retaining confirmed writes. Retrying from the
+start searches still-missing covers again. Reconnect clients to refresh the tool list.
