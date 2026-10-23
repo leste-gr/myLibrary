@@ -122,3 +122,12 @@ The MCP route allows up to 300 seconds, with bounded per-book search and databas
 requests and batches of 1–5 books. Server initialization and the tool description
 instruct clients to follow `nextCursor` until `hasMore` is false. Existing covers,
 owner uploads, ISBNs, reading statuses and the website copy-paste prompt are preserved.
+
+Mobile catalogue polish: the book dialog reserves a sticky row for its 44px close
+button, uses the dynamic viewport height and contains overscroll. Collection-region
+focus no longer draws a browser-default outline; keyboard focus indicators remain
+on interactive controls. Touch devices do not retain the card hover lift, and
+selection checkboxes keep their size beside wrapping labels. Verified in Chromium
+at 320, 390, 768 and 1280px widths, including Greek labels, dialog scrolling,
+keyboard/Escape focus restoration and editor/browser-back navigation to a book
+beyond the first loaded batch. No database migration is required.

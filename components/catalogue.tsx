@@ -227,7 +227,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
       </main>
       <footer><span>{collection.name}</span><p>{t("Each record represents a physical volume in the collection.")}</p></footer>
       <dialog className="book-dialog" ref={dialogRef} aria-labelledby="book-detail-title" onClose={() => setSelected(null)} onClick={(event) => { if (event.target === event.currentTarget) { const bounds = event.currentTarget.getBoundingClientRect(); if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) event.currentTarget.close(); } }}>
-        <button className="close-dialog" aria-label={t("Close")} onClick={() => { dialogRef.current?.close(); setSelected(null); }}>×</button>
+        <div className="book-dialog-header"><button type="button" className="close-dialog" aria-label={t("Close")} onClick={() => { dialogRef.current?.close(); setSelected(null); }}>×</button></div>
         {selected && <div className="detail-layout"><div className="detail-art"><div className="cover-wrap"><BookCoverImage src={selected.cover} alt={t("Cover: ") + selected.title} fallbackAlt={t("Cover unavailable")} /></div></div><div className="detail-copy"><p className="eyebrow">{collection.name}</p><h2 id="book-detail-title">{selected.title}</h2><p className="detail-author">{selected.author}</p><dl>
           {selected.category && <><dt>{t("Category")}</dt><dd>{selected.category}</dd></>}
           {selected.language && <><dt>{t("Language")}</dt><dd>{selected.language}</dd></>}
