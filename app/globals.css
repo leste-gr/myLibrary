@@ -194,13 +194,20 @@ body:has(.directory-shell) .account-menu{background:transparent}
 
 .book-reading-state{padding:0 12px 14px;display:flex;flex-direction:column;gap:6px}.book-reading-state>label{font:500 11px var(--sans);color:var(--muted)}.reading-select{width:100%;min-height:42px;padding:9px 28px 9px 10px;border:1px solid var(--line);border-radius:5px;font:600 13px var(--sans);cursor:pointer}.reading-select:disabled{cursor:wait;opacity:.7}.reading-badge{display:inline-flex;align-self:flex-start;padding:5px 10px;border-radius:20px;font:600 11px var(--sans)}.reading-badge-unread{background:#f0eee6;color:#5f665f}.reading-badge-read{background:#dfede1;color:#204d3c}.reading-badge-radar{background:#f3e6ba;color:#725315}.reading-save-status{font-size:11px;color:var(--muted)}.reading-error{margin:0;font-size:12px;color:var(--wine)}@media(max-width:600px){.reading-select{font-size:16px}.book-reading-state{padding:0 8px 12px}}
 
-.bulk-reading-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:16px;margin:16px 0 22px;border:1px solid var(--line);border-radius:6px;background:var(--white)}.bulk-reading-toolbar>select{padding:10px;border:1px solid var(--line);border-radius:5px;font:inherit;min-height:42px}.bulk-select-label{display:flex;align-items:center;gap:8px}.bulk-reading-toolbar input,.book-selection input{width:20px;height:20px;accent-color:var(--wine)}.book-selection{display:flex;align-items:center;gap:8px;padding:8px 10px;font-size:12px;cursor:pointer}.bulk-reading-toolbar button:disabled{opacity:.5;cursor:default}.radar-shell{padding-top:32px;padding-bottom:60px}.radar-shell .intro{margin-top:20px}.radar-collection{margin-top:36px}.radar-collection h2{margin-bottom:20px}.radar-book-link{display:block;text-decoration:none;color:inherit}.radar-empty{padding:30px 0}.radar-empty p{margin-bottom:24px}@media(max-width:600px){.bulk-reading-toolbar{gap:10px;padding:12px}.bulk-reading-toolbar>label[for]{flex-basis:100%}.bulk-reading-toolbar>select{font-size:16px;max-width:100%}.bulk-reading-toolbar .bulk-select-label{flex-basis:100%}}
+.bulk-reading-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:16px;margin:16px 0 22px;border:1px solid var(--line);border-radius:6px;background:var(--white)}.bulk-reading-toolbar>select{padding:10px;border:1px solid var(--line);border-radius:5px;font:inherit;min-height:42px}.bulk-select-label{display:flex;align-items:center;gap:8px}.bulk-reading-toolbar input{width:20px;height:20px;accent-color:var(--wine)}.bulk-reading-toolbar button:disabled{opacity:.5;cursor:default}.radar-shell{padding-top:32px;padding-bottom:60px}.radar-shell .intro{margin-top:20px}.radar-collection{margin-top:36px}.radar-collection h2{margin-bottom:20px}.radar-book-link{display:block;text-decoration:none;color:inherit}.radar-empty{padding:30px 0}.radar-empty p{margin-bottom:24px}@media(max-width:600px){.bulk-reading-toolbar{gap:10px;padding:12px}.bulk-reading-toolbar>label[for]{flex-basis:100%}.bulk-reading-toolbar>select{font-size:16px;max-width:100%}}
 
 @media(max-width:600px){.reading-select{padding-right:20px;padding-left:8px}}
 
 /* Fragment/route restoration can focus this region; only its controls need a ring. */
 #catalogue:focus{outline:none}
-.book-card-shell,.book-selection{min-width:0}
-.book-selection span{overflow-wrap:anywhere}
-.book-selection input,.bulk-select-label input{flex-shrink:0}
+.book-card-shell{min-width:0}
+.bulk-select-label input{flex-shrink:0}
 @media(hover:none){.book-card:hover .cover-wrap{transform:none;box-shadow:none}}
+
+.bulk-selection-controls{display:flex;align-items:center;flex-wrap:wrap;gap:12px;flex-basis:100%;min-width:0}
+.bulk-selection-controls .bulk-select-label,.selection-mode-toggle{min-height:44px}
+.selection-mode-toggle[aria-pressed=true]{background:var(--wine);color:var(--white)}
+.bulk-reading-toolbar .selection-hint{flex-basis:100%;margin:0;font-size:13px;color:var(--muted)}
+.book-card[aria-pressed]:hover .cover-wrap{transform:none;box-shadow:none}
+.book-card[aria-pressed=true] .cover-wrap{outline:3px solid var(--wine);outline-offset:2px}
+.book-selection-mark{position:absolute;top:8px;right:8px;display:grid;place-items:center;width:28px;height:28px;border:2px solid var(--white);border-radius:50%;background:var(--wine);color:var(--white);font:700 18px var(--sans);pointer-events:none}

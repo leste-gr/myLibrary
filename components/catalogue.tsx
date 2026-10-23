@@ -28,6 +28,8 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
   const [books, setBooks] = useState(initialBooks);
   useEffect(() => { setBooks(initialBooks); }, [initialBooks]);
   const [readingFilter, setReadingFilter] = useState("");
+  const [selectionMode, setSelectionMode] = useState(false);
+  const selectingBooks = canEdit && selectionMode;
   const [chosenBooks, setChosenBooks] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState<ReadingStatus>("read");
   const [bulkPending, startBulkTransition] = useTransition();
@@ -152,6 +154,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
         if (result.error) { setBulkError(result.error); return; }
         setBooks(previous => previous.map(book => ids.includes(book.id) ? { ...book, readingStatus: bulkStatus } : book));
         setChosenBooks(new Set());
+        setSelectionMode(false);
         setBulkNotice(t("Updated {0} books.", [result.updated]));
       } catch { setBulkError("Could not update the selected books. Please try again."); }
     });
@@ -205,7 +208,11 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
             <div className="catalogue-toolbar"><div><h2>{category || t("All books")}</h2><p role="status" aria-live="polite" aria-atomic="true">{filteredBooks.length} {" " + t("of") + " "}{initialBooks.length} {" " + t("books")}</p></div><div className="sort-wrap"><label htmlFor="sort">{t("Sort by")}</label><select id="sort" value={sort} onChange={(event) => { setSort(event.target.value); setLimit(32); }}><option value="catalogue">{t("Catalogue order")}</option><option value="title">{t("Title A–Z")}</option><option value="author">{t("Author A–Z")}</option></select></div></div>
             {activeFilters.length > 0 && <div className="active-filters" aria-label={t("Active filters")}>{activeFilters.map((filter) => <button key={filter.label} className="filter-chip" type="button" aria-label={t("Remove: {0} — {1}", [filter.label, filter.value])} onClick={() => { filter.clear(); setLimit(32); }}>{filter.label}: {filter.value}<span aria-hidden="true"> ×</span></button>)}</div>}
             {canEdit && <div className="bulk-reading-toolbar" aria-label={t("Bulk reading status")}>
-              <label className="bulk-select-label"><input type="checkbox" checked={displayedSelected} disabled={bulkPending || !displayedBooks.length} onChange={event => chooseBooks(displayedBooks.map(book => book.id), event.target.checked)} />{t("Select displayed books")}</label>
+              <div className="bulk-selection-controls">
+                <label className="bulk-select-label"><input type="checkbox" checked={displayedSelected} disabled={bulkPending || !displayedBooks.length} onChange={event => { setSelectionMode(true); chooseBooks(displayedBooks.map(book => book.id), event.target.checked); }} />{t("Select displayed books")}</label>
+                <button className="secondary-button selection-mode-toggle" type="button" aria-pressed={selectingBooks} disabled={bulkPending} onClick={() => { setSelectionMode(!selectionMode); setChosenBooks(new Set()); setBulkError(""); }}>{selectingBooks ? t("Done selecting") : t("Select books")}</button>
+              </div>
+              {selectingBooks && <p className="selection-hint">{t("Tap books to select or deselect them.")}</p>}
               <span role="status">{t("{0} selected", [chosenBooks.size])}</span>
               <label htmlFor="bulk-reading-status">{t("Mark selected as")}</label>
               <select id="bulk-reading-status" value={bulkStatus} disabled={bulkPending} onChange={event => { if (isReadingStatus(event.target.value)) setBulkStatus(event.target.value); }}><option value="unread">{t("Unread")}</option><option value="read">{t("Read")}</option><option value="radar">{t("On my radar")}</option></select>
@@ -215,8 +222,8 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
             {bulkError && <p className="reading-error" role="alert">{t(bulkError)}</p>}
             {bulkNotice && <p role="status">{bulkNotice}</p>}
             <div className="book-grid">
-              {displayedBooks.map((book) => <article className="book-card-shell" id={`book-${book.id}`} key={book.id}>{canEdit && <label className="book-selection"><input type="checkbox" checked={chosenBooks.has(book.id)} disabled={bulkPending} aria-label={t("Select {0}", [book.title])} onChange={event => chooseBooks([book.id], event.target.checked)} /><span>{t("Select book")}</span></label>}<button type="button" className="book-card" onClick={() => openBook(book)}>
-                <div className="cover-wrap"><BookCoverImage src={book.cover} alt={t("Cover: ") + book.title} fallbackAlt={t("Cover unavailable")} loading="lazy" /></div>
+              {displayedBooks.map((book) => <article className="book-card-shell" id={`book-${book.id}`} key={book.id}><button type="button" className="book-card" aria-pressed={selectingBooks ? chosenBooks.has(book.id) : undefined} aria-label={selectingBooks ? t("Select {0}", [book.title]) : undefined} disabled={selectingBooks && bulkPending} onClick={() => selectingBooks ? chooseBooks([book.id], !chosenBooks.has(book.id)) : openBook(book)}>
+                <div className="cover-wrap"><BookCoverImage src={book.cover} alt={t("Cover: ") + book.title} fallbackAlt={t("Cover unavailable")} loading="lazy" />{selectingBooks && chosenBooks.has(book.id) && <span className="book-selection-mark" aria-hidden="true">✓</span>}</div>
                 <h3>{book.title}</h3><p className="book-author">{book.author}</p>{book.series && <p className="book-series">{book.series}</p>}{book.isbn13 && <p className="book-isbn">{book.isbn13}</p>}
               </button><BookReadingStatus slug={collection.slug} legacyId={book.id} title={book.title} status={book.readingStatus} canEdit={canEdit} disabled={bulkPending} onSaved={status => setBooks(previous => previous.map(item => item.id === book.id ? { ...item, readingStatus: status } : item))} /></article>)}
             </div>

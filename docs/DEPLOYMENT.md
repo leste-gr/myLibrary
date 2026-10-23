@@ -131,3 +131,11 @@ selection checkboxes keep their size beside wrapping labels. Verified in Chromiu
 at 320, 390, 768 and 1280px widths, including Greek labels, dialog scrolling,
 keyboard/Escape focus restoration and editor/browser-back navigation to a book
 beyond the first loaded batch. No database migration is required.
+
+Collection multi-selection now uses a Select books / Done selecting control beside
+Select displayed books. In selection mode, book-card buttons toggle selection and
+expose their pressed state, with a cover outline and checkmark instead of individual
+checkboxes. Selecting all enables the mode; exiting clears the selection. Successful
+bulk saves exit the mode, while failed saves retain the selected books for retry.
+Verified mobile/desktop tap and keyboard behavior, visitor browsing, filters, bulk
+save success/failure and English/Greek labels. No database migration is required.
