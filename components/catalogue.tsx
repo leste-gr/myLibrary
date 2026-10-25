@@ -1,6 +1,7 @@
 "use client";
 import { useTranslations } from "@/components/language-provider";
 
+import { CompactMenu } from "@/components/compact-menu";
 import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { isReadingStatus, type ReadingStatus } from "@/lib/reading-status";
@@ -42,7 +43,6 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
   const [selectionMode, setSelectionMode] = useState(false);
   const selectingBooks = canEdit && selectionMode;
   const [chosenBooks, setChosenBooks] = useState<Set<string>>(new Set());
-  const [bulkStatus, setBulkStatus] = useState<ReadingStatus>("read");
   const [bulkPending, startBulkTransition] = useTransition();
   const [bulkError, setBulkError] = useState("");
   const [bulkNotice, setBulkNotice] = useState("");
@@ -158,7 +158,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
     if (next.size > 1000) { setBulkError("Select up to 1,000 books at a time."); return; }
     setChosenBooks(next); setBulkError(""); setBulkNotice("");
   }
-  function applyBulkStatus() {
+  function applyBulkStatus(bulkStatus: ReadingStatus) {
     const ids = [...chosenBooks];
     if (!ids.length) return;
     setBulkError(""); setBulkNotice("");
@@ -195,11 +195,17 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
       <a className="skip" href="#catalogue">{t("Skip to books")}</a>
       <header className="masthead">
         <div className="brand"><img className="collection-brand-mark" src="/icon.svg" alt="" width={38} height={44} /><span>{collection.name}<small>{t("PUBLIC COLLECTION")}</small></span></div>
-        <nav className="site-nav"><Link href="/">{t("All collections")}</Link>{canEdit ? <><Link className="button-link" href={`/collections/${collection.slug}/add`}>{t("+ Add by ISBN")}</Link><Link className="button-link" href={`/shelfies?collection=${collection.slug}`}>{t("+ Import shelf photo")}</Link><span className="edit-mode">{t("Editing enabled")}</span></> : viewerSignedIn ? <Link href="/?view=mine">{t("My collections")}</Link> : <Link href="/login">{t("Log in")}</Link>}</nav>
+        {canEdit && <nav className="site-nav collection-actions" aria-label={t("Collection actions")}>
+          <Link className="button-link" href={`/collections/${collection.slug}/add`} aria-label={t("+ Add by ISBN")}>＋ ISBN</Link>
+          <Link className="button-link" href={`/shelfies?collection=${collection.slug}`}>{t("Import photo")}</Link>
+          <CompactMenu label={<><span aria-hidden="true">⋯</span><span className="sr-only">{t("More actions")}</span></>}>
+            <DeleteCollectionButton collectionId={collection.id} collectionName={collection.name} />
+          </CompactMenu>
+        </nav>}
       </header>
       <main>
         <section className="intro">
-          <div><p className="eyebrow">{t("THE CATALOGUE")}</p><h1>{collection.name}</h1><p className="intro-copy">{collection.description ?? t("One collection, many worlds.")}</p>{canEdit && <div className="collection-danger"><DeleteCollectionButton collectionId={collection.id} collectionName={collection.name} /></div>}</div>
+          <div><p className="eyebrow">{t("THE CATALOGUE")}</p><h1>{collection.name}</h1><p className="intro-copy">{collection.description ?? t("One collection, many worlds.")}</p></div>
           <div className="collection-stats"><div><strong>{initialBooks.length}</strong><span>{t("books")}</span></div><div><strong>{authors.length}</strong><span>{t("authors")}</span></div><div><strong>{categories.length}</strong><span>{t("categories")}</span></div></div>
         </section>
         <div className="catalogue-search" role="search">
@@ -224,16 +230,20 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
             <div className="catalogue-toolbar"><div><h2>{category || t("All books")}</h2><p role="status" aria-live="polite" aria-atomic="true">{filteredBooks.length} {" " + t("of") + " "}{initialBooks.length} {" " + t("books")}</p></div><div className="sort-wrap"><label htmlFor="sort">{t("Sort by")}</label><select id="sort" value={sort} onChange={(event) => { setSort(event.target.value); setLimit(32); }}><option value="catalogue">{t("Catalogue order")}</option><option value="title">{t("Title A–Z")}</option><option value="author">{t("Author A–Z")}</option></select></div></div>
             {activeFilters.length > 0 && <div className="active-filters" aria-label={t("Active filters")}>{activeFilters.map((filter) => <button key={filter.label} className="filter-chip" type="button" aria-label={t("Remove: {0} — {1}", [filter.label, filter.value])} onClick={() => { filter.clear(); setLimit(32); }}>{filter.label}: {filter.value}<span aria-hidden="true"> ×</span></button>)}</div>}
             {canEdit && <div className="bulk-reading-toolbar" aria-label={t("Bulk reading status")}>
-              <div className="bulk-selection-controls">
-                <label className="bulk-select-label"><input type="checkbox" checked={displayedSelected} disabled={bulkPending || !displayedBooks.length} onChange={event => { setSelectionMode(true); chooseBooks(displayedBooks.map(book => book.id), event.target.checked); }} />{t("Select displayed books")}</label>
-                <button className="secondary-button selection-mode-toggle" type="button" aria-pressed={selectingBooks} disabled={bulkPending} onClick={() => { setSelectionMode(!selectionMode); setChosenBooks(new Set()); setBulkError(""); }}>{selectingBooks ? t("Done selecting") : t("Select books")}</button>
-              </div>
-              {selectingBooks && <p className="selection-hint">{t("Tap books to select or deselect them.")}</p>}
-              <span role="status">{t("{0} selected", [chosenBooks.size])}</span>
-              <label htmlFor="bulk-reading-status">{t("Mark selected as")}</label>
-              <select id="bulk-reading-status" value={bulkStatus} disabled={bulkPending} onChange={event => { if (isReadingStatus(event.target.value)) setBulkStatus(event.target.value); }}><option value="unread">{t("Unread")}</option><option value="read">{t("Read")}</option><option value="radar">{t("On my radar")}</option></select>
-              <button className="button-link" type="button" disabled={bulkPending || !chosenBooks.size} onClick={applyBulkStatus}>{bulkPending ? t("Saving…") : t("Apply status")}</button>
-              {chosenBooks.size > 0 && <button className="secondary-button" disabled={bulkPending} type="button" onClick={() => setChosenBooks(new Set())}>{t("Clear selection")}</button>}
+              <button className="secondary-button selection-mode-toggle" type="button" aria-pressed={selectingBooks} disabled={bulkPending} onClick={() => { setSelectionMode(!selectionMode); setChosenBooks(new Set()); setBulkError(""); }}>{selectingBooks ? t("Done") : t("Select books")}</button>
+              {selectingBooks && <>
+                <label className="bulk-select-label" title={t("Select displayed books")}><input type="checkbox" aria-label={t("Select displayed books")} checked={displayedSelected} disabled={bulkPending || !displayedBooks.length} onChange={event => chooseBooks(displayedBooks.map(book => book.id), event.target.checked)} />{t("All")}</label>
+                <span className="selection-count" role="status" aria-label={t("{0} selected", [chosenBooks.size])}>{chosenBooks.size}</span>
+                <select className="bulk-mark-menu" aria-label={t("Mark selected as")} value="" disabled={bulkPending || !chosenBooks.size} onChange={event => {
+                  const status = event.target.value;
+                  if (isReadingStatus(status)) applyBulkStatus(status);
+                  else if (status === "clear") setChosenBooks(new Set());
+                }}>
+                  <option value="" disabled>{bulkPending ? t("Saving…") : t("Mark…")}</option>
+                  <option value="read">{t("Read")}</option><option value="unread">{t("Unread")}</option><option value="radar">{t("On my radar")}</option>
+                  <option value="clear">{t("Clear selection")}</option>
+                </select>
+              </>}
             </div>}
             {bulkError && <p className="reading-error" role="alert">{t(bulkError)}</p>}
             {bulkNotice && <p role="status">{bulkNotice}</p>}

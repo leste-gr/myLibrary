@@ -22,6 +22,6 @@ export function LanguageSwitcher() {
       const nextLocale = event.target.value === "el" ? "el" : "en";
       document.cookie = `${LOCALE_COOKIE}=${nextLocale}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`;
       startTransition(() => router.refresh());
-    }}><option value="en" lang="en">English</option><option value="el" lang="el">Ελληνικά</option></select>
+    }}><option value="en" lang="en">EN</option><option value="el" lang="el">ΕΛ</option></select>
   </label>;
 }

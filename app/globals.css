@@ -228,3 +228,48 @@ body:has(.directory-shell) .account-menu{background:transparent}
 
 .category-tags{list-style:none;display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0}
 .category-tags li{max-width:100%;padding:4px 9px;border:1px solid var(--line);border-radius:14px;background:var(--sand);font:500 12px/1.5 var(--sans);overflow-wrap:anywhere}
+
+/* Compact navigation and collection controls; menus retain full touch targets. */
+.compact-menu{position:relative;min-width:0;margin:0;padding:0;border:0}
+.compact-menu>summary{display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:44px;padding:8px 10px;cursor:pointer;list-style:none;border:1px solid var(--line);border-radius:4px;white-space:nowrap}
+.compact-menu>summary::-webkit-details-marker{display:none}
+.compact-menu[open]>summary{background:var(--sand)}
+.compact-menu-panel{position:absolute;right:0;top:calc(100% + 8px);z-index:40;min-width:220px;max-width:calc(100vw - 24px);padding:8px;background:var(--white);border:1px solid var(--line);border-radius:6px;box-shadow:0 8px 24px #0002;display:flex;flex-direction:column;align-items:stretch;gap:4px}
+.compact-menu-panel a,.compact-menu-panel button{display:flex;align-items:center;min-height:44px;padding:10px 12px;text-decoration:none;font-size:14px;white-space:normal}
+.compact-menu-panel a:hover{background:var(--sand)}
+.compact-menu-panel form,.compact-menu-panel form button{width:100%;margin:0}
+.compact-menu-panel .account-email{padding:10px 12px;font-size:13px;text-align:left;border-bottom:1px solid var(--line)}
+.global-navigation .account-menu{display:contents;background:transparent}
+.global-navigation .language-switcher{order:1}
+.global-navigation .profile-menu{order:2}
+.global-navigation .collections-menu{margin-left:auto}
+.global-navigation .street-brand{margin-right:auto}
+.global-navigation .language-switcher>span{display:none}
+.global-navigation .language-switcher select{width:64px;padding:8px;font-size:16px}
+.collection-actions{flex-wrap:nowrap;gap:10px}
+.collection-actions .button-link{white-space:nowrap;min-height:44px;justify-content:center}
+.bulk-reading-toolbar{flex-wrap:nowrap;gap:10px;padding:10px 12px;min-height:66px}
+.bulk-reading-toolbar .selection-mode-toggle{min-height:44px;white-space:nowrap}
+.bulk-reading-toolbar .bulk-select-label{min-height:44px;flex-shrink:0;gap:6px;cursor:pointer}
+.bulk-reading-toolbar .selection-count{font-variant-numeric:tabular-nums;min-width:1ch;text-align:center}
+.bulk-reading-toolbar .bulk-mark-menu{margin-left:auto;min-width:0;width:110px;min-height:44px;font-size:16px;padding:8px}
+@media(max-width:760px){
+  .global-navigation,body:has(.directory-shell) .global-navigation{flex-wrap:nowrap;gap:6px;padding:10px 12px;min-height:66px}
+  .global-navigation .street-brand{min-width:44px;justify-content:center;min-height:44px;margin:0;display:flex;align-items:center}
+  .global-navigation .street-brand>span{display:none}
+  .global-navigation .street-brand img{width:30px;height:36px}
+  .global-navigation .collections-menu{margin-left:auto}
+  .global-navigation .collections-menu>summary{font-size:13px;padding:8px 6px}
+  .global-navigation .collections-menu .compact-menu-panel{left:0;right:auto}
+  .global-navigation .language-switcher select{width:55px;padding:6px 2px}
+  .global-navigation .profile-menu>summary{padding:8px;min-width:44px}
+  .global-navigation .account-menu{display:contents}
+  .global-navigation .account-menu>a{font-size:13px;margin-left:auto;min-height:44px;display:flex;align-items:center}
+  .collection-actions{width:100%;justify-content:flex-start;gap:8px}
+  .collection-actions .button-link{font-size:14px;padding:10px 12px}
+  .collection-actions>.compact-menu{margin-left:auto}
+  .bulk-reading-toolbar{gap:8px;padding:8px;margin-top:16px}
+  .bulk-reading-toolbar .selection-mode-toggle{padding:8px;font-size:14px}
+  .bulk-reading-toolbar .bulk-select-label{font-size:14px}
+  .bulk-reading-toolbar .bulk-mark-menu{width:105px;font-size:16px}
+}

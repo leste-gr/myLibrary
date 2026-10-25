@@ -1,5 +1,10 @@
 // Interface translations only. Book and collection data retain their original language.
 export const el: Record<string, string> = {
+  "Collection actions": "Ενέργειες συλλογής",
+  "Import photo": "Από φωτογραφία",
+  "More actions": "Περισσότερες ενέργειες",
+  "Done": "Τέλος",
+  "Mark…": "Σήμανση…",
   "Welcome to Shelfie Street": "Καλώς ήρθες στο Shelfie Street",
   "Every shelf": "Κάθε ράφι",
   "has a story.": "έχει μια ιστορία.",
