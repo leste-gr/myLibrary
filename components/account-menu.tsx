@@ -16,7 +16,7 @@ export async function AccountMenu() {
         <Link href="/">{t("All collections")}</Link>
       </CompactMenu>
       <CompactMenu className="profile-menu" label={<><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg><span className="sr-only">{t("Account")}</span></>}>
-      <span className="account-email">{user.email}</span>
+      <Link href="/settings" className="account-email" aria-label={t("Settings for {0}", [user.email ?? ""])}>{user.email ?? t("Settings")}</Link>
       <Link href="/radar">{t("On my radar")}</Link>
       <Link href="/shelfies/connections">{t("Connected applications")}</Link>
       <form action={signOut}><button type="submit" className="secondary-button">{t("Log out")}</button></form>

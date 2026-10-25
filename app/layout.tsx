@@ -12,6 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
   title: t("Shelfie Street · Public book collections"),
   description: t("Personal libraries and public book collections."),
+  formatDetection: { email: false },
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
     shortcut: "/icon.svg",

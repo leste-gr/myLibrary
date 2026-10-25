@@ -1,5 +1,9 @@
 // Interface translations only. Book and collection data retain their original language.
 export const el: Record<string, string> = {
+  "Settings": "Ρυθμίσεις",
+  "Settings for {0}": "Ρυθμίσεις για {0}",
+  "Sign-in email": "Email σύνδεσης",
+  "Your account uses this email to sign in. No additional profile information is needed.": "Ο λογαριασμός σου χρησιμοποιεί αυτό το email για σύνδεση. Δεν χρειάζονται επιπλέον στοιχεία προφίλ.",
   "Collection actions": "Ενέργειες συλλογής",
   "Import photo": "Από φωτογραφία",
   "More actions": "Περισσότερες ενέργειες",

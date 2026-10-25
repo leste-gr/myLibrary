@@ -273,3 +273,4 @@ body:has(.directory-shell) .account-menu{background:transparent}
   .bulk-reading-toolbar .bulk-select-label{font-size:14px}
   .bulk-reading-toolbar .bulk-mark-menu{width:105px;font-size:16px}
 }
+.settings-shell .settings-email{overflow-wrap:anywhere;color:var(--ink);margin-bottom:12px}
