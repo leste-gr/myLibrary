@@ -1,5 +1,7 @@
 import { getTranslations } from "@/lib/i18n/server";
 import { DEFAULT_BOOK_COVER } from "@/lib/book-cover";
+import { BookLoanEditor } from "@/components/book-loan-editor";
+import type { BookLoan } from "@/lib/book-loan";
 import { BookCoverImage } from "@/components/book-cover-image";
 import { CoverUploadForm } from "@/components/cover-upload-form";
 import { IsbnCandidateSearchForm } from "@/components/isbn-candidate-search-form";
@@ -15,7 +17,7 @@ type Relation<T> = T | T[] | null;
 type Work = { title: string; author: string };
 type Edition = { isbn13: string | null; title: string | null; publishers: string[]; published_date: string | null; cover_url: string | null };
 type Draft = { edition_metadata: Partial<IsbnEditionMetadata>; edition_id: string; cover_url: string | null; edition: Relation<Edition> };
-type Copy = { id: string; legacy_id: string; category: string; language: string; publisher: string | null; cover_url: string | null; cover_status: string; owner_cover_path: string | null; edition_verification_state: string; last_isbn_candidate_search_at: string | null; last_isbn_search_provider_failures: number | null; work: Relation<Work>; edition: Relation<Edition>; copy_drafts: Relation<Draft>; collection: Relation<{ id: string; name: string }> };
+type Copy = { loan: Relation<{ status: BookLoan["status"]; person_name: string | null }>; id: string; legacy_id: string; category: string; language: string; publisher: string | null; cover_url: string | null; cover_status: string; owner_cover_path: string | null; edition_verification_state: string; last_isbn_candidate_search_at: string | null; last_isbn_search_provider_failures: number | null; work: Relation<Work>; edition: Relation<Edition>; copy_drafts: Relation<Draft>; collection: Relation<{ id: string; name: string }> };
 type Candidate = { id: string; isbn13: string; title: string | null; publishers: string[]; published_date: string | null; cover_url: string | null; provider: string; score: number; suggested: boolean; rank: number; selection_state: string; confidence: number | null; work_confidence: number | null; edition_confidence: number | null; cover_confidence: number | null; auto_accept: boolean; review_only: boolean; manual_search_rank: number | null; algorithm_version: string };
 
 function first<T>(value: Relation<T>): T | null {
@@ -36,13 +38,14 @@ export default async function CollectionBookEditPage({ params, searchParams }: {
   const user = await getViewer();
   if (!user) redirect("/login");
   const { data, error } = await supabase.from("copies").select(
-    "id,legacy_id,category,language,publisher,cover_url,cover_status,owner_cover_path,edition_verification_state,last_isbn_candidate_search_at,last_isbn_search_provider_failures,collection:collections!inner(id,name),work:works(title,author),edition:editions(isbn13,title,publishers,published_date,cover_url),copy_drafts(edition_id,edition_metadata,cover_url,edition:editions(isbn13,title,publishers,published_date,cover_url))"
+    "id,legacy_id,category,language,publisher,cover_url,cover_status,owner_cover_path,edition_verification_state,last_isbn_candidate_search_at,last_isbn_search_provider_failures,collection:collections!inner(id,name),work:works(title,author),edition:editions(isbn13,title,publishers,published_date,cover_url),copy_drafts(edition_id,edition_metadata,cover_url,edition:editions(isbn13,title,publishers,published_date,cover_url)),loan:book_loans(status,person_name)"
   ).eq("collection.slug", slug).eq("collection.owner_id", user.id).eq("legacy_id", legacyId).single();
   if (error || !data) notFound();
   const copy = data as Copy;
   const collection = first(copy.collection);
   if (!collection) notFound();
   const work = first(copy.work);
+  const loan = first(copy.loan);
   const edition = first(copy.edition);
   const draft = first(copy.copy_drafts);
   const draftEdition = draft ? first(draft.edition) : null;
@@ -72,6 +75,7 @@ export default async function CollectionBookEditPage({ params, searchParams }: {
         </div></div>}
       </div>
     </section>
+    <BookLoanEditor slug={slug} legacyId={copy.legacy_id} loan={loan ? { status: loan.status,personName: loan.person_name } : null} />
     <CoverUploadForm copyId={copy.id} legacyId={copy.legacy_id} collectionSlug={slug} />
     <section className="manual-isbn"><h2>{t("Enter ISBN manually")}</h2><p>{t("Enter the ISBN-10 or ISBN-13 printed on the book. It will be converted and validated before being saved as a draft.")}</p><form action={saveManualIsbnDraft} className="manual-isbn-row"><input type="hidden" name="copyId" value={copy.id} /><input type="hidden" name="legacyId" value={copy.legacy_id} /><input type="hidden" name="collectionSlug" value={slug} /><label className="sr-only" htmlFor="manual-isbn">ISBN</label><input id="manual-isbn" name="isbn" inputMode="numeric" autoComplete="off" placeholder="978…" required /><button className="primary-button" type="submit">{t("Save ISBN")}</button></form></section>
     <IsbnCandidateSearchForm copyId={copy.id} legacyId={copy.legacy_id} collectionSlug={slug} />

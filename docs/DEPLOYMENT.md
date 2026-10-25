@@ -152,3 +152,11 @@ ISBNs, covers and other book metadata are unaffected. Deleting a book or collect
 cascades its loan records. Run `npm run test:book-loans` after a build with Supabase
 variables unset to verify persistence, private HTML/RSC, CSRF and failure behavior
 against an isolated fixture. The real-migration tests exercise RLS and RPC grants.
+
+Loan controls now live exclusively on the owner book edit page. Collection cards
+render a read-only badge and contact only for active Loaned out / Loaned in records;
+books without loans render no loan section. The editor reads the existing private
+loan through its ownership-scoped copy query, and successful saves refresh the
+editor and invalidate both edit and collection paths. Existing loan data and
+privacy rules are retained; no migration is required. Verified editor/loan
+integration, English/Greek translations, and phone/desktop save-and-return flows.

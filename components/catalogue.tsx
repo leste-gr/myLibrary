@@ -9,7 +9,7 @@ import type { CatalogueBook, PublicCollection } from "@/lib/types";
 import { DeleteCollectionButton } from "@/components/delete-collection-button";
 import { DeleteBookButton } from "@/components/delete-book-button";
 import { BookReadingStatus } from "@/components/reading-status";
-import { BookLoanStatus } from "@/components/book-loan-status";
+import { BookLoanBadge } from "@/components/book-loan-badge";
 import type { BookLoan } from "@/lib/book-loan";
 import { BookCoverImage } from "@/components/book-cover-image";
 
@@ -30,8 +30,6 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
   viewerSignedIn?: boolean;
 }) {
   const t = useTranslations();
-  const [loans,setLoans] = useState(initialLoans);
-  useEffect(() => { setLoans(initialLoans); }, [initialLoans]);
   const [books, setBooks] = useState(initialBooks);
   useEffect(() => { setBooks(initialBooks); }, [initialBooks]);
   const [readingFilter, setReadingFilter] = useState("");
@@ -232,7 +230,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
               {displayedBooks.map((book) => <article className="book-card-shell" id={`book-${book.id}`} key={book.id}><button type="button" className="book-card" aria-pressed={selectingBooks ? chosenBooks.has(book.id) : undefined} aria-label={selectingBooks ? t("Select {0}", [book.title]) : undefined} disabled={selectingBooks && bulkPending} onClick={() => selectingBooks ? chooseBooks([book.id], !chosenBooks.has(book.id)) : openBook(book)}>
                 <div className="cover-wrap"><BookCoverImage src={book.cover} alt={t("Cover: ") + book.title} fallbackAlt={t("Cover unavailable")} loading="lazy" />{selectingBooks && chosenBooks.has(book.id) && <span className="book-selection-mark" aria-hidden="true">✓</span>}</div>
                 <h3>{book.title}</h3><p className="book-author">{book.author}</p>{book.series && <p className="book-series">{book.series}</p>}{book.isbn13 && <p className="book-isbn">{book.isbn13}</p>}
-              </button><BookReadingStatus slug={collection.slug} legacyId={book.id} title={book.title} status={book.readingStatus} canEdit={canEdit} disabled={bulkPending} onSaved={status => setBooks(previous => previous.map(item => item.id === book.id ? { ...item, readingStatus: status } : item))} />{canEdit && <BookLoanStatus slug={collection.slug} legacyId={book.id} title={book.title} loan={Object.hasOwn(loans,book.id) ? loans[book.id] : null} disabled={bulkPending} onSaved={loan => setLoans(previous => { if (loan) return { ...previous,[book.id]: loan }; const next = { ...previous }; delete next[book.id]; return next; })} />}</article>)}
+              </button><BookReadingStatus slug={collection.slug} legacyId={book.id} title={book.title} status={book.readingStatus} canEdit={canEdit} disabled={bulkPending} onSaved={status => setBooks(previous => previous.map(item => item.id === book.id ? { ...item, readingStatus: status } : item))} />{canEdit && <BookLoanBadge loan={Object.hasOwn(initialLoans,book.id) ? initialLoans[book.id] : null} />}</article>)}
             </div>
             {!filteredBooks.length && <div id="empty"><h3>{initialBooks.length ? t("No books found.") : t("This collection has no books yet.")}</h3>{initialBooks.length > 0 && <><p>{t("Try another search or remove a filter.")}</p><button type="button" onClick={reset}>{t("Show all")}</button></>}</div>}
             {filteredBooks.length > 0 && <div className="load-more" ref={sentinelRef}><p role="status" aria-live="polite">{t("Showing") + " "}{Math.min(limit, filteredBooks.length)} {" " + t("of") + " "}{filteredBooks.length} {" " + t("books")}</p>{filteredBooks.length > limit && !manualLoading && <p className="scroll-hint">{t("Scroll to discover more books")}</p>}{filteredBooks.length > limit && manualLoading && <button type="button" onClick={() => setLimit((value) => value + 32)}>{t("Show") + " "}{Math.min(32, filteredBooks.length - limit)} {" " + t("more books")}</button>}</div>}

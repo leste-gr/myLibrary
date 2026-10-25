@@ -24,7 +24,13 @@ const mock=http.createServer(async(req,res)=>{
   else if(url.pathname==='/rest/v1/book_loans'){
     assert.equal(id,owner);assert.equal(url.searchParams.get('collection_id'),'eq.'+collectionId);
     res.end(JSON.stringify(loan?[{...loan,copy:{legacy_id:'B1'}}]:[]));
-  } else if(url.pathname==='/rest/v1/rpc/set_owned_book_loan'){
+  } else if(url.pathname==='/rest/v1/copies'){
+    if(id!==owner || url.searchParams.get('legacy_id')!=='eq.B1' || url.searchParams.get('collection.slug')!=='eq.loan-test'){
+      res.statusCode=406;res.end(JSON.stringify({code:'PGRST116',message:'No rows'}));return;
+    }
+    res.end(JSON.stringify({id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',legacy_id:'B1',category:'Fiction',language:'en',publisher:null,cover_url:null,cover_status:'cover_not_found',owner_cover_path:null,edition_verification_state:'unresolved',last_isbn_candidate_search_at:null,last_isbn_search_provider_failures:0,collection:{id:collectionId,name:'Loan test'},work:{title:'Book one',author:'Author'},edition:null,copy_drafts:[],loan}));
+  } else if(url.pathname==='/rest/v1/edition_candidates')res.end('[]');
+  else if(url.pathname==='/rest/v1/rpc/set_owned_book_loan'){
     assert.equal(id,owner);
     let raw='';for await(const chunk of req)raw+=chunk;
     const body=JSON.parse(raw);assert.equal(body.target_collection_id,collectionId);assert.equal(body.target_legacy_id,'B1');
@@ -44,12 +50,22 @@ const payload={slug:'loan-test',legacyId:'B1',status:'loaned_out',personName:'  
 try{
   for(let i=0;i<100&&!logs.includes('Ready');i++)await new Promise(r=>setTimeout(r,100));
   assert.ok(logs.includes('Ready'),logs);
-  const initial=await(await load(owner)).text();assert.ok(initial.includes('Loan status'));
+  const initial=await(await load(owner)).text();
+  assert.ok(!initial.includes('class="book-loan-state"'),'no loan display for a book without a loan');
+  assert.ok(!initial.includes('class="loan-form"'),'collection cannot edit loans');
+  const loadEditor=id=>fetch(origin+'/collections/loan-test/books/B1',{headers:id?{cookie:cookie(id)}:{},signal:AbortSignal.timeout(8000)});
+  const editor=await(await loadEditor(owner)).text();
+  assert.ok(editor.includes('class="book-loan-editor"')&&editor.includes('class="loan-form"'),'edit page owns the controls');
   const before=requests.length;
   const out=await save(payload);assert.equal(out.status,200);assert.deepEqual(await out.json(),{success:true});
   assert.deepEqual(requests.slice(before),['/auth/v1/user','/rest/v1/collections','/rest/v1/rpc/set_owned_book_loan'],'save acknowledges without rendering the collection');
   const own=await load(owner);assert.match(own.headers.get('cache-control'),/private/);
-  assert.ok((await own.text()).includes('PrivateBorrowerXYZ'),'owner reload retains saved loan');
+  const ownHtml=await own.text();
+  assert.ok(ownHtml.includes('PrivateBorrowerXYZ'),'owner reload retains saved loan');
+  assert.ok(ownHtml.includes('class="loan-badge loan-loaned_out"')&&!ownHtml.includes('class="loan-form"'),'loan status is read-only on collection');
+  assert.ok((await(await loadEditor(owner)).text()).includes('PrivateBorrowerXYZ'),'editor loads saved contact');
+  const foreignEditor=await loadEditor(other);
+  assert.ok(!(await foreignEditor.text()).includes('PrivateBorrowerXYZ'),'another owner cannot see editor contact');
   const count=requests.filter(p=>p==='/rest/v1/book_loans').length;
   for(const id of [null,other])assert.ok(!(await(await load(id)).text()).includes('PrivateBorrowerXYZ'),'private contact must not enter public HTML or RSC');
   assert.equal(requests.filter(p=>p==='/rest/v1/book_loans').length,count,'visitor requests do not read loan contacts');

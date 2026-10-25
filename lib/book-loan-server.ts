@@ -31,6 +31,7 @@ export async function changeBookLoan(input: BookLoanChange) {
     });
     if (error) throw error;
     revalidatePath(`/collections/${collection.slug}`);
+    revalidatePath(`/collections/${collection.slug}/books/${input.legacyId}`);
     return { success: true };
   } catch {
     return { error: "Could not save loan details. Please try again." };

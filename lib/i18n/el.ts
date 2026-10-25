@@ -524,6 +524,7 @@ export const el: Record<string, string> = {
   "From {0}": "Από: {0}",
   "Borrower's name (optional)": "Όνομα παραλήπτη (προαιρετικό)",
   "Lender's name (optional)": "Όνομα δανειστή (προαιρετικό)",
+  "Loan details saved.": "Τα στοιχεία δανεισμού αποθηκεύτηκαν.",
   "Save loan": "Αποθήκευση δανεισμού",
   "Please sign in to change loan details.": "Συνδέσου για να αλλάξεις τα στοιχεία δανεισμού.",
   "Could not save loan details. Please try again.": "Δεν ήταν δυνατή η αποθήκευση του δανεισμού. Δοκίμασε ξανά.",
