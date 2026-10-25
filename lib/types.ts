@@ -8,6 +8,7 @@ export type CatalogueBook = {
   series: string;
   language: string;
   category: string;
+  categories: string[];
   publisher: string | null;
   cover: string | null;
   isbn13: string | null;

@@ -7,7 +7,7 @@ import { SHELFIE_GENAI_PROMPT, MAX_IMPORT_BYTES, parseManualGenaiImport, type Ma
 export type ShelfieTools = {
   updateCovers: (collectionId: string, after: string | null, limit: number) => Promise<CoverUpdateResult>;
   listCollections: () => Promise<{ id: string; name: string; slug: string }[]>;
-  listCollectionBooks: (collectionId: string, limit: number, offset: number) => Promise<{ collectionId: string; total: number; offset: number; limit: number; hasMore: boolean; books: { id: string; title: string; author: string; isbn13: string | null; series: string | null; volume: string | null; language: string }[] }>;
+  listCollectionBooks: (collectionId: string, limit: number, offset: number) => Promise<{ collectionId: string; total: number; offset: number; limit: number; hasMore: boolean; books: { id: string; title: string; author: string; isbn13: string | null; series: string | null; volume: string | null; language: string; categories: string[] }[] }>;
   createCollection: (name: string, description: string | null, payload: ManualGenaiImport) => Promise<ImportResult>;
   updateCollection: (collectionId: string, payload: ManualGenaiImport) => Promise<ImportResult>;
 };
@@ -18,6 +18,7 @@ const bookSchema = z.object({
   position: z.number().int().min(1).max(100).describe("Consecutive physical shelf order, top-to-bottom then left-to-right."),
   title: z.string().max(300).nullable().optional().describe("Best-supported work or volume title; omit the spine if no meaningful title fragment is readable."),
   authors: z.array(z.string().min(1).max(160)).max(10).describe("Supported person names only; use [] when none can be identified."),
+  categories: z.array(z.string().trim().min(1).max(80)).min(1).max(8).describe("Required category tags inferred by the client from supported title, author, series and subject metadata. Use concise English format/genre/subject tags such as Fiction, Fantasy, Science Fiction, Comics & Graphic Novels, Tabletop Roleplaying, Rulebooks, Game Reference, Game Adventures, History, Biography. Never confuse game manuals with novels. Use Uncategorized only if no supported tag is possible."),
   confidence: z.number().min(0).max(1).describe("Confidence that the spine is correctly separated and the title identifies the work; do not reduce it solely because the cover is representative."),
   subtitle: optionalText(300), publisher: optionalText(200), language: optionalText(40),
   publicationYear: z.number().int().min(1400).max(2100).nullable().optional(),
@@ -39,7 +40,7 @@ function reviewedCoverImport(input: unknown): ManualGenaiImport {
 }
 
 export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
-  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.9.0" }, {
+  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.10.0" }, {
     instructions: SHELFIE_MCP_INSTRUCTIONS,
   });
   const securitySchemes = [{ type: "oauth2", scopes: ["openid"] }];
@@ -54,7 +55,7 @@ export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
   server.registerTool("list_collection_books", {
     title: "List books in a collection", description: "List the signed-in user's published books in shelf order. Use pagination until hasMore is false when the user asks for the complete collection.",
     inputSchema: { collectionId: z.string().uuid(), limit: z.number().int().min(1).max(200).default(100), offset: z.number().int().min(0).max(100000).default(0) },
-    outputSchema: { collectionId: z.string(), total: z.number(), offset: z.number(), limit: z.number(), hasMore: z.boolean(), books: z.array(z.object({ id: z.string(), title: z.string(), author: z.string(), isbn13: z.string().nullable(), series: z.string().nullable(), volume: z.string().nullable(), language: z.string() })) },
+    outputSchema: { collectionId: z.string(), total: z.number(), offset: z.number(), limit: z.number(), hasMore: z.boolean(), books: z.array(z.object({ id: z.string(), title: z.string(), author: z.string(), isbn13: z.string().nullable(), series: z.string().nullable(), volume: z.string().nullable(), language: z.string(), categories: z.array(z.string()) })) },
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }, _meta: { securitySchemes },
   }, async ({ collectionId, limit, offset }) => {
     try { const result = await tools.listCollectionBooks(collectionId, limit, offset); return { structuredContent: result, content: [{ type: "text", text: JSON.stringify(result) }] }; }

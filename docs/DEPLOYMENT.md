@@ -166,3 +166,22 @@ loan. The filter combines with search and reading status, appears in active chip
 and filter counts, clears bulk selection when changed, and is restored on editor
 return. Loan filters use the existing session-scoped private data and are hidden
 from visitors. Verified English/Greek phone and desktop flows; no migration required.
+
+Multiple category tags: apply `202610250044_category_tags.sql` before the application.
+`copies.categories` is the canonical ordered array (up to 8 tags of 80 characters);
+`category` remains a compatibility alias for its first tag. Legacy meaningful
+categories are retained. The public view and MCP book list expose the array. Import
+observations persist supplied tags in the same transaction, and later cover-only
+observation updates preserve subsequently edited tags. MCP 1.10.0 requires clients
+to provide 1–8 supported English category tags per ingested book. Manual JSON keeps
+older payloads valid and preserves their checksum shape when tags are absent.
+The website prompt, review and category filter use the array; a book matches any
+one of its tags, and detail/edit pages show all tags. No ISBN/cover workflow changes.
+
+The one-time current-library backfill is reviewed from saved title/author/series/
+format metadata. `scripts/backfill-category-tags.py --project REF --plan PLAN.json`
+is a dry run. `--apply` checks every copy against the reviewed snapshot, writes an
+exclusive rollback snapshot, applies all tags in one serializable transaction and
+records per-book evidence in audit events. It aborts if the inventory changed, any
+stored tag differs from the plan, or any non-category book field changes. Catalogue
+contents and reviewed plans are local operational artifacts, not committed data.

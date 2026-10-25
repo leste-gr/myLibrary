@@ -259,6 +259,7 @@ export const el: Record<string, string> = {
   "The edition was published to the collection.": "Η έκδοση δημοσιεύτηκε στη συλλογή.",
   "The candidate edition was rejected and will not be suggested again for this copy.": "Η υποψήφια έκδοση απορρίφθηκε και δεν θα προταθεί ξανά για αυτό το αντίτυπο.",
   "No cover": "Χωρίς εξώφυλλο",
+  "Category tags": "Ετικέτες κατηγορίας",
   "Category": "Κατηγορία",
   "Language": "Γλώσσα",
   "Published ISBN": "Δημοσιευμένο ISBN",
@@ -529,4 +530,5 @@ export const el: Record<string, string> = {
   "Save loan": "Αποθήκευση δανεισμού",
   "Please sign in to change loan details.": "Συνδέσου για να αλλάξεις τα στοιχεία δανεισμού.",
   "Could not save loan details. Please try again.": "Δεν ήταν δυνατή η αποθήκευση του δανεισμού. Δοκίμασε ξανά.",
+  "categories must be an array of at most 8 non-empty tags, each at most 80 characters.": "Οι κατηγορίες πρέπει να είναι λίστα με έως 8 μη κενές ετικέτες, καθεμία έως 80 χαρακτήρες.",
 };

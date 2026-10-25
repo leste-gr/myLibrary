@@ -8,8 +8,8 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { MAX_IMPORT_BYTES, MANUAL_GENAI_SCHEMA_VERSION, parseManualGenaiImport, parseManualGenaiText, SHELFIE_GENAI_PROMPT, type ManualGenaiBook, type ManualGenaiImport } from "@/lib/manual-genai-import";
 
 type OwnedCollection = { id: string; slug: string; name: string };
-type ReviewBook = ManualGenaiBook & { included: boolean; authorText: string };
-const reviewBooks = (payload: ManualGenaiImport) => payload.books.map((book) => ({ ...book, included: true, authorText: book.authors.join("; ") }));
+type ReviewBook = ManualGenaiBook & { included: boolean; authorText: string; categoryText: string };
+const reviewBooks = (payload: ManualGenaiImport) => payload.books.map((book) => ({ ...book, included: true, authorText: book.authors.join("; "), categoryText: (book.categories ?? []).join("; ") }));
 
 export function ShelfieReview({ userId, collections, initialDraft, canImport = true }: {
   userId: string; collections: OwnedCollection[]; canImport?: boolean;
@@ -50,7 +50,7 @@ export function ShelfieReview({ userId, collections, initialDraft, canImport = t
     const form = new FormData(event.currentTarget);
     let payload: ManualGenaiImport;
     try {
-      payload = parseManualGenaiImport({ schemaVersion: MANUAL_GENAI_SCHEMA_VERSION, books: books.filter((book) => book.included).map(({ included: _included, authorText, ...book }) => ({ ...book, authors: authorText.split(";").map((author) => author.trim()).filter(Boolean) })) });
+      payload = parseManualGenaiImport({ schemaVersion: MANUAL_GENAI_SCHEMA_VERSION, books: books.filter((book) => book.included).map(({ included: _included, authorText, categoryText, ...book }) => ({ ...book, authors: authorText.split(";").map((author) => author.trim()).filter(Boolean), ...(book.categories !== undefined || categoryText.trim() ? { categories: categoryText.split(";").map(tag => tag.trim()).filter(Boolean) } : {}) })) });
     } catch (reason) { setError(reason instanceof Error ? t(reason.message) : t("Review the books.")); return; }
     setBusy(true); setPhase(t("Importing…"));
     let createdCollectionId: string | null = null;
@@ -116,6 +116,7 @@ export function ShelfieReview({ userId, collections, initialDraft, canImport = t
           <label className="choice-row"><input type="checkbox" checked={book.included} onChange={(event) => edit(index, { included: event.target.checked })} /><strong>{t("Book") + " "}{book.position}</strong></label>
           {(book.confidence < .8 || !book.authorText.trim() || book.notes) && <p className="review-warning">{t("Needs attention")}{book.notes ? `: ${book.notes}` : t(" — uncertain reading or unknown author.")}</p>}
           <div className="review-fields">
+            <label>{t("Category tags") + " "}<small>{t("(separated by ;)")}</small><input value={book.categoryText} disabled={!book.included} onChange={event => edit(index,{ categoryText: event.target.value })} /></label>
             <label>{t("Title")}<input value={book.title} required={book.included} disabled={!book.included} maxLength={300} onChange={(event) => edit(index, { title: event.target.value })} /></label>
             <label>{t("Authors") + " "}<small>{t("(separated by ;)")}</small><input value={book.authorText} disabled={!book.included} onChange={(event) => edit(index, { authorText: event.target.value })} /></label>
           </div>

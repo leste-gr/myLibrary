@@ -469,5 +469,27 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     await db.exec("reset role");
     await db.query("delete from public.copies where id=$1",[scanned.copyId]);
     assert.deepEqual(await loans(),[],"deleting a book cleans up its loan");
+    // Tags survive every import path; old singular clients remain compatible.
+    await claims(alice); await rpc("set_assistant_connection",["assistant",true]);
+    await claims(alice,true);
+    const taggedPayload={schemaVersion:"mylibrary.shelfie.v1",books:[{position:1,title:"Tagged book",authors:["Author"],confidence:1,categories:[" fiction ","sci-fi","Fiction","children's books"],coverUrl:"https://images.example.test/book.jpg"}]};
+    const taggedCollection=await rpc("assistant_create_collection",["Tagged books",null,taggedPayload]);
+    const taggedList=await rpc("assistant_list_collection_books",[taggedCollection.collectionId,100,0]);
+    assert.deepEqual(taggedList.books[0].categories,["Fiction","Science Fiction","Children's Books"]);
+    for(const invalid of [null,[""],["x".repeat(81)],Array(9).fill("Fantasy"),["Fantasy",3]]) {
+      await assert.rejects(()=>rpc("assistant_create_collection",["Invalid tags",null,{...taggedPayload,books:[{...taggedPayload.books[0],categories:invalid}]}]),/categor/i);
+    }
+    await db.exec("reset role");
+    assert.equal((await db.query("select id from public.collections where name='Invalid tags'")).rows.length,0,"invalid tags roll back the whole collection/import");
+    const tagCopy=(await db.query<{id:string;category:string}>("select id,category from public.copies where collection_id=$1",[taggedCollection.collectionId])).rows[0];
+    assert.equal(tagCopy.category,"Fiction");
+    await db.query("update public.copies set categories=array[' fantasy ','FANTASY','rpg'] where id=$1",[tagCopy.id]);
+    assert.deepEqual((await db.query<{categories:string[]}>("select categories from public.copies where id=$1",[tagCopy.id])).rows[0].categories,["Fantasy","Tabletop Roleplaying"]);
+    // A later cover/evidence update must not reapply the older observation's tags.
+    await db.query("update public.book_observations set raw_payload=raw_payload||'{\"coverResolution\":\"checked\"}' where copy_id=$1",[tagCopy.id]);
+    assert.deepEqual((await db.query<{categories:string[]}>("select categories from public.copies where id=$1",[tagCopy.id])).rows[0].categories,["Fantasy","Tabletop Roleplaying"]);
+    await db.exec("set role anon");
+    assert.deepEqual((await db.query<{categories:string[]}>("select categories from public.public_catalogue where legacy_id=$1",[taggedList.books[0].id])).rows[0].categories,["Fantasy","Tabletop Roleplaying"]);
+    await assert.rejects(()=>db.query("update public.copies set categories=array['Horror'] where id=$1",[tagCopy.id]),/permission denied/);
   } finally { await db.close(); }
 });

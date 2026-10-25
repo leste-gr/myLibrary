@@ -9,7 +9,7 @@ import { SHELFIE_MCP_INSTRUCTIONS } from "./shelfie-mcp-instructions";
 import { parseManualGenaiText, MAX_IMPORT_BYTES, SHELFIE_GENAI_PROMPT } from "./manual-genai-import";
 import { safeReturnPath } from "./safe-return-path";
 
-const payload = { schemaVersion: "mylibrary.shelfie.v1", books: [{ position: 1, title: "The Hobbit", authors: ["Tolkien"], confidence: .9, visibleIsbn: null, coverUrl: "https://images.example.test/hobbit.jpg" }] };
+const payload = { schemaVersion: "mylibrary.shelfie.v1", books: [{ position: 1, title: "The Hobbit", authors: ["Tolkien"], categories: ["Fiction", "Fantasy"], confidence: .9, visibleIsbn: null, coverUrl: "https://images.example.test/hobbit.jpg" }] };
 
 test("paste accepts JSON fences and BOM without silently repairing invalid output", () => {
   const json = JSON.stringify(payload);
@@ -47,9 +47,9 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
   const server = createShelfieMcpServer({
     updateCovers: async (...args) => { coverCalls.push(args); return { collectionId: id, slug: "books", processed: 1, updated: 1, notFound: 0, failed: 0, skipped: 0, remaining: 0, hasMore: false, nextCursor: null, warning: null, results: [{ id, legacyId: "B1", title: "The Hobbit", status: "updated", coverUrl: "https://images.example.test/hobbit.jpg", message: null }] }; },
     listCollections: async () => [{ id, name: "My books", slug: "books" }],
-    listCollectionBooks: async () => ({ collectionId: id, total: 1, offset: 0, limit: 100, hasMore: false, books: [{ id: "B1", title: "The Hobbit", author: "Tolkien", isbn13: null, series: null, volume: null, language: "en" }] }),
-    createCollection: async (name, description, books) => { writes++; assert.equal(books.books[0].title, "The Hobbit"); assert.equal(books.books[0].isbn, null); assert.equal(books.books[0].visibleIsbn, null); return { collectionId: id, name, slug: "collection-test", description, importId: id, imported: 1, duplicate: false }; },
-    updateCollection: async (_id, books) => { if (books.books[0].visibleIsbn) throw new Error("invalid ISBN"); writes++; assert.equal(books.books[0].title, "The Hobbit"); return { collectionId: id, slug: "books", importId: id, imported: 1, ignoredExisting: 0, duplicate: false }; },
+    listCollectionBooks: async () => ({ collectionId: id, total: 1, offset: 0, limit: 100, hasMore: false, books: [{ id: "B1", title: "The Hobbit", author: "Tolkien", isbn13: null, series: null, volume: null, language: "en", categories: ["Fiction", "Fantasy"] }] }),
+    createCollection: async (name, description, books) => { writes++; assert.equal(books.books[0].title, "The Hobbit"); assert.deepEqual(books.books[0].categories,["Fiction", "Fantasy"]); assert.equal(books.books[0].isbn, null); assert.equal(books.books[0].visibleIsbn, null); return { collectionId: id, name, slug: "collection-test", description, importId: id, imported: 1, duplicate: false }; },
+    updateCollection: async (_id, books) => { if (books.books[0].visibleIsbn) throw new Error("invalid ISBN"); writes++; assert.equal(books.books[0].title, "The Hobbit"); assert.deepEqual(books.books[0].categories,["Fiction", "Fantasy"]); return { collectionId: id, slug: "books", importId: id, imported: 1, ignoredExisting: 0, duplicate: false }; },
   }, "https://library.test");
   const client = new Client({ name: "test", version: "1" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -70,6 +70,8 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
       assert.doesNotMatch(description, /Use a real file-generation tool|PHASE 5|booksSearched === totalBooks/);
       assert.doesNotMatch(JSON.stringify(tool?.inputSchema), /"(?:isbn|visibleIsbn)"/);
       assert.match(JSON.stringify(tool?.inputSchema), /"coverUrl"/);
+      const items = (tool!.inputSchema.properties!.books as {items: {required: string[]}}).items;
+      assert.ok(items.required.includes("categories"));
     }
     const covers = listedTools.find(tool => tool.name === "update_covers")!;
     assert.equal(covers.annotations?.readOnlyHint, false);
@@ -119,6 +121,15 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     const searched = await client.callTool({ name: "update_collection", arguments: { collectionId: id, ...payload, books: [{ ...payload.books[0], coverUrl: null, notes: "Searched title/author in publisher catalogue and Open Library; matching book pages had no cover image." }] } });
     assert.equal(searched.isError, undefined, "documented unsuccessful searches remain importable");
     assert.equal(writes, 3);
+    for (const name of ["create_collection", "update_collection"]) {
+      const destination = name === "create_collection" ? { name: "No tags" } : { collectionId: id };
+      const { categories: _categories,...withoutTags } = payload.books[0];
+      for (const book of [withoutTags,{...withoutTags,categories:[]},{...withoutTags,categories:[" "]}]) {
+        const invalid = await client.callTool({ name,arguments: {...destination,...payload,books:[book]} });
+        assert.equal(invalid.isError,true); assert.equal(writes,3,"missing categories never reach a write callback");
+      }
+    }
+
 
   } finally { await client.close(); await server.close(); }
 });

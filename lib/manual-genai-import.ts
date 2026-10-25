@@ -1,3 +1,4 @@
+import { normalizeCategoryTags } from "./category-tags";
 import { canonicalIsbn } from "./isbn";
 
 export const MANUAL_GENAI_SCHEMA_VERSION = "mylibrary.shelfie.v1";
@@ -9,6 +10,7 @@ export type ManualGenaiBook = {
   title: string;
   subtitle: string | null;
   authors: string[];
+  categories?: string[];
   publisher: string | null;
   language: string | null;
   publicationYear: number | null;
@@ -129,6 +131,7 @@ export function parseManualGenaiImport(value: unknown): ManualGenaiImport {
       title,
       subtitle: optionalText(book.subtitle, "subtitle", index),
       authors: book.authors.map((author) => String(author).trim()),
+      ...(book.categories === undefined ? {} : { categories: normalizeCategoryTags(book.categories) }),
       publisher: optionalText(book.publisher, "publisher", index, 200),
       language: optionalText(book.language, "language", index, 40),
       publicationYear: publicationYear === null || publicationYear === undefined ? null : Number(publicationYear),
@@ -246,6 +249,8 @@ Return ONLY valid JSON. Do not use Markdown fences and do not add commentary.
 
 ${SHELFIE_EXTRACTION_PROTOCOL}
 
+Supply categories as 1–8 concise category tags in English, based on the title, author, series and subject. Combine format/genre/subject where supported (e.g. ["Fiction", "Fantasy"] or ["Tabletop Roleplaying", "Game Adventures", "Fantasy"]). Distinguish novels from game manuals and graphic adaptations. Do not infer genres from a vague title alone; use ["Uncategorized"] if no supported category can be established.
+
 Use this exact schema and field names:
 {
   "schemaVersion": "mylibrary.shelfie.v1",
@@ -255,6 +260,7 @@ Use this exact schema and field names:
       "title": "Required visible title",
       "subtitle": null,
       "authors": [],
+      "categories": ["Fiction", "Fantasy"],
       "publisher": null,
       "language": null,
       "publicationYear": null,

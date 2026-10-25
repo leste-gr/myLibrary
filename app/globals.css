@@ -225,3 +225,6 @@ body:has(.directory-shell) .account-menu{background:transparent}
 .book-loan-editor h2{font:500 24px var(--serif);margin:0 0 10px}
 .book-loan-editor .loan-form{max-width:460px}
 @media(max-width:600px){.book-loan-editor{padding:20px}}
+
+.category-tags{list-style:none;display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0}
+.category-tags li{max-width:100%;padding:4px 9px;border:1px solid var(--line);border-radius:14px;background:var(--sand);font:500 12px/1.5 var(--sans);overflow-wrap:anywhere}

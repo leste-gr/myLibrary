@@ -10,6 +10,6 @@ export const getCachedPublicCollections = unstable_cache(getPublicCollections,
 export const getCachedPublicCollection = unstable_cache(getPublicCollection,
   ["public-collection-v1", publicDataset], { revalidate: 30 });
 export const getCachedPublicCatalogue = unstable_cache(getPublicCatalogue,
-  ["public-collection-books-v2", publicDataset], { revalidate: 30 });
+  ["public-collection-books-v3-category-tags", publicDataset], { revalidate: 30 });
 export const getCachedPublicCollectionPreview = unstable_cache(getPublicCollectionPreview,
   ["public-collection-preview-v1", publicDataset], { revalidate: 30 });

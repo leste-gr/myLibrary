@@ -262,3 +262,16 @@ Results distinguish `updated`, `not_found`, `failed`, and `skipped` (a concurren
 cover was preserved). A transient count-refresh failure returns a warning and an
 estimated remaining count while retaining confirmed writes. Retrying from the
 start searches still-missing covers again. Reconnect clients to refresh the tool list.
+
+## Category tags (MCP 1.10.0)
+
+Each ingested book must include `categories`, an array of 1–8 non-empty English
+category tags (maximum 80 characters per tag). The client chooses supported
+format, genre and subject tags from metadata, using consistent labels across
+books. Examples: `["Fiction", "Fantasy"]`, `["Comics & Graphic Novels", "History"]`
+and `["Tabletop Roleplaying", "Game Adventures", "Fantasy"]`. Do not classify RPG
+manuals as novels just because their covers feature fantasy scenes. Use
+`["Uncategorized"]` only when even a broad category is unsupported. Both import
+tools validate the field before writing; the book-list tool returns saved tags.
+Reconnect clients after deployment to refresh the schema. Older manual JSON files
+remain importable without the new field; the copy-paste prompt now requests it.

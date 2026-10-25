@@ -1,3 +1,4 @@
+import { categoryTags } from "./category-tags";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseConfig } from "./supabase/config";
 import { isReadingStatus, type ReadingStatus } from "./reading-status";
@@ -11,6 +12,7 @@ type PublicRow = {
   series: string | null;
   language: string;
   category: string;
+  categories: string[];
   publisher: string | null;
   cover_url: string | null;
   isbn13: string | null;
@@ -69,7 +71,7 @@ export async function getPublicCatalogue(slug: string): Promise<CatalogueBook[]>
 
   const { data, error } = await supabase
     .from("public_catalogue")
-    .select("legacy_id,title,author,series,language,category,publisher,cover_url,isbn13,reading_status")
+    .select("legacy_id,title,author,series,language,category,categories,publisher,cover_url,isbn13,reading_status")
     .eq("collection_slug", slug)
     .order("display_order", { ascending: true });
 
@@ -85,6 +87,7 @@ export async function getPublicCatalogue(slug: string): Promise<CatalogueBook[]>
     series: row.series ?? "",
     language: row.language,
     category: row.category,
+    categories: categoryTags(row.categories,row.category),
     publisher: row.publisher,
     cover: row.cover_url,
     isbn13: row.isbn13,

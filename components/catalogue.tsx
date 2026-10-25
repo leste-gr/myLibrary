@@ -10,6 +10,7 @@ import { DeleteCollectionButton } from "@/components/delete-collection-button";
 import { DeleteBookButton } from "@/components/delete-book-button";
 import { BookReadingStatus } from "@/components/reading-status";
 import { BookLoanBadge } from "@/components/book-loan-badge";
+import { categoryTags } from "@/lib/category-tags";
 import type { BookLoan, LoanStatus } from "@/lib/book-loan";
 import { BookCoverImage } from "@/components/book-cover-image";
 
@@ -47,7 +48,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
   const [bulkNotice, setBulkNotice] = useState("");
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
-  const searchIndex = useMemo(() => books.map(book => ({ book, searchable: normalize([book.title, book.author, book.series, book.category, book.id, book.isbn13].join(" ")) })), [books]);
+  const searchIndex = useMemo(() => books.map(book => ({ book, searchable: normalize([book.title, book.author, book.series, categoryTags(book.categories,book.category).join(" "), book.id, book.isbn13].join(" ")) })), [books]);
   const [category, setCategory] = useState("");
   const [author, setAuthor] = useState("");
   const [language, setLanguage] = useState("");
@@ -69,7 +70,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
     { label: t("Loan status"), value: canEdit && loanFilter ? (loanFilter === "loaned_out" ? t("Loaned out") : loanFilter === "loaned_in" ? t("Loaned in") : t("Not on loan")) : "", clear: () => setLoanFilter("") },
   ].filter((filter) => filter.value);
 
-  const categories = useMemo(() => [...new Set(initialBooks.map((book) => book.category))].sort(), [initialBooks]);
+  const categories = useMemo(() => [...new Set(initialBooks.flatMap((book) => categoryTags(book.categories,book.category)))].sort(), [initialBooks]);
   const authors = useMemo(() => [...new Set(initialBooks.map((book) => book.author))].sort(), [initialBooks]);
   const languages = useMemo(() => [...new Set(initialBooks.map((book) => book.language))].sort(), [initialBooks]);
   const filteredBooks = useMemo(() => {
@@ -77,7 +78,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
     const isbnQuery = deferredQuery.replace(/[^0-9X]/gi, "");
     const isIsbnQuery = isbnQuery.length >= 9 && /^[0-9X\s-]+$/i.test(deferredQuery);
     const result = searchIndex.filter(({ book, searchable }) => {
-      return (!category || book.category === category)
+      return (!category || categoryTags(book.categories,book.category).includes(category))
         && (!author || book.author === author)
         && (!language || book.language === language)
         && (!readingFilter || book.readingStatus === readingFilter)
@@ -212,7 +213,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
           <aside aria-label={t("Book filters")}>
             <button className="filter-toggle" type="button" aria-expanded={filtersOpen} aria-controls="catalogue-filters" onClick={() => setFiltersOpen(!filtersOpen)}>{t("Filters")}{[category, author, language, readingFilter, canEdit && loanFilter].filter(Boolean).length > 0 && ` (${[category, author, language, readingFilter, canEdit && loanFilter].filter(Boolean).length})`}<span aria-hidden="true">{filtersOpen ? "−" : "+"}</span></button>
             <div id="catalogue-filters" className={`filter-body${filtersOpen ? " is-open" : ""}`}><div className="filter-heading"><h2>{t("Filters")}</h2><button type="button" onClick={reset} disabled={!activeFilters.length && sort === "catalogue"}>{t("Clear")}</button></div><div className="select-filters" onChange={() => setLimit(32)}>
-              <label htmlFor="category">{t("Category")}</label><select id="category" value={category} onChange={(event) => setCategory(event.target.value)}><option value="">{t("All")}</option>{categories.map((value) => <option key={value}>{value}</option>)}</select>
+              <label htmlFor="category">{t("Category tags")}</label><select id="category" value={category} onChange={(event) => setCategory(event.target.value)}><option value="">{t("All")}</option>{categories.map((value) => <option key={value}>{value}</option>)}</select>
               <label htmlFor="author">{t("Author")}</label><select id="author" value={author} onChange={(event) => setAuthor(event.target.value)}><option value="">{t("All")}</option>{authors.map((value) => <option key={value}>{value}</option>)}</select>
               <label htmlFor="language">{t("Language")}</label><select id="language" value={language} onChange={(event) => setLanguage(event.target.value)}><option value="">{t("All")}</option>{languages.map((value) => <option key={value}>{value}</option>)}</select>
               <label htmlFor="reading-filter">{t("Reading status")}</label><select id="reading-filter" value={readingFilter} onChange={event => setReadingFilter(event.target.value)}><option value="">{t("All reading statuses")}</option><option value="unread">{t("Unread")}</option><option value="read">{t("Read")}</option><option value="radar">{t("On my radar")}</option></select>
@@ -251,7 +252,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
       <dialog className="book-dialog" ref={dialogRef} aria-labelledby="book-detail-title" onClose={() => setSelected(null)} onClick={(event) => { if (event.target === event.currentTarget) { const bounds = event.currentTarget.getBoundingClientRect(); if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) event.currentTarget.close(); } }}>
         <div className="book-dialog-header"><button type="button" className="close-dialog" aria-label={t("Close")} onClick={() => { dialogRef.current?.close(); setSelected(null); }}>×</button></div>
         {selected && <div className="detail-layout"><div className="detail-art"><div className="cover-wrap"><BookCoverImage src={selected.cover} alt={t("Cover: ") + selected.title} fallbackAlt={t("Cover unavailable")} /></div></div><div className="detail-copy"><p className="eyebrow">{collection.name}</p><h2 id="book-detail-title">{selected.title}</h2><p className="detail-author">{selected.author}</p><dl>
-          {selected.category && <><dt>{t("Category")}</dt><dd>{selected.category}</dd></>}
+          {selected.categories.length>0 && <><dt>{t("Category tags")}</dt><dd><ul className="category-tags">{selected.categories.map(tag => <li key={tag}>{tag}</li>)}</ul></dd></>}
           {selected.language && <><dt>{t("Language")}</dt><dd>{selected.language}</dd></>}
           {selected.publisher && <><dt>{t("Publisher")}</dt><dd>{selected.publisher}</dd></>}
           {selected.isbn13 && <><dt>ISBN-13</dt><dd>{selected.isbn13}</dd></>}
