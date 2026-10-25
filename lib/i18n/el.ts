@@ -1,5 +1,10 @@
 // Interface translations only. Book and collection data retain their original language.
 export const el: Record<string, string> = {
+  "Edit collection": "Επεξεργασία συλλογής",
+  "Save changes": "Αποθήκευση αλλαγών",
+  "Collection details saved.": "Τα στοιχεία της συλλογής αποθηκεύτηκαν.",
+  "Could not save collection details. Please try again.": "Δεν ήταν δυνατή η αποθήκευση των στοιχείων της συλλογής. Δοκίμασε ξανά.",
+  "Enter a collection name of 1–120 characters and a description of up to 1,000 characters.": "Συμπλήρωσε όνομα συλλογής με 1–120 χαρακτήρες και περιγραφή έως 1.000 χαρακτήρες.",
   "Settings": "Ρυθμίσεις",
   "Settings for {0}": "Ρυθμίσεις για {0}",
   "Sign-in email": "Email σύνδεσης",

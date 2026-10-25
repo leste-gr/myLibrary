@@ -199,6 +199,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
           <Link className="button-link" href={`/collections/${collection.slug}/add`} aria-label={t("+ Add by ISBN")}>＋ ISBN</Link>
           <Link className="button-link" href={`/shelfies?collection=${collection.slug}`}>{t("Import photo")}</Link>
           <CompactMenu label={<><span aria-hidden="true">⋯</span><span className="sr-only">{t("More actions")}</span></>}>
+            <Link href={`/collections/${collection.slug}/edit`}>{t("Edit collection")}</Link>
             <DeleteCollectionButton collectionId={collection.id} collectionName={collection.name} />
           </CompactMenu>
         </nav>}

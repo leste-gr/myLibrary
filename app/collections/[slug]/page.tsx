@@ -8,10 +8,10 @@ import { getCollectionViewer } from "@/lib/catalogue-viewer";
 
 export const revalidate = 60;
 
-export default async function CollectionPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ imported?: string; bookDeleted?: string }> }) {
+export default async function CollectionPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ imported?: string; bookDeleted?: string; collectionSaved?: string }> }) {
   const t = await getTranslations();
   const { slug } = await params;
-  const { imported, bookDeleted } = await searchParams;
+  const { imported, bookDeleted, collectionSaved } = await searchParams;
   const [collection, books, viewer] = await Promise.all([
     getCachedPublicCollection(slug),
     getCachedPublicCatalogue(slug),
@@ -20,6 +20,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
   if (!collection) notFound();
   const loans = viewer.canEdit ? await getOwnedCollectionLoans(await createSupabaseServerClient(),collection.id) : {};
   return <>
+    {collectionSaved && <div className="global-notice" role="status">{t("Collection details saved.")}</div>}
     {bookDeleted && <div className="global-notice" role="status">{t("Book deleted from the collection.")}</div>}
     {imported && <div className="global-notice" role="status">{t("Imported") + " "}{imported} {" " + t("books from the JSON file.")}</div>}
     <Catalogue initialLoans={loans} initialBooks={books} collection={collection} canEdit={viewer.canEdit} viewerSignedIn={viewer.signedIn} />

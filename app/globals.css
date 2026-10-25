@@ -274,3 +274,8 @@ body:has(.directory-shell) .account-menu{background:transparent}
   .bulk-reading-toolbar .bulk-mark-menu{width:105px;font-size:16px}
 }
 .settings-shell .settings-email{overflow-wrap:anywhere;color:var(--ink);margin-bottom:12px}
+.collection-editor input,.collection-editor textarea{width:100%;min-height:44px;padding:10px;border:1px solid var(--line);border-radius:4px;background:var(--paper);color:var(--ink);font:inherit}
+.collection-editor textarea{resize:vertical}
+.collection-editor-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.collection-editor-actions a,.collection-editor-actions button{min-height:44px}
+.catalogue-shell .intro-copy{white-space:pre-line;overflow-wrap:anywhere}
