@@ -10,7 +10,7 @@ import { DeleteCollectionButton } from "@/components/delete-collection-button";
 import { DeleteBookButton } from "@/components/delete-book-button";
 import { BookReadingStatus } from "@/components/reading-status";
 import { BookLoanBadge } from "@/components/book-loan-badge";
-import type { BookLoan } from "@/lib/book-loan";
+import type { BookLoan, LoanStatus } from "@/lib/book-loan";
 import { BookCoverImage } from "@/components/book-cover-image";
 
 const normalize = (value: unknown) =>
@@ -19,6 +19,10 @@ const normalize = (value: unknown) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toLocaleLowerCase("el")
     .replace(/ς/g, "σ");
+
+function isLoanFilter(value: unknown): value is LoanStatus | "" {
+  return value === "" || value === "none" || value === "loaned_out" || value === "loaned_in";
+}
 
 const EMPTY_LOANS: Record<string,BookLoan> = {};
 
@@ -33,6 +37,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
   const [books, setBooks] = useState(initialBooks);
   useEffect(() => { setBooks(initialBooks); }, [initialBooks]);
   const [readingFilter, setReadingFilter] = useState("");
+  const [loanFilter,setLoanFilter] = useState<LoanStatus | "">("");
   const [selectionMode, setSelectionMode] = useState(false);
   const selectingBooks = canEdit && selectionMode;
   const [chosenBooks, setChosenBooks] = useState<Set<string>>(new Set());
@@ -61,6 +66,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
     { label: t("Author"), value: author, clear: () => setAuthor("") },
     { label: t("Language"), value: language, clear: () => setLanguage("") },
     { label: t("Reading status"), value: readingFilter ? (readingFilter === "read" ? t("Read") : readingFilter === "radar" ? t("On my radar") : t("Unread")) : "", clear: () => setReadingFilter("") },
+    { label: t("Loan status"), value: canEdit && loanFilter ? (loanFilter === "loaned_out" ? t("Loaned out") : loanFilter === "loaned_in" ? t("Loaned in") : t("Not on loan")) : "", clear: () => setLoanFilter("") },
   ].filter((filter) => filter.value);
 
   const categories = useMemo(() => [...new Set(initialBooks.map((book) => book.category))].sort(), [initialBooks]);
@@ -75,12 +81,13 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
         && (!author || book.author === author)
         && (!language || book.language === language)
         && (!readingFilter || book.readingStatus === readingFilter)
+        && (!canEdit || !loanFilter || (Object.hasOwn(initialLoans,book.id) ? initialLoans[book.id].status : "none") === loanFilter)
         && (searchable.includes(normalized) || (isIsbnQuery && book.isbn13?.includes(isbnQuery)));
     }).map(({ book }) => book);
     if (sort === "title") result.sort((a, b) => a.title.localeCompare(b.title, "el"));
     if (sort === "author") result.sort((a, b) => a.author.localeCompare(b.author, "el"));
     return result;
-  }, [searchIndex, deferredQuery, category, author, language, readingFilter, sort]);
+  }, [searchIndex, deferredQuery, category, author, language, readingFilter, loanFilter, canEdit, initialLoans, sort]);
 
   useEffect(() => {
     function restoreBook() {
@@ -93,6 +100,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
         if (saved?.bookId === id && [saved.query, saved.category, saved.author, saved.language, saved.sort].every(value => typeof value === "string")) {
           setQuery(saved.query); setCategory(saved.category); setAuthor(saved.author);
           setLanguage(saved.language); setSort(saved.sort); setReadingFilter(isReadingStatus(saved.readingFilter) ? saved.readingFilter : "");
+          setLoanFilter(canEdit && isLoanFilter(saved.loanFilter) ? saved.loanFilter : "");
         }
       } catch { /* Returning to a book also works when storage is unavailable. */ }
       setReturnBook(id);
@@ -100,14 +108,14 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
     restoreBook();
     window.addEventListener("hashchange", restoreBook);
     return () => window.removeEventListener("hashchange", restoreBook);
-  }, [collection.slug, initialBooks]);
+  }, [collection.slug, initialBooks, canEdit]);
 
   useEffect(() => {
     if (!returnBook || query !== deferredQuery) return;
     const index = filteredBooks.findIndex(book => book.id === returnBook);
     if (index < 0) {
-      // An edit may change the title or author so it no longer matches the old filters.
-      setQuery(""); setCategory(""); setAuthor(""); setLanguage(""); setReadingFilter("");
+      // Edits can change metadata or loans so the book no longer matches the saved filters.
+      setQuery(""); setCategory(""); setAuthor(""); setLanguage(""); setReadingFilter(""); setLoanFilter("");
       return;
     }
     if (index >= limit) { setLimit(Math.ceil((index + 1) / 32) * 32); return; }
@@ -121,7 +129,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
   }, [returnBook, filteredBooks, limit, query, deferredQuery]);
 
   function rememberBook(id: string) {
-    try { sessionStorage.setItem(`catalogue-return:${collection.slug}`, JSON.stringify({ bookId: id, query, category, author, language, sort, readingFilter })); } catch { /* Optional view persistence. */ }
+    try { sessionStorage.setItem(`catalogue-return:${collection.slug}`, JSON.stringify({ bookId: id, query, category, author, language, sort, readingFilter, loanFilter })); } catch { /* Optional view persistence. */ }
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}#book-${encodeURIComponent(id)}`);
     dialogRef.current?.close();
   }
@@ -140,7 +148,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
     return () => observer.disconnect();
   }, [limit, filteredBooks]);
 
-  useEffect(() => { setChosenBooks(new Set()); setBulkError(""); }, [query, category, author, language, readingFilter]);
+  useEffect(() => { setChosenBooks(new Set()); setBulkError(""); }, [query, category, author, language, readingFilter, loanFilter]);
   const displayedBooks = filteredBooks.slice(0, limit);
   const displayedSelected = displayedBooks.length > 0 && displayedBooks.every(book => chosenBooks.has(book.id));
   function chooseBooks(ids: string[], checked: boolean) {
@@ -176,6 +184,7 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
     setAuthor("");
     setLanguage("");
     setReadingFilter("");
+    setLoanFilter("");
     setSort("catalogue");
     setLimit(32);
   }
@@ -201,12 +210,13 @@ export function Catalogue({ initialBooks, collection, canEdit = false, viewerSig
         </div>
         <div className="catalogue-layout">
           <aside aria-label={t("Book filters")}>
-            <button className="filter-toggle" type="button" aria-expanded={filtersOpen} aria-controls="catalogue-filters" onClick={() => setFiltersOpen(!filtersOpen)}>{t("Filters")}{[category, author, language, readingFilter].filter(Boolean).length > 0 && ` (${[category, author, language, readingFilter].filter(Boolean).length})`}<span aria-hidden="true">{filtersOpen ? "−" : "+"}</span></button>
+            <button className="filter-toggle" type="button" aria-expanded={filtersOpen} aria-controls="catalogue-filters" onClick={() => setFiltersOpen(!filtersOpen)}>{t("Filters")}{[category, author, language, readingFilter, canEdit && loanFilter].filter(Boolean).length > 0 && ` (${[category, author, language, readingFilter, canEdit && loanFilter].filter(Boolean).length})`}<span aria-hidden="true">{filtersOpen ? "−" : "+"}</span></button>
             <div id="catalogue-filters" className={`filter-body${filtersOpen ? " is-open" : ""}`}><div className="filter-heading"><h2>{t("Filters")}</h2><button type="button" onClick={reset} disabled={!activeFilters.length && sort === "catalogue"}>{t("Clear")}</button></div><div className="select-filters" onChange={() => setLimit(32)}>
               <label htmlFor="category">{t("Category")}</label><select id="category" value={category} onChange={(event) => setCategory(event.target.value)}><option value="">{t("All")}</option>{categories.map((value) => <option key={value}>{value}</option>)}</select>
               <label htmlFor="author">{t("Author")}</label><select id="author" value={author} onChange={(event) => setAuthor(event.target.value)}><option value="">{t("All")}</option>{authors.map((value) => <option key={value}>{value}</option>)}</select>
               <label htmlFor="language">{t("Language")}</label><select id="language" value={language} onChange={(event) => setLanguage(event.target.value)}><option value="">{t("All")}</option>{languages.map((value) => <option key={value}>{value}</option>)}</select>
               <label htmlFor="reading-filter">{t("Reading status")}</label><select id="reading-filter" value={readingFilter} onChange={event => setReadingFilter(event.target.value)}><option value="">{t("All reading statuses")}</option><option value="unread">{t("Unread")}</option><option value="read">{t("Read")}</option><option value="radar">{t("On my radar")}</option></select>
+              {canEdit && <><label htmlFor="loan-filter">{t("Loan status")}</label><select id="loan-filter" value={loanFilter} onChange={event => { if (isLoanFilter(event.target.value)) setLoanFilter(event.target.value); }}><option value="">{t("All loan statuses")}</option><option value="loaned_out">{t("Loaned out")}</option><option value="loaned_in">{t("Loaned in")}</option><option value="none">{t("Not on loan")}</option></select></>}
             </div></div>
           </aside>
           <section id="catalogue" aria-busy={query !== deferredQuery} tabIndex={-1} aria-label={t("Collection books")}>

@@ -515,6 +515,7 @@ export const el: Record<string, string> = {
   "Your next chapter is waiting.": "Το επόμενο κεφάλαιό σου σε περιμένει.",
   "Mark books as On my radar in any of your collections to find them here.": "Επίλεξε Στο ραντάρ μου για βιβλία από οποιαδήποτε συλλογή σου για να τα βρίσκεις εδώ.",
   "Unable to load your radar books. Please try again.": "Δεν ήταν δυνατή η φόρτωση των βιβλίων στο ραντάρ σου. Δοκίμασε ξανά.",
+  "All loan statuses": "Όλες οι καταστάσεις δανεισμού",
   "Loan status": "Κατάσταση δανεισμού",
   "Loaned out": "Το έχω δανείσει",
   "Loaned in": "Το έχω δανειστεί",

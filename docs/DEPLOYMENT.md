@@ -160,3 +160,9 @@ loan through its ownership-scoped copy query, and successful saves refresh the
 editor and invalidate both edit and collection paths. Existing loan data and
 privacy rules are retained; no migration is required. Verified editor/loan
 integration, English/Greek translations, and phone/desktop save-and-return flows.
+
+Collection owners can filter by All loan statuses, Loaned out, Loaned in and Not on
+loan. The filter combines with search and reading status, appears in active chips
+and filter counts, clears bulk selection when changed, and is restored on editor
+return. Loan filters use the existing session-scoped private data and are hidden
+from visitors. Verified English/Greek phone and desktop flows; no migration required.
