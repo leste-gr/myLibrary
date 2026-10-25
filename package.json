@@ -9,6 +9,7 @@
     "test": "tsx --test lib/*.test.ts",
     "test:catalogue-cache": "node scripts/test-catalogue-cache.mjs",
     "test:book-editor": "node scripts/test-book-editor.mjs",
+    "test:book-loans": "node scripts/test-book-loans.mjs",
     "test:reading-status": "node scripts/test-reading-status.mjs",
     "typecheck": "tsc --noEmit",
     "covers:candidates": "tsx scripts/resolve-candidate-covers.ts",

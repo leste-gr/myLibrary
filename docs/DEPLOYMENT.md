@@ -139,3 +139,16 @@ checkboxes. Selecting all enables the mode; exiting clears the selection. Succes
 bulk saves exit the mode, while failed saves retain the selected books for retry.
 Verified mobile/desktop tap and keyboard behavior, visitor browsing, filters, bulk
 save success/failure and English/Greek labels. No database migration is required.
+
+Book loans: apply `202610250043_book_loans.sql` before deploying. Loan status and
+optional borrower/lender names live in an owner-only `book_loans` table, outside
+public views and shared catalogue caches. Browser owners save through the scoped
+`set_owned_book_loan` RPC and same-origin JSON `/api/book-loan` route; other owners,
+visitors and OAuth clients cannot read or modify loan records. Each physical copy
+has one current loan: Loaned out, Loaned in, or Not on loan (deletes the record).
+The owner edits loan details inline below reading status on collection cards.
+Names are optional, trimmed and limited to 120 characters. Reading progress,
+ISBNs, covers and other book metadata are unaffected. Deleting a book or collection
+cascades its loan records. Run `npm run test:book-loans` after a build with Supabase
+variables unset to verify persistence, private HTML/RSC, CSRF and failure behavior
+against an isolated fixture. The real-migration tests exercise RLS and RPC grants.

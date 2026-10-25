@@ -211,3 +211,14 @@ body:has(.directory-shell) .account-menu{background:transparent}
 .book-card[aria-pressed]:hover .cover-wrap{transform:none;box-shadow:none}
 .book-card[aria-pressed=true] .cover-wrap{outline:3px solid var(--wine);outline-offset:2px}
 .book-selection-mark{position:absolute;top:8px;right:8px;display:grid;place-items:center;width:28px;height:28px;border:2px solid var(--white);border-radius:50%;background:var(--wine);color:var(--white);font:700 18px var(--sans);pointer-events:none}
+
+.book-loan-state{padding:0 12px 14px;min-width:0}
+.loan-label{font:500 11px var(--sans);color:var(--muted);margin:0 0 6px}
+.loan-summary{width:100%;min-height:44px;padding:9px 10px;border:1px solid var(--line);border-radius:5px;background:transparent;text-align:left;font:600 13px/1.4 var(--sans)}
+.loan-summary:disabled{opacity:.6;cursor:wait}
+.loan-loaned_out{background:#f3e6d5}.loan-loaned_in{background:#e4ecef}
+.loan-contact{display:block;color:var(--muted);font-weight:400;overflow-wrap:anywhere;margin-top:4px}
+.loan-form{margin-top:12px;font-size:13px}.loan-form fieldset{margin:0;padding:0;border:0;min-width:0}
+.loan-form label{display:block;margin:12px 0 6px}.loan-form select,.loan-form input{width:100%;min-height:44px;font:inherit;padding:9px;border:1px solid var(--line);border-radius:4px;background:var(--white);color:var(--ink)}
+.loan-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:12px 0}.loan-actions button{min-height:44px;max-width:100%;overflow-wrap:anywhere}.loan-actions .secondary-button{padding:8px 10px}.loan-cancel{border:0;background:transparent;color:var(--wine);font:inherit;text-decoration:underline}
+@media(max-width:600px){.book-loan-state{padding:0 8px 12px}.loan-form select,.loan-form input{font-size:16px}}
