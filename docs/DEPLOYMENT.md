@@ -114,7 +114,7 @@ MCP 1.8.1 removes the entire “IF THE CLIENT CANNOT SEARCH” section from MCP 
 
 Reading-status saves use the same-origin JSON route `/api/reading-status`. Single and bulk updates keep their existing session checks and owner-only database RPCs. Cache invalidation now runs in the Route Handler, so the response does not wait for the collection or radar to render again. The client updates its books after acknowledgement; a later page visit reloads invalidated public data. No database migration is required. Run `npm run test:reading-status` after building to verify saves finish without catalogue reads, next-visit cache freshness, access checks, and write failures.
 
-MCP 1.9.0 adds `update_covers` for server-side discovery, image verification and
+MCP 1.9.0 originally added `update_covers` for server-side discovery, image verification and
 conditional saving of missing covers. Apply `202610220042_assistant_update_covers.sql`
 before deploying the application. It adds two ownership/connection-checked RPCs;
 anonymous execution is revoked. It does not modify existing books during migration.
@@ -185,3 +185,15 @@ exclusive rollback snapshot, applies all tags in one serializable transaction an
 records per-book evidence in audit events. It aborts if the inventory changed, any
 stored tag differs from the plan, or any non-category book field changes. Catalogue
 contents and reviewed plans are local operational artifacts, not committed data.
+
+
+MCP 1.11.0 replaces server-side cover repair with client-supplied URLs. The read-only
+`list_missing_covers` tool uses the existing stable-cursor RPC (up to five books).
+The client researches and verifies covers, then calls `update_covers` with
+`collectionId` and 1–50 `{bookId, coverUrl}` entries. The tool validates the whole
+batch before any write, then uses the existing conditional, owner/consent-scoped
+save RPC. It does not call search providers or fetch images. Existing covers and
+owner uploads win on concurrent writes and retries. Per-book failures retain
+confirmed results. Initialization instructions, tool descriptions and the named
+prompt explain this workflow. Version is 1.11.0; reconnect clients to refresh
+cached schemas. No new database migration is required (the 1.9.0 RPCs remain in use).

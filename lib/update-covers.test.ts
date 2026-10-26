@@ -1,84 +1,70 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { updateCollectionCovers, type MissingCoverBook } from "./update-covers";
-import type { VerifiedCover } from "./online-cover-search";
+import { listMissingCovers, updateCollectionCovers } from "./update-covers";
 
-const cover: VerifiedCover = { coverUrl: "https://images.example.test/book.jpg", sourcePageUrl: null, evidence: { imageVerified: true } };
-const book = (id: string): MissingCoverBook => ({ id, legacyId: id, title: `Book ${id}`, authors: ["Author"], language: "en", publisher: null });
-function database(ids: string[]) {
-  const missing = new Set(ids);
-  const saves: string[] = [];
-  let deny = false, refreshFailure = false, lists = 0;
-  const concurrent = new Set<string>();
+const id = "11111111-1111-4111-8111-111111111111";
+const second = "22222222-2222-4222-8222-222222222222";
+const coverUrl = "https://images.example.test/book.jpg";
+function database() {
+  const calls: { name: string; args: Record<string, any> }[] = [];
+  let deny = false;
   const client = { rpc(name: string, args: Record<string, any>) {
+    calls.push({ name, args });
     return { abortSignal: async () => {
       if (deny) return { data: null, error: { message: "Assistant access denied." } };
-      if (name === "assistant_list_missing_covers") {
-        if (++lists > 1 && refreshFailure) return { data: null, error: { message: "Network failure" } };
-        const candidates = [...missing].filter(id => !args.after_id || id > args.after_id).sort();
-        return { data: { collectionId: "collection", slug: "books", totalMissing: missing.size,
-          books: candidates.slice(0,args.page_limit).map(book), hasMore: candidates.length > args.page_limit }, error: null };
-      }
+      if (name === "assistant_list_missing_covers") return { data: {
+        collectionId: id, slug: "books", totalMissing: 2, hasMore: !args.after_id,
+        books: [{ id: args.after_id ? second : id, legacyId: "B1", title: "Book", authors: ["Author"], language: "en", publisher: null }],
+      }, error: null };
       assert.equal(name, "assistant_set_missing_cover");
-      saves.push(args.target_copy_id);
-      missing.delete(args.target_copy_id);
-      return { data: !concurrent.has(args.target_copy_id), error: null };
+      if (args.target_copy_id === second) return { data: false, error: null };
+      return { data: true, error: null };
     } };
   } } as unknown as SupabaseClient;
-  return { client, missing, saves, concurrent, deny: () => { deny = true; }, failRefresh: () => { refreshFailure = true; } };
+  return { client, calls, deny: () => { deny = true; } };
 }
 
-test("cover batches use stable cursors while successful saves shrink the queue", async () => {
-  const db = database(["1", "2", "3", "4", "5"]);
-  const searched: string[] = [];
-  const search = async (input: { copyId: string }) => { searched.push(input.copyId); return cover; };
-  const first = await updateCollectionCovers(db.client,"collection",null,3,{ search });
-  assert.equal(first.updated,3); assert.equal(first.remaining,2); assert.equal(first.hasMore,true); assert.equal(first.nextCursor,"3");
-  const last = await updateCollectionCovers(db.client,"collection",first.nextCursor,3,{ search });
-  assert.equal(last.updated,2); assert.equal(last.hasMore,false); assert.equal(last.remaining,0);
-  assert.deepEqual(searched,["1","2","3","4","5"]);
+test("missing cover listing returns stable cursors and performs no writes", async () => {
+  const db = database();
+  const page = await listMissingCovers(db.client, id);
+  assert.equal(page.nextCursor,id);
+  assert.equal((await listMissingCovers(db.client,id,page.nextCursor)).nextCursor,null);
+  assert.deepEqual(db.calls.map(call => call.name),["assistant_list_missing_covers","assistant_list_missing_covers"]);
 });
 
-test("misses, provider failures and concurrent covers are reported without endless retries", async () => {
-  const db = database(["1","2","3","4"]); db.concurrent.add("3");
-  const search = async (input: { copyId: string }) => {
-    if (input.copyId === "1") return null;
-    if (input.copyId === "2") throw new Error("Provider unavailable");
-    return cover;
-  };
-  const first = await updateCollectionCovers(db.client,"collection",null,3,{ search });
-  assert.equal(first.notFound,1); assert.equal(first.failed,1); assert.equal(first.skipped,1);
-  assert.equal(first.results[1].message,"Provider unavailable");
-  const last = await updateCollectionCovers(db.client,"collection",first.nextCursor,3,{ search });
-  assert.equal(last.updated,1); assert.equal(last.hasMore,false); assert.equal(last.remaining,2);
-  assert.deepEqual(db.saves,["3","4"]);
-});
-
-test("access is checked before searching and empty collections need no searches", async () => {
-  const db = database(["1"]); db.deny();
-  let searches = 0;
-  const search = async () => { searches++; return cover; };
-  await assert.rejects(() => updateCollectionCovers(db.client,"collection",null,3,{ search }),/denied/);
-  assert.equal(searches,0); assert.deepEqual(db.saves,[]);
-  const empty = await updateCollectionCovers(database([]).client,"collection",null,3,{ search });
-  assert.equal(empty.processed,0); assert.equal(empty.hasMore,false); assert.equal(searches,0);
-});
-
-test("timed-out searches cannot save later and committed results survive a refresh failure", async () => {
-  const db = database(["1"]);
-  let finish!: (value: VerifiedCover) => void;
-  const search = () => new Promise<VerifiedCover>(resolve => { finish = resolve; });
-  // Keep the test process alive while AbortSignal.timeout's unref'ed timer fires.
-  const hold = setTimeout(() => {},1000);
+test("saves exactly the client-supplied URLs without fetching or searching, preserving concurrent covers", async () => {
+  const db = database();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("No external requests are allowed."); };
   try {
-    const result = await updateCollectionCovers(db.client,"collection",null,3,{ search, timeoutMs: 5 });
-    assert.equal(result.failed,1); assert.match(result.results[0].message!,/timed out/);
-    finish(cover); await new Promise(resolve => setTimeout(resolve,10));
-    assert.deepEqual(db.saves,[]);
-  } finally { clearTimeout(hold); }
-  const saved = database(["1","2"]); saved.failRefresh();
-  const result = await updateCollectionCovers(saved.client,"collection",null,1,{ search: async () => cover });
-  assert.equal(result.updated,1); assert.equal(result.hasMore,true); assert.equal(result.nextCursor,"1");
-  assert.match(result.warning!,/estimate/); assert.equal(result.remaining,1);
+    const result = await updateCollectionCovers(db.client,id,[{ bookId:id,coverUrl },{ bookId:second,coverUrl }]);
+    assert.equal(result.updated,1);assert.equal(result.skipped,1);assert.equal(result.failed,0);
+    assert.equal(result.results[0].coverUrl,coverUrl);
+    assert.equal(result.results[1].coverUrl,null);
+    const saves = db.calls.filter(call => call.name === "assistant_set_missing_cover");
+    assert.deepEqual(saves.map(call => call.args.cover_url),[coverUrl,coverUrl]);
+    assert.deepEqual(saves[0].args.search_evidence,{ providedBy:"client",backendSearchPerformed:false });
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("invalid or duplicate submissions reject the complete batch before any database calls", async () => {
+  for (const invalid of [[],[{bookId:id,coverUrl},{bookId:second,coverUrl:"http://images.example.test/no.jpg"}],
+    [{bookId:id,coverUrl},{bookId:id,coverUrl}], [{bookId:id,coverUrl:"https://127.0.0.1/no.jpg"}],
+    [{bookId:id,coverUrl:"https://2130706433/no.jpg"}], [{bookId:id,coverUrl:"https://user:password@images.example.test/no.jpg"}]]) {
+    const db = database();
+    await assert.rejects(() => updateCollectionCovers(db.client,id,invalid));
+    assert.deepEqual(db.calls,[]);
+  }
+});
+
+test("access is checked before saving and per-book save errors are reported honestly", async () => {
+  const db = database(); db.deny();
+  await assert.rejects(() => updateCollectionCovers(db.client,id,[{bookId:id,coverUrl}]),/denied/);
+  assert.equal(db.calls.length,1);
+  const client = { rpc(name: string) { return { abortSignal: async () => name === "assistant_list_missing_covers"
+    ? {data:{slug:"books",books:[],hasMore:false},error:null}
+    : {data:null,error:{message:"Book not found in this collection."}} }; } } as unknown as SupabaseClient;
+  const result = await updateCollectionCovers(client,id,[{bookId:id,coverUrl}]);
+  assert.equal(result.failed,1);assert.equal(result.updated,0);assert.match(result.results[0].message!,/not found/);
 });

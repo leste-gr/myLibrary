@@ -45,7 +45,8 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
   let writes = 0;
   const coverCalls: unknown[][] = [];
   const server = createShelfieMcpServer({
-    updateCovers: async (...args) => { coverCalls.push(args); return { collectionId: id, slug: "books", processed: 1, updated: 1, notFound: 0, failed: 0, skipped: 0, remaining: 0, hasMore: false, nextCursor: null, warning: null, results: [{ id, legacyId: "B1", title: "The Hobbit", status: "updated", coverUrl: "https://images.example.test/hobbit.jpg", message: null }] }; },
+    listMissingCovers: async () => ({collectionId:id,slug:"books",totalMissing:1,hasMore:false,nextCursor:null,books:[{id,legacyId:"B1",title:"The Hobbit",authors:["Tolkien"],language:"en",publisher:null}]}),
+    updateCovers: async (...args) => { coverCalls.push(args); return { collectionId: id, slug: "books", processed: 1, updated: 1, failed: 0, skipped: 0, results: [{ bookId: id, status: "updated", coverUrl: "https://images.example.test/hobbit.jpg", message: null }] }; },
     listCollections: async () => [{ id, name: "My books", slug: "books" }],
     listCollectionBooks: async () => ({ collectionId: id, total: 1, offset: 0, limit: 100, hasMore: false, books: [{ id: "B1", title: "The Hobbit", author: "Tolkien", isbn13: null, series: null, volume: null, language: "en", categories: ["Fiction", "Fantasy"] }] }),
     createCollection: async (name, description, books) => { writes++; assert.equal(books.books[0].title, "The Hobbit"); assert.deepEqual(books.books[0].categories,["Fiction", "Fantasy"]); assert.equal(books.books[0].isbn, null); assert.equal(books.books[0].visibleIsbn, null); return { collectionId: id, name, slug: "collection-test", description, importId: id, imported: 1, duplicate: false }; },
@@ -58,7 +59,7 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     assert.equal(client.getInstructions(), SHELFIE_MCP_INSTRUCTIONS);
     assert.doesNotMatch(client.getInstructions() ?? "", /IF THE CLIENT CANNOT SEARCH/);
     const listedTools = (await client.listTools()).tools;
-    assert.deepEqual(listedTools.map((tool) => tool.name).sort(), ["create_collection", "list_collection_books", "list_collections", "update_collection", "update_covers"]);
+    assert.deepEqual(listedTools.map((tool) => tool.name).sort(), ["create_collection", "list_collection_books", "list_collections", "list_missing_covers", "update_collection", "update_covers"]);
     for (const name of ["create_collection", "update_collection"]) {
       const tool = listedTools.find((item) => item.name === name);
       const description = tool?.description ?? "";
@@ -75,17 +76,24 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     }
     const covers = listedTools.find(tool => tool.name === "update_covers")!;
     assert.equal(covers.annotations?.readOnlyHint, false);
-    assert.doesNotMatch(JSON.stringify(covers.inputSchema), /"(?:isbn|coverUrl)"/);
-    const repaired = await client.callTool({ name: "update_covers", arguments: { collectionId: id } });
+    assert.match(JSON.stringify(covers.inputSchema), /"coverUrl"/);
+    assert.match(covers.description!, /CLIENT must search online/);
+    assert.equal(covers.annotations?.openWorldHint,false);
+    const missing = await client.callTool({name:"list_missing_covers",arguments:{collectionId:id}});
+    assert.equal((missing.structuredContent as {books:{id:string}[]}).books[0].id,id);
+    const submitted = [{bookId:id,coverUrl:"https://images.example.test/hobbit.jpg"}];
+    const repaired = await client.callTool({ name: "update_covers", arguments: { collectionId: id, covers: submitted } });
     assert.equal(repaired.isError, undefined);
     assert.equal((repaired.structuredContent as { updated: number }).updated, 1);
     assert.equal((repaired.structuredContent as { collectionUrl: string }).collectionUrl, "https://library.test/collections/books");
-    assert.deepEqual(coverCalls, [[id, null, 3]]);
-    await client.callTool({ name: "update_covers", arguments: { collectionId: id, after: id, limit: 5 } });
-    assert.deepEqual(coverCalls[1], [id, id, 5]);
-    const invalidBatch = await client.callTool({ name: "update_covers", arguments: { collectionId: id, limit: 6 } });
-    assert.equal(invalidBatch.isError, true);
-    assert.equal(coverCalls.length, 2);
+    assert.deepEqual(coverCalls, [[id, submitted]]);
+    for (const args of [{collectionId:id},{collectionId:id,covers:[]},
+      {collectionId:id,covers:[{bookId:id,coverUrl:null}]},
+      {collectionId:id,covers:[{bookId:id,coverUrl:"http://images.example.test/no.jpg"}]},
+      {collectionId:id,covers:[...submitted,...submitted]}]) {
+      assert.equal((await client.callTool({ name: "update_covers", arguments: args })).isError,true);
+    }
+    assert.equal(coverCalls.length,1,"invalid input never reaches the write callback");
     const prompts = await client.listPrompts();
     assert.deepEqual(prompts.prompts.map((prompt) => prompt.name), ["read_shelf_photo"]);
     const shelfiePrompt = await client.getPrompt({ name: "read_shelf_photo" });

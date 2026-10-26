@@ -242,26 +242,32 @@ owner completes registration and chooses their own password.
 
 MCP imports use the dedicated tool workflow in `lib/shelfie-mcp-instructions.ts`; the website's downloadable-file prompt is for manual JSON import. The assistant inventories photos, researches covers, then calls `create_collection` once and `update_collection` for any later batches (maximum 100 books per call). It must check write results and return the confirmed collection URL/counts. Connecting or listing collections does not constitute an import.
 
-The shelf-photo import workflow uses the client’s web/image search capability. The separate `update_covers` tool performs its own online cover searches on the server for books already in a collection. File creation is not required for direct MCP import. Reconnect after instruction/schema changes; a new chat also avoids retaining conflicting earlier file-delivery instructions.
+The shelf-photo import workflow uses the client’s web/image search capability. Cover repair also uses client-side search: `list_missing_covers` reads the queue and `update_covers` saves URLs supplied by the client. File creation is not required for direct MCP import. Reconnect after instruction/schema changes; a new chat also avoids retaining conflicting earlier file-delivery instructions.
 
-## Repair missing covers (MCP 1.9.0)
+## Repair missing covers (MCP 1.11.0)
 
-Ask the connected assistant to find missing covers in an existing collection. It obtains
-`collectionId` from `list_collections`, then calls `update_covers({ collectionId })`.
-The server searches Open Library, Google Books and verified book pages, decodes the
-image to check it is usable, and conditionally saves the direct HTTPS URL. Existing
-covers and owner uploads are preserved. ISBN and bibliographic metadata are unchanged.
-Only the owner’s connected, consented OAuth session can list and save these covers.
+The CLIENT searches for covers; the backend only saves supplied cover metadata.
 
-Calls process three books by default (`limit`: 1–5). While `hasMore` is true, the
-assistant must call again with the exact `nextCursor` as `after`; it should continue
-without requesting another user prompt. A stable book-ID cursor avoids skipping
-books as successful updates shrink the missing-cover list. `remaining` includes
-already-searched misses and failures, so it is not the continuation condition.
-Results distinguish `updated`, `not_found`, `failed`, and `skipped` (a concurrent
-cover was preserved). A transient count-refresh failure returns a warning and an
-estimated remaining count while retaining confirmed writes. Retrying from the
-start searches still-missing covers again. Reconnect clients to refresh the tool list.
+1. Get the real `collectionId` from `list_collections`.
+2. Call `list_missing_covers({collectionId})`. This read-only tool returns up to
+   five books, including UUID `id`, title, authors, language, publisher, series
+   and volume. These IDs differ from legacy shelf labels such as `B1`.
+3. Search each book online. Prefer its exact edition and language, then other
+   editions of the same work. Verify the work and volume and obtain a direct,
+   public HTTPS image URL, not a product-page URL.
+4. Call `update_covers({collectionId, covers: [{bookId: book.id, coverUrl}]})`.
+   Submit 1–50 distinct books per batch. URLs are required and cannot be null.
+   The backend does not search, download or verify images. It validates URL syntax
+   and conditionally saves the supplied metadata with client provenance.
+5. Continue `list_missing_covers` using `nextCursor` as `after` while `hasMore`
+   is true. Stable cursors prevent skips when saving covers between read pages.
+
+Report confirmed `updated`, `skipped` and `failed` saves separately from unsuccessful
+client searches. Do not invent URLs or submit unresolved searches. Existing covers
+and owner uploads are preserved, including on retries. ISBNs and bibliographic
+metadata are unchanged. Both tools require ownership and connected-client consent.
+Reconnect clients to refresh the changed tool schemas; collection-only calls to
+`update_covers` are now rejected before any write.
 
 ## Category tags (MCP 1.10.0)
 

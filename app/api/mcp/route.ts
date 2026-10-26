@@ -2,7 +2,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { authenticateAssistant } from "@/lib/assistant-auth";
 import { assistantConfigured, assistantConfig } from "@/lib/assistant-config";
 import { revalidatePath } from "next/cache";
-import { updateCollectionCovers } from "@/lib/update-covers";
+import { listMissingCovers, updateCollectionCovers } from "@/lib/update-covers";
 import { createShelfieMcpServer } from "@/lib/shelfie-mcp";
 
 export const runtime = "nodejs";
@@ -18,8 +18,11 @@ export async function POST(request: Request) {
   try { auth = await authenticateAssistant(request); }
   catch { return Response.json({ error: "Connect your Shelfie Street account to continue." }, { status: 401, headers: { "Cache-Control": "no-store", "WWW-Authenticate": `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource", scope="openid email offline_access"` } }); }
   const server = createShelfieMcpServer({
-    async updateCovers(collectionId, after, limit) {
-      const result = await updateCollectionCovers(auth.supabase,collectionId,after,limit);
+    async listMissingCovers(collectionId, after, limit) {
+      return listMissingCovers(auth.supabase, collectionId, after, limit);
+    },
+    async updateCovers(collectionId, covers) {
+      const result = await updateCollectionCovers(auth.supabase,collectionId,covers);
       if (result.updated) {
         revalidatePath("/"); revalidatePath(`/collections/${result.slug}`); revalidatePath("/radar");
       }
