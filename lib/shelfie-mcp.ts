@@ -41,7 +41,7 @@ function reviewedCoverImport(input: unknown): ManualGenaiImport {
 }
 
 export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
-  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.11.0" }, {
+  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.11.1" }, {
     instructions: SHELFIE_MCP_INSTRUCTIONS,
   });
   const securitySchemes = [{ type: "oauth2", scopes: ["openid"] }];
