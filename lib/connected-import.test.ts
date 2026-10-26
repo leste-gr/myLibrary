@@ -64,7 +64,8 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
       const tool = listedTools.find((item) => item.name === name);
       const description = tool?.description ?? "";
       assert.ok(description.startsWith(SHELFIE_MCP_INSTRUCTIONS));
-      assert.match(description, /Search for a cover for EACH identified book/);
+      assert.match(description, /Do NOT search for covers before saving the metadata/);
+      assert.match(description, /Immediately after all metadata batches are saved/);
       assert.match(description, /create the collection ONCE/);
       assert.match(description, /submit JSON directly as tool arguments/);
       assert.doesNotMatch(description, /IF THE CLIENT CANNOT SEARCH|ask the user to enable search|Check the client.s actual capabilities/);
@@ -73,6 +74,7 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
       assert.match(JSON.stringify(tool?.inputSchema), /"coverUrl"/);
       const items = (tool!.inputSchema.properties!.books as {items: {required: string[]}}).items;
       assert.ok(items.required.includes("categories"));
+      assert.equal(items.required.includes("coverUrl"),false);
     }
     const covers = listedTools.find(tool => tool.name === "update_covers")!;
     assert.equal(covers.annotations?.readOnlyHint, false);
@@ -101,7 +103,8 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     assert.ok(promptText.startsWith(SHELFIE_MCP_INSTRUCTIONS));
     assert.doesNotMatch(promptText, /IF THE CLIENT CANNOT SEARCH|ask the user to enable search/);
     assert.match(promptText, /Call create_collection/);
-    assert.match(promptText, /at most 100 books/);
+    assert.match(promptText, /TWO AUTOMATIC STEPS/);
+    assert.match(promptText, /1–100 books/);
     assert.doesNotMatch(promptText, /Use a real file-generation tool|PHASE 5/);
     assert.match(SHELFIE_GENAI_PROMPT, /Use a real file-generation tool/);
     assert.match(SHELFIE_GENAI_PROMPT, /booksSearched === totalBooks/);
@@ -117,24 +120,24 @@ test("MCP exposes collection browsing and reviewed import tools", async () => {
     assert.equal(bad.isError, true); assert.equal(writes, 2);
     for (const name of ["create_collection", "update_collection"]) {
       const destination = name === "create_collection" ? { name: "RPG" } : { collectionId: id };
-      const unexplained = await client.callTool({ name, arguments: { ...destination, ...payload, books: [{ ...payload.books[0], coverUrl: null }] } });
-      assert.equal(unexplained.isError, true);
-      assert.match(JSON.stringify(unexplained.content), /Import not performed.*Search for cover URLs/);
-      assert.equal(writes, 2, "no write callback runs for unexplained missing covers");
       const { coverUrl: _cover, ...withoutCover } = payload.books[0];
-      const omitted = await client.callTool({ name, arguments: { ...destination, ...payload, books: [withoutCover] } });
-      assert.equal(omitted.isError, true, "coverUrl must be explicitly supplied");
-      assert.equal(writes, 2);
+      for (const book of [{ ...withoutCover, coverUrl: null }, withoutCover]) {
+        const before: number = writes;
+        const saved = await client.callTool({ name, arguments: { ...destination, ...payload, books: [book] } });
+        assert.equal(saved.isError,undefined,"metadata imports do not wait for cover searches or search notes");
+        assert.equal(writes,before+1);
+        const next = (saved.structuredContent as {nextAction:{tool:string;arguments:{collectionId:string};instructions:string}}).nextAction;
+        assert.equal(next.tool,"list_missing_covers");assert.deepEqual(next.arguments,{collectionId:id});
+        assert.match(next.instructions,/ALL remaining metadata/);assert.match(next.instructions,/automatically.*without another user prompt/);
+      }
     }
-    const searched = await client.callTool({ name: "update_collection", arguments: { collectionId: id, ...payload, books: [{ ...payload.books[0], coverUrl: null, notes: "Searched title/author in publisher catalogue and Open Library; matching book pages had no cover image." }] } });
-    assert.equal(searched.isError, undefined, "documented unsuccessful searches remain importable");
-    assert.equal(writes, 3);
+    const metadataWrites = writes;
     for (const name of ["create_collection", "update_collection"]) {
       const destination = name === "create_collection" ? { name: "No tags" } : { collectionId: id };
       const { categories: _categories,...withoutTags } = payload.books[0];
       for (const book of [withoutTags,{...withoutTags,categories:[]},{...withoutTags,categories:[" "]}]) {
         const invalid = await client.callTool({ name,arguments: {...destination,...payload,books:[book]} });
-        assert.equal(invalid.isError,true); assert.equal(writes,3,"missing categories never reach a write callback");
+        assert.equal(invalid.isError,true); assert.equal(writes,metadataWrites,"missing categories never reach a write callback");
       }
     }
 

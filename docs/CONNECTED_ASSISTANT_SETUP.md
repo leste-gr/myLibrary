@@ -240,7 +240,7 @@ owner completes registration and chooses their own password.
 
 ## MCP import workflow and client capabilities
 
-MCP imports use the dedicated tool workflow in `lib/shelfie-mcp-instructions.ts`; the website's downloadable-file prompt is for manual JSON import. The assistant inventories photos, researches covers, then calls `create_collection` once and `update_collection` for any later batches (maximum 100 books per call). It must check write results and return the confirmed collection URL/counts. Connecting or listing collections does not constitute an import.
+MCP imports use the dedicated tool workflow in `lib/shelfie-mcp-instructions.ts`; the website's downloadable-file prompt is for manual JSON import. The assistant first inventories photos and saves all metadata using `create_collection` once and `update_collection` for later batches (maximum 100 books per call), without waiting for cover research. It then automatically follows the returned `nextAction`: `list_missing_covers`, client-side web searches, and `update_covers`, processing every missing-cover page in the same turn. It must check write results and return the confirmed collection URL/counts. Connecting or listing collections does not constitute an import.
 
 The shelf-photo import workflow uses the client’s web/image search capability. Cover repair also uses client-side search: `list_missing_covers` reads the queue and `update_covers` saves URLs supplied by the client. File creation is not required for direct MCP import. Reconnect after instruction/schema changes; a new chat also avoids retaining conflicting earlier file-delivery instructions.
 
@@ -281,3 +281,18 @@ manuals as novels just because their covers feature fantasy scenes. Use
 tools validate the field before writing; the book-list tool returns saved tags.
 Reconnect clients after deployment to refresh the schema. Older manual JSON files
 remain importable without the new field; the copy-paste prompt now requests it.
+
+
+## Two-step import (MCP 1.12.0)
+
+Metadata is saved before cover research. In both import tools, `coverUrl` can be
+omitted or null and search notes are not required. All other metadata validation,
+including category tags, remains in place. Missing covers never block collection
+creation. Each successful import returns `nextAction` with `list_missing_covers`
+and the saved collection ID, plus instructions to finish all metadata batches
+before automatically starting cover research and saving results with `update_covers`.
+This continuation is handled by the client agent, without another user prompt.
+Unsuccessful cover searches leave the collection and books intact; the client
+reports metadata and cover outcomes separately. Reconnect clients to refresh
+schemas, descriptions and initialization instructions. The website's manual JSON
+prompt is unchanged.

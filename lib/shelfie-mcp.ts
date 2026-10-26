@@ -24,24 +24,21 @@ const bookSchema = z.object({
   subtitle: optionalText(300), publisher: optionalText(200), language: optionalText(40),
   publicationYear: z.number().int().min(1400).max(2100).nullable().optional(),
   editionStatement: optionalText(160), series: optionalText(200), volume: optionalText(80),
-  coverUrl: z.string().trim().min(1).max(2048).nullable().describe("Direct public HTTPS cover-image URL for the same work and volume. Prefer exact edition, then same-language edition, then different-language edition; null only after a documented unsuccessful search or search/access blocker."),
-  notes: optionalText(500).describe("Record representative-cover use and known differences. For null coverUrl, record searches attempted and the specific unresolved issue or search/access blocker; a backend-resolution request alone is insufficient. Include bibliographic uncertainties or corrections."),
+  coverUrl: z.string().trim().min(1).max(2048).nullable().optional().describe("Optional during metadata import. Omit or use null; the client searches and saves missing covers in STEP 2 after all metadata is imported. Include an already-known direct public HTTPS image URL only if available."),
+  notes: optionalText(500).describe("Bibliographic uncertainties, corrections or known edition differences. Cover-search notes are not required for metadata import."),
   rawVisibleText: optionalText(1000).describe("All meaningful literal spine text before normalization or bibliographic correction."),
   fieldConfidence: z.object({ title: optionalConfidence, authors: optionalConfidence, publisher: optionalConfidence, series: optionalConfidence, volume: optionalConfidence }).nullable().optional(),
 });
-// Validate the whole batch before calling a write callback; clients must repair
-// an incomplete cover submission without leaving a partially created collection.
-function reviewedCoverImport(input: unknown): ManualGenaiImport {
-  const payload = parseManualGenaiImport(input);
-  const unexplained = payload.books.filter(book => !book.coverUrl && !book.notes?.trim());
-  if (unexplained.length) {
-    throw new Error(`Import not performed. Search for cover URLs before retrying. Missing covers without search explanations: ${unexplained.map(book => `${book.position}: ${book.title}`).join("; ")}. Search each book using web/image tools and submit a direct HTTPS coverUrl. If a search finds no credible cover or is blocked, explicitly submit coverUrl: null and explain the queries/sources tried and the specific outcome in notes. Do not ask the user to request cover searching again.`);
-  }
-  return payload;
+const nextActionSchema = z.object({
+  tool: z.literal("list_missing_covers"), arguments: z.object({ collectionId: z.string() }), instructions: z.string(),
+});
+function coverFollowUp(collectionId: string) {
+  return { tool: "list_missing_covers" as const, arguments: { collectionId },
+    instructions: "Metadata saved. If inventory batches remain, append ALL remaining metadata with update_collection first. Then immediately call list_missing_covers with these arguments, search every returned book online on the CLIENT, save verified URLs with update_covers, and paginate until hasMore is false. Continue automatically in this turn without another user prompt. Keep the imported collection even when a cover cannot be found." };
 }
 
 export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
-  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.11.1" }, {
+  const server = new McpServer({ name: "mylibrary-shelfie", version: "1.12.0" }, {
     instructions: SHELFIE_MCP_INSTRUCTIONS,
   });
   const securitySchemes = [{ type: "oauth2", scopes: ["openid"] }];
@@ -65,14 +62,14 @@ export function createShelfieMcpServer(tools: ShelfieTools, origin: string) {
   server.registerTool("create_collection", {
     title: "Create and populate a library collection", description: `${SHELFIE_MCP_INSTRUCTIONS}
 
-Create a collection and atomically import the supplied book JSON. Submit the complete mylibrary.shelfie.v1 payload. Repeating the exact same name and payload returns the original import.`,
+STEP 1: Create a collection and atomically import its book metadata now, without waiting for cover searches. coverUrl may be omitted or null. After ALL metadata batches are saved, follow the returned nextAction to run the client-side missing-cover workflow automatically. Submit mylibrary.shelfie.v1 JSON. Repeating the exact same name and payload returns the original import.`,
     inputSchema: { name: z.string().trim().min(1).max(120), description: z.string().trim().max(1000).nullable().optional(), schemaVersion: z.literal("mylibrary.shelfie.v1"), books: z.array(bookSchema).min(1).max(100) },
-    outputSchema: { collectionId: z.string(), slug: z.string(), importId: z.string(), imported: z.number(), duplicate: z.boolean(), name: z.string().optional(), description: z.string().nullable().optional(), collectionUrl: z.string() },
+    outputSchema: { collectionId: z.string(), slug: z.string(), importId: z.string(), imported: z.number(), duplicate: z.boolean(), name: z.string().optional(), description: z.string().nullable().optional(), collectionUrl: z.string(), nextAction: nextActionSchema },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }, _meta: { securitySchemes },
   }, async ({ name, description, ...input }) => {
     try {
-      const result = await tools.createCollection(name, description ?? null, reviewedCoverImport(input));
-      const output = { ...result, collectionUrl: `${origin}/collections/${result.slug}` };
+      const result = await tools.createCollection(name, description ?? null, parseManualGenaiImport(input));
+      const output = { ...result, collectionUrl: `${origin}/collections/${result.slug}`, nextAction: coverFollowUp(result.collectionId) };
       return { structuredContent: output, content: [{ type: "text", text: JSON.stringify(output) }] };
     }
     catch (error) { return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : "Collection could not be created." }] }; }
@@ -81,15 +78,15 @@ Create a collection and atomically import the supplied book JSON. Submit the com
     title: "Add books to an existing collection",
     description: `${SHELFIE_MCP_INSTRUCTIONS}
 
-Add only new books from the complete mylibrary.shelfie.v1 JSON to an owned collection. The backend ignores books already present using normalized title, authors, and volume. Existing books are retained and duplicates within the JSON are also ignored.`,
+Add only new books from the complete mylibrary.shelfie.v1 JSON to an owned collection. The backend ignores books already present using normalized title, authors, and volume. Existing books are retained and duplicates within the JSON are also ignored. This is STEP 1 metadata import: coverUrl may be omitted or null. After ALL metadata batches are saved, automatically follow nextAction to find and update missing covers on the client.`,
     inputSchema: { collectionId: z.string().uuid(), schemaVersion: z.literal("mylibrary.shelfie.v1"), books: z.array(bookSchema).min(1).max(100) },
-    outputSchema: { collectionId: z.string(), slug: z.string(), importId: z.string().nullable(), imported: z.number(), ignoredExisting: z.number(), duplicate: z.boolean(), collectionUrl: z.string() },
+    outputSchema: { collectionId: z.string(), slug: z.string(), importId: z.string().nullable(), imported: z.number(), ignoredExisting: z.number(), duplicate: z.boolean(), collectionUrl: z.string(), nextAction: nextActionSchema },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }, _meta: { securitySchemes },
   }, async ({ collectionId, ...input }) => {
     try {
       if (new TextEncoder().encode(JSON.stringify(input)).byteLength > MAX_IMPORT_BYTES) throw new Error("Payload exceeds 1 MB.");
-      const result = await tools.updateCollection(collectionId, reviewedCoverImport(input));
-      const output = { ...result, collectionUrl: `${origin}/collections/${result.slug}` };
+      const result = await tools.updateCollection(collectionId, parseManualGenaiImport(input));
+      const output = { ...result, collectionUrl: `${origin}/collections/${result.slug}`, nextAction: coverFollowUp(result.collectionId) };
       return { structuredContent: output, content: [{ type: "text", text: JSON.stringify(output) }] };
     } catch (error) { return { isError: true, content: [{ type: "text", text: error instanceof Error ? error.message : "Collection could not be updated." }] }; }
   });
@@ -125,7 +122,7 @@ Add only new books from the complete mylibrary.shelfie.v1 JSON to an owned colle
   });
   server.registerPrompt("read_shelf_photo", {
     title: "Import a shelf photo into myLibrary",
-    description: "Inventory shelf photos, search covers and import through the collection tools.",
+    description: "Save complete shelf-photo metadata first, then automatically search and update missing covers.",
   }, () => ({ messages: [{ role: "user", content: {
     type: "text",
     text: `${SHELFIE_MCP_INSTRUCTIONS}\n\nUse the following book payload inside the selected import tool, together with its destination arguments:\n${SHELFIE_GENAI_PROMPT.slice(SHELFIE_GENAI_PROMPT.indexOf("Use this exact schema and field names:"))}`,

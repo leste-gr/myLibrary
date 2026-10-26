@@ -421,6 +421,25 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     for (const url of ["http://images.example.test/cover.jpg","https://127.0.0.1/private","https://10.0.0.1/private"]) await assert.rejects(()=>fill(coverIds[1],url),/Invalid cover URL/);
     await assert.rejects(()=>fill(secondOwner.copyId),/not found/);
     assert.equal(await rpc("assistant_set_missing_cover",[a,copyId,"https://images.example.test/cover.jpg",null,"{}"]),false,"owner-uploaded covers are preserved");
+    // Two-step import persists metadata without a cover or fictional search notes.
+    const metadataOnly = await rpc("assistant_create_collection",["Two-step import",null,JSON.stringify({schemaVersion:"mylibrary.shelfie.v1",books:[{
+      position:1,title:"Metadata before covers",authors:["Metadata Author"],categories:["Fiction"],language:"en",confidence:.9
+    }]})]);
+    const missingAfterImport = await rpc("assistant_list_missing_covers",[metadataOnly.collectionId,null,5]);
+    assert.equal(missingAfterImport.books.length,1);
+    const newBookId = missingAfterImport.books[0].id;
+    const readMetadata = async () => {
+      await db.exec("reset role");
+      const row = (await db.query<{cover_url:string|null;categories:string[];title:string;author:string}>("select c.cover_url,c.categories,w.title,w.author from public.copies c join public.works w on w.id=c.work_id where c.id=$1",[newBookId])).rows[0];
+      await claims(alice,true);
+      return row;
+    };
+    const beforeCover = await readMetadata();
+    assert.equal(beforeCover.cover_url,null);assert.equal(beforeCover.title,"Metadata before covers");
+    assert.deepEqual(beforeCover.categories,["Fiction"]);
+    assert.equal(await rpc("assistant_set_missing_cover",[metadataOnly.collectionId,newBookId,"https://images.example.test/client-found.jpg",null,JSON.stringify({providedBy:"client",backendSearchPerformed:false})]),true);
+    assert.deepEqual(await readMetadata(),{...beforeCover,cover_url:"https://images.example.test/client-found.jpg"});
+    assert.equal((await rpc("assistant_list_missing_covers",[metadataOnly.collectionId,null,5])).books.length,0);
     await claims(alice);
     await rpc("set_assistant_connection",["assistant",false]);
     await claims(alice,true);

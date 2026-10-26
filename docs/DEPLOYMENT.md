@@ -197,3 +197,14 @@ owner uploads win on concurrent writes and retries. Per-book failures retain
 confirmed results. Initialization instructions, tool descriptions and the named
 prompt explain this workflow. Version is 1.11.0; reconnect clients to refresh
 cached schemas. No new database migration is required (the 1.9.0 RPCs remain in use).
+
+
+MCP 1.12.0 imports book metadata first and automatically directs the client to the
+missing-cover workflow afterwards. Import `coverUrl` is optional/nullable, the
+pre-import cover-search gate is removed, and successful create/append responses
+include `nextAction` with the returned collection ID and cover-search continuation.
+All metadata batches must be saved before cover research. Existing database RPCs
+already support missing cover URLs, so no migration is needed. Tests cover omitted
+and null covers without search notes, retained category validation, continuation
+arguments, and a real-migration metadata import followed by a client cover update.
+The manual website prompt is unchanged. Reconnect clients after deployment.
