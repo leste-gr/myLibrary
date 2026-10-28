@@ -15,19 +15,20 @@ test("photo analysis validates and strips metadata before sending; no cover gues
   await assert.rejects(()=>analyseShelfPhotos([]),/up to 3/);
 });
 
-test("grounded search browses source images and requires positive visual verification",async()=>{
+test("LLM-planned search browses source images and requires positive visual verification",async()=>{
   const image=await sharp({create:{width:100,height:150,channels:3,background:"white"}}).jpeg().toBuffer();
   let calls=0;const fetched:string[]=[];
   const result=await discoverGeminiCover({title:"A book",author:"Author",language:"en"},{
-    generate:async()=>{calls++;if(calls===1)return reply({pages:["https://publisher.example/book"],images:[],notes:"Found source"},true);if(calls===2)return reply({indices:[0]});return reply({matches:true,reason:"Title and author match the cover."});},
+    generate:async()=>{calls++;if(calls===1)return reply({queries:["A book Author cover"]});if(calls===2)return reply({indices:[0]});return reply({matches:true,reason:"Title and author match the cover."});},
+    search:async()=>["https://publisher.example/book"],
     resource:async(url)=>{fetched.push(String(url));return String(url).endsWith('/book')?{bytes:new TextEncoder().encode('<meta property="og:image" content="/cover.jpg">').buffer,contentType:"text/html",finalUrl:String(url)}:{bytes:Uint8Array.from(image).buffer,contentType:"image/jpeg",finalUrl:String(url)};},
   });
   assert.equal(result.coverUrl,"https://publisher.example/cover.jpg");assert.equal(result.sourceUrl,"https://publisher.example/book");assert.equal(result.queries.length,1);assert.equal(calls,3);assert.equal(fetched.length,2);
 });
 
-test("ungrounded guesses never cause image fetches or saved covers",async()=>{
-  const result=await discoverGeminiCover({title:"Book",author:"Author",language:"en"},{generate:async()=>reply({pages:[],images:["https://guess.example/a.jpg"],notes:"guess"}),resource:async()=>{throw new Error("Must not fetch ungrounded guesses");}});
-  assert.equal(result.coverUrl,null);assert.deepEqual(result.queries,[]);
+test("empty real search results never cause guessed image fetches or saved covers",async()=>{
+  const result=await discoverGeminiCover({title:"Book",author:"Author",language:"en"},{generate:async()=>reply({queries:["Book Author cover"]}),search:async()=>[],resource:async()=>{throw new Error("Must not fetch invented URLs");}});
+  assert.equal(result.coverUrl,null);assert.deepEqual(result.queries,["Book Author cover"]);
 });
 
 test("API errors never expose credentials or upstream error bodies",async()=>{

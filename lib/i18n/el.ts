@@ -1,5 +1,7 @@
 // Interface translations only. Book and collection data retain their original language.
 export const el: Record<string, string> = {
+  "The configured Gemini model is unavailable. Update GEMINI_MODEL in Vercel.": "Το επιλεγμένο μοντέλο Gemini δεν είναι διαθέσιμο. Ενημέρωσε το GEMINI_MODEL στο Vercel.",
+  "Google rejected the Gemini API key or project access. Check the key restrictions and enable the Generative Language API.": "Η Google απέρριψε το κλειδί Gemini API ή την πρόσβαση στο έργο. Έλεγξε τους περιορισμούς του κλειδιού και ενεργοποίησε το Generative Language API.",
   "Up to 100 books per import. Split larger shelves into separate imports.": "Έως 100 βιβλία ανά εισαγωγή. Χώρισε τα μεγαλύτερα ράφια σε ξεχωριστές εισαγωγές.",
   "These photos contain too many books. Import up to 100 books at a time.": "Αυτές οι φωτογραφίες περιέχουν πάρα πολλά βιβλία. Κάνε εισαγωγή έως 100 βιβλίων κάθε φορά.",
   "Recent cover searches": "Πρόσφατες αναζητήσεις εξωφύλλων",

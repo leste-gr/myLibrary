@@ -210,7 +210,7 @@ arguments, and a real-migration metadata import followed by a client cover updat
 The manual website prompt is unchanged. Reconnect clients after deployment.
 
 Gemini photo import: apply `202610280045_gemini_shelfie.sql`, then deploy with the
-server-only `GEMINI_API_KEY`. Optional `GEMINI_MODEL` defaults to `gemini-2.5-flash`.
+server-only `GEMINI_API_KEY`. Optional `GEMINI_MODEL` defaults to `gemini-3.8-flash`.
 Owners can select **Import photos with Gemini** on `/shelfies`, upload up to three
 JPG/PNG/WebP photos (3 MiB total), consent to Google processing, review metadata,
 and import to an existing or new collection. Photos are decoded, stripped of EXIF,
@@ -222,9 +222,15 @@ one book per request. PostgreSQL stores a per-import queue, leases concurrent
 claims, preserves completed outcomes across reloads, and bounds retries to three.
 Only imported books lacking covers enter the queue. Owners can pause, resume or
 retry unresolved tasks. Keep the page open for processing; returning resumes saved
-progress. Gemini uses Google Search grounding, selects images extracted from real
+progress. Gemini plans search queries and adapts them across bounded attempts using existing
+public web-search tools, selects images extracted from real
 source pages, and visually verifies candidates. Safe remote fetch enforces public
 HTTPS, bounded downloads and image decoding. Only verified images are saved;
 concurrent existing covers/owner uploads win. Search errors never roll back books.
 Source references and outcomes appear in the progress UI. Browser ownership is
 checked on every operation, and OAuth/anonymous callers cannot operate the queue.
+
+The default uses current Flash inference with public search tools, rather than
+Google's separately billed search-grounding tool. Google now restricts Gemini 2.5
+Flash to previously active projects. New projects should use a current model;
+free inference availability and quotas still depend on Google's project eligibility.
