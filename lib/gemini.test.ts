@@ -21,14 +21,24 @@ test("LLM-planned search browses source images and requires positive visual veri
   const result=await discoverGeminiCover({title:"A book",author:"Author",language:"en"},{
     generate:async()=>{calls++;if(calls===1)return reply({queries:["A book Author cover"]});if(calls===2)return reply({indices:[0]});return reply({matches:true,reason:"Title and author match the cover."});},
     search:async()=>["https://publisher.example/book"],
-    resource:async(url)=>{fetched.push(String(url));return String(url).endsWith('/book')?{bytes:new TextEncoder().encode('<meta property="og:image" content="/cover.jpg">').buffer,contentType:"text/html",finalUrl:String(url)}:{bytes:Uint8Array.from(image).buffer,contentType:"image/jpeg",finalUrl:String(url)};},
+    resource:async(url)=>{fetched.push(String(url));if(String(url).includes("search.json"))throw new Error("Fixture has no library candidates");return String(url).endsWith('/book')?{bytes:new TextEncoder().encode('<meta property="og:image" content="/cover.jpg">').buffer,contentType:"text/html",finalUrl:String(url)}:{bytes:Uint8Array.from(image).buffer,contentType:"image/jpeg",finalUrl:String(url)};},
   });
-  assert.equal(result.coverUrl,"https://publisher.example/cover.jpg");assert.equal(result.sourceUrl,"https://publisher.example/book");assert.equal(result.queries.length,1);assert.equal(calls,3);assert.equal(fetched.length,2);
+  assert.equal(result.coverUrl,"https://publisher.example/cover.jpg");assert.equal(result.sourceUrl,"https://publisher.example/book");assert.equal(result.queries.length,1);assert.equal(calls,3);assert.equal(fetched.length,3);
 });
 
 test("empty real search results never cause guessed image fetches or saved covers",async()=>{
   const result=await discoverGeminiCover({title:"Book",author:"Author",language:"en"},{generate:async()=>reply({queries:["Book Author cover"]}),search:async()=>[],resource:async()=>{throw new Error("Must not fetch invented URLs");}});
   assert.equal(result.coverUrl,null);assert.deepEqual(result.queries,["Book Author cover"]);
+});
+
+test("library candidates remain usable when retail source pages are unavailable",async()=>{
+  const image=await sharp({create:{width:100,height:150,channels:3,background:"white"}}).jpeg().toBuffer();let calls=0;
+  const result=await discoverGeminiCover({title:"The Hobbit",author:"Tolkien",language:"en"},{
+    generate:async()=>{calls++;return calls===1?reply({queries:["The Hobbit Tolkien cover"]}):calls===2?reply({indices:[0]}):reply({matches:true,reason:"The cover identifies the requested book."});},
+    search:async()=>[],
+    resource:async url=>String(url).includes("search.json")?{bytes:new TextEncoder().encode(JSON.stringify({docs:[{key:"/works/OL123W",title:"The Hobbit",author_name:["Tolkien"],cover_i:123}]})).buffer,contentType:"application/json",finalUrl:String(url)}:{bytes:Uint8Array.from(image).buffer,contentType:"image/jpeg",finalUrl:String(url)},
+  });
+  assert.equal(result.coverUrl,"https://covers.openlibrary.org/b/id/123-L.jpg?default=false");assert.equal(result.sourceUrl,"https://openlibrary.org/works/OL123W");
 });
 
 test("API errors never expose credentials or upstream error bodies",async()=>{

@@ -70,9 +70,25 @@ export async function discoverGeminiCover(book: GeminiCoverBook, options: {gener
     const links=[...new Set((await Promise.all(queryPlan.queries.map(query=>(options.search??findBookPageUrls)(query)))).flat())].slice(0,8);
     const cited=links.map(url=>({title:new URL(url).hostname,url}));
     sources.push(...cited);
-    if (!links.length){outcomes.push("Web searches returned no usable source pages. Search providers may be unavailable.");continue;}
+    if (!links.length)outcomes.push("Web searches returned no usable source pages. Search providers may be unavailable.");
     const found={pages:links,images:[] as string[],notes:"No direct image links were found on the searched pages."};
-    const candidates:{url:string;source:string|null}[]=found.images.map(url=>({url,source:null}));
+    const candidates:{url:string;source:string|null;label?:string}[]=found.images.map(url=>({url,source:null}));
+    // Reuse the app's existing Open Library metadata source. No account, photo
+    // or collection identifiers are sent; Gemini still visually verifies covers.
+    try {
+      const catalogueUrl=new URL("https://openlibrary.org/search.json");
+      catalogueUrl.searchParams.set("title",book.title);catalogueUrl.searchParams.set("author",book.author);
+      catalogueUrl.searchParams.set("limit","5");catalogueUrl.searchParams.set("fields","key,title,author_name,cover_i");
+      const catalogue=await resource(catalogueUrl,{maxBytes:150_000,acceptedTypes:type=>type==="application/json",timeoutMs:8000});
+      const docs=JSON.parse(new TextDecoder().decode(catalogue.bytes)).docs;
+      if(Array.isArray(docs))for(const doc of docs){
+        if(!Number.isSafeInteger(doc.cover_i)||doc.cover_i<=0||typeof doc.key!=="string"||!/^\/works\/[A-Za-z0-9]+$/.test(doc.key))continue;
+        const source="https://openlibrary.org"+doc.key;
+        candidates.push({url:`https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg?default=false`,source,label:`${String(doc.title).slice(0,300)} — ${Array.isArray(doc.author_name)?doc.author_name.join(", ").slice(0,300):""}`});
+        sources.push({title:String(doc.title).slice(0,300),url:source});
+      }
+    }catch{outcomes.push("Library catalogue was unavailable.");}
+
     for (const page of [...new Set([...found.pages,...cited.map(source=>source.url)])].slice(0,4)) {
       try {
         const response=await resource(page,{maxBytes:800_000,acceptedTypes:type=>type==="text/html",timeoutMs:6000});
