@@ -19,8 +19,9 @@ export function GeminiCoverProgress({importId,collectionUrl}:{importId:string;co
         let current=await request("status");if(!alive.current)return;setJobs(current);setLoaded(true);
         // A single book per request gives every book its own context and budget.
         while(alive.current&&runRef.current&&current.some(job=>job.status==="pending"||job.status==="running")) {
+          const previousFailures=new Set(current.filter(job=>job.status==="failed").map(job=>job.id));
           current=await request("next");if(!alive.current)return;setJobs(current);
-          if(current.some(job=>job.status==="failed"&&/rate limited|configuration/.test(job.outcome.error??"")))throw new Error("Cover searches paused. Check the error below and retry later.");
+          if(current.some(job=>job.status==="failed"&&!previousFailures.has(job.id)&&/rate limited|configuration|Gemini model|API key|project access/.test(job.outcome.error??"")))throw new Error("Cover searches paused. Check the error below and retry later.");
           await new Promise(resolve=>setTimeout(resolve,current.some(job=>job.status==="running")?5000:1800));
         }
         if(alive.current)setRunning(false);

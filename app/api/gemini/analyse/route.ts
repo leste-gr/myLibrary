@@ -25,7 +25,7 @@ export async function GET() {
   const client=await createSupabaseServerClient();const {data:{user}}=await client.auth.getUser();
   if(!user)return Response.json({error:"Please sign in."},{status:401,headers:{"Cache-Control":"no-store"}});
   if(!geminiConfigured())return Response.json({configured:false},{status:503,headers:{"Cache-Control":"no-store"}});
-  const model=process.env.GEMINI_MODEL||"gemini-3.8-flash";
+  const model=process.env.GEMINI_MODEL||"gemini-3.5-flash-lite";
   if(!/^[a-zA-Z0-9.-]+$/.test(model))return Response.json({error:"Invalid model configuration."},{status:503});
   const started=Date.now();
   try {

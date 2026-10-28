@@ -12,7 +12,7 @@ export type GeminiReply = { candidates?: { content?: { parts?: { text?: string }
 export async function generateGemini(parts: Part[], options: { search?: boolean; json?: boolean; signal?: AbortSignal } = {}): Promise<GeminiReply> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("Gemini photo import is not configured yet.");
-  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
   if (!/^[a-zA-Z0-9.-]+$/.test(model)) throw new Error("Gemini model configuration is invalid.");
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST", cache: "no-store", headers: { "Content-Type": "application/json", "x-goog-api-key": key },

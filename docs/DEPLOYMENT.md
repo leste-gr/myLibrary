@@ -210,7 +210,7 @@ arguments, and a real-migration metadata import followed by a client cover updat
 The manual website prompt is unchanged. Reconnect clients after deployment.
 
 Gemini photo import: apply `202610280045_gemini_shelfie.sql`, then deploy with the
-server-only `GEMINI_API_KEY`. Optional `GEMINI_MODEL` defaults to `gemini-3.8-flash`.
+server-only `GEMINI_API_KEY`. Optional `GEMINI_MODEL` defaults to `gemini-3.5-flash-lite`.
 Owners can select **Import photos with Gemini** on `/shelfies`, upload up to three
 JPG/PNG/WebP photos (3 MiB total), consent to Google processing, review metadata,
 and import to an existing or new collection. Photos are decoded, stripped of EXIF,
