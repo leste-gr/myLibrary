@@ -26,7 +26,7 @@ export async function POST(request:Request) {
       if(claimed.data){
         const task=claimed.data;let result;
         try {result=task.book.hasCover?{coverUrl:null,notes:"An existing cover was preserved."}:await discoverGeminiCover(task.book);}
-        catch(error){result={coverUrl:null,error:error instanceof Error?error.message:"Cover search failed."};}
+        catch(error){result={coverUrl:null,error:error instanceof z.ZodError||error instanceof SyntaxError?"Gemini returned an invalid cover response. Please retry this book.":error instanceof Error?error.message:"Cover search failed."};}
         const finished=await client.rpc("finish_gemini_cover_job",{target_job_id:task.id,lease_token:task.lease,result});
         if(finished.error)throw new Error("Could not save cover search progress. Please resume later.");
         if(finished.data==="found"){revalidatePath("/");revalidatePath(`/collections/${collection.slug}`);revalidatePath("/radar");}
