@@ -19,3 +19,17 @@ export async function POST(request:Request) {
     return json({payload:await analyseShelfPhotos(files as File[])});
   }catch(error){return json({error:error instanceof Error&& !error.message.includes("{")?error.message:"Could not read the books. Please try another photo."},400);}
 }
+
+// Authenticated, non-billable connectivity check; never returns the API key.
+export async function GET() {
+  const client=await createSupabaseServerClient();const {data:{user}}=await client.auth.getUser();
+  if(!user)return Response.json({error:"Please sign in."},{status:401,headers:{"Cache-Control":"no-store"}});
+  if(!geminiConfigured())return Response.json({configured:false},{status:503,headers:{"Cache-Control":"no-store"}});
+  const model=process.env.GEMINI_MODEL||"gemini-3.8-flash";
+  if(!/^[a-zA-Z0-9.-]+$/.test(model))return Response.json({error:"Invalid model configuration."},{status:503});
+  const started=Date.now();
+  try {
+    const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}`,{headers:{"x-goog-api-key":process.env.GEMINI_API_KEY!},cache:"no-store",signal:AbortSignal.timeout(12_000)});
+    return Response.json({configured:true,model,upstreamStatus:response.status,elapsedMs:Date.now()-started},{headers:{"Cache-Control":"no-store"}});
+  }catch{return Response.json({configured:true,model,error:"Google Gemini could not be reached from the server.",elapsedMs:Date.now()-started},{status:503,headers:{"Cache-Control":"no-store"}});}
+}
