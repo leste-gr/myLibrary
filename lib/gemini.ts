@@ -19,7 +19,7 @@ export async function generateGemini(parts: Part[], options: { search?: boolean;
     signal: AbortSignal.any([AbortSignal.timeout(options.json ? 90_000 : 45_000), ...(options.signal ? [options.signal] : [])]),
     body: JSON.stringify({ contents: [{role:"user",parts}],
       ...(options.search ? {tools:[{google_search:{}}]} : {}),
-      generationConfig: { temperature: .1, maxOutputTokens: options.json ? 24000 : 2500,
+      generationConfig: { ...(/^gemini-[34]/.test(model) ? {thinkingConfig:{thinkingLevel:"low"}} : {temperature:.1,thinkingConfig:{thinkingBudget:1024}}), maxOutputTokens: options.json ? 24000 : 2500,
         ...(options.json ? { responseMimeType:"application/json" } : {}) },
     }),
   });

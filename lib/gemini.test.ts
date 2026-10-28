@@ -34,7 +34,7 @@ test("empty real search results never cause guessed image fetches or saved cover
 test("API errors never expose credentials or upstream error bodies",async()=>{
   const oldFetch=globalThis.fetch,oldKey=process.env.GEMINI_API_KEY;
   process.env.GEMINI_API_KEY="private-test-key";
-  globalThis.fetch=async(_url,init)=>{assert.equal((init?.headers as Record<string,string>)["x-goog-api-key"],"private-test-key");return new Response('private-test-key upstream detail',{status:429});};
+  globalThis.fetch=async(_url,init)=>{assert.equal((init?.headers as Record<string,string>)["x-goog-api-key"],"private-test-key");const body=JSON.parse(String(init?.body));assert.equal(body.generationConfig.thinkingConfig.thinkingLevel,"low");assert.equal(body.generationConfig.temperature,undefined);return new Response('private-test-key upstream detail',{status:429});};
   try{await assert.rejects(()=>generateGemini([{text:"hello"}]),error=>error instanceof Error&&/rate limited/.test(error.message)&&!error.message.includes("private-test-key"));}
   finally{globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;}
 });
