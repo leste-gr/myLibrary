@@ -279,3 +279,5 @@ body:has(.directory-shell) .account-menu{background:transparent}
 .collection-editor-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .collection-editor-actions a,.collection-editor-actions button{min-height:44px}
 .catalogue-shell .intro-copy{white-space:pre-line;overflow-wrap:anywhere}
+.gemini-photo-form input[type=file]{max-width:100%;min-height:44px}.gemini-photo-form .choice-row{align-items:flex-start}.gemini-photo-form input[type=checkbox]{flex-shrink:0;width:22px;height:22px}.gemini-progress progress{width:100%;height:20px;accent-color:var(--wine);margin-bottom:20px}.gemini-job-list{list-style:none;padding:0}.gemini-job-list>li{border:1px solid var(--line);border-radius:6px;padding:16px;margin-top:12px;overflow-wrap:anywhere}.gemini-job-list>li>span{display:block;color:var(--muted);font-size:14px}.gemini-job-list p{font-size:14px}.gemini-job-list details{margin:10px 0 0}.gemini-photo-form label{overflow-wrap:anywhere}
+.gemini-search-suggestions{width:100%;height:150px;border:0;background:white}

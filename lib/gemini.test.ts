@@ -1,0 +1,39 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import sharp from "sharp";
+import { analyseShelfPhotos, discoverGeminiCover, generateGemini, type GeminiReply } from "./gemini";
+const reply=(value:unknown,grounded=false):GeminiReply=>({candidates:[{content:{parts:[{text:JSON.stringify(value)}]},...(grounded?{groundingMetadata:{webSearchQueries:["book author cover"],groundingChunks:[{web:{uri:"https://publisher.example/book",title:"Book source"}}]}}:{})}]});
+const payload={schemaVersion:"mylibrary.shelfie.v1",books:[{position:1,title:"A book",authors:["Author"],categories:["Fiction"],confidence:.9,coverUrl:"https://guess.example/cover.jpg",isbn:"9780261102217"}]};
+
+test("photo analysis validates and strips metadata before sending; no cover guesses enter the import",async()=>{
+  const image=await sharp({create:{width:20,height:30,channels:3,background:"white"}}).jpeg().toBuffer();
+  let sent="";
+  const result=await analyseShelfPhotos([new File([image],"private-name.jpg",{type:"image/jpeg"})],async(parts,options)=>{sent=JSON.stringify(parts);assert.equal(options?.json,true);return reply(payload);});
+  assert.equal(result.books[0].coverUrl,null);assert.equal(result.books[0].isbn,null);assert.deepEqual(result.books[0].categories,["Fiction"]);
+  assert.ok(sent.includes('inlineData'));assert.ok(!sent.includes('private-name'));
+  await assert.rejects(()=>analyseShelfPhotos([new File(["bad"],"bad.jpg",{type:"image/jpeg"})]),/could not be read/);
+  await assert.rejects(()=>analyseShelfPhotos([]),/up to 3/);
+});
+
+test("grounded search browses source images and requires positive visual verification",async()=>{
+  const image=await sharp({create:{width:100,height:150,channels:3,background:"white"}}).jpeg().toBuffer();
+  let calls=0;const fetched:string[]=[];
+  const result=await discoverGeminiCover({title:"A book",author:"Author",language:"en"},{
+    generate:async()=>{calls++;if(calls===1)return reply({pages:["https://publisher.example/book"],images:[],notes:"Found source"},true);if(calls===2)return reply({indices:[0]});return reply({matches:true,reason:"Title and author match the cover."});},
+    resource:async(url)=>{fetched.push(String(url));return String(url).endsWith('/book')?{bytes:new TextEncoder().encode('<meta property="og:image" content="/cover.jpg">').buffer,contentType:"text/html",finalUrl:String(url)}:{bytes:Uint8Array.from(image).buffer,contentType:"image/jpeg",finalUrl:String(url)};},
+  });
+  assert.equal(result.coverUrl,"https://publisher.example/cover.jpg");assert.equal(result.sourceUrl,"https://publisher.example/book");assert.equal(result.queries.length,1);assert.equal(calls,3);assert.equal(fetched.length,2);
+});
+
+test("ungrounded guesses never cause image fetches or saved covers",async()=>{
+  const result=await discoverGeminiCover({title:"Book",author:"Author",language:"en"},{generate:async()=>reply({pages:[],images:["https://guess.example/a.jpg"],notes:"guess"}),resource:async()=>{throw new Error("Must not fetch ungrounded guesses");}});
+  assert.equal(result.coverUrl,null);assert.deepEqual(result.queries,[]);
+});
+
+test("API errors never expose credentials or upstream error bodies",async()=>{
+  const oldFetch=globalThis.fetch,oldKey=process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY="private-test-key";
+  globalThis.fetch=async(_url,init)=>{assert.equal((init?.headers as Record<string,string>)["x-goog-api-key"],"private-test-key");return new Response('private-test-key upstream detail',{status:429});};
+  try{await assert.rejects(()=>generateGemini([{text:"hello"}]),error=>error instanceof Error&&/rate limited/.test(error.message)&&!error.message.includes("private-test-key"));}
+  finally{globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;}
+});

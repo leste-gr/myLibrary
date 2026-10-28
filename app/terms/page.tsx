@@ -29,7 +29,7 @@ export default async function TermsPage() {
     <h2>{t("4. Connected assistants and imports")}</h2>
     <p>{t("When you connect an assistant, you authorize the access and actions shown during consent. Supported actions include reading your collections and books, creating collections, and adding books. An authorized import may publish book records immediately.")}</p>
     <p>{t("Only request actions you intend the assistant to perform. You can revoke its access from") + " "}<Link href="/shelfies/connections">{t("Connected applications")}</Link>{t(". Revoking access does not undo completed imports or delete information already held by the assistant provider. Website logout and plugin revocation are separate actions.")}</p>
-    <p>{t("Photographs supplied to an external AI service are governed by that service’s terms. Shelfie Street receives structured book information through the current import workflow, not the original photograph.")}</p>
+    <p>{t("Photographs supplied to an AI service are governed by that service’s terms. With Gemini photo import, Shelfie Street processes your photos and sends them to Google Gemini without storing them. Copy-and-paste and connected-assistant imports provide structured book information instead of the original photograph.")}</p>
 
     <h2>{t("5. Accuracy and representative covers")}</h2>
     <p>{t("AI extraction, bibliographic matching, and cover discovery can make mistakes. Titles, authors, ISBNs, editions, volumes, and images may be incomplete or incorrect. A displayed cover may represent another edition or language of the same work. A representative cover is not proof of the physical book’s edition or ISBN.")}</p>

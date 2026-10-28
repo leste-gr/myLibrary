@@ -208,3 +208,23 @@ already support missing cover URLs, so no migration is needed. Tests cover omitt
 and null covers without search notes, retained category validation, continuation
 arguments, and a real-migration metadata import followed by a client cover update.
 The manual website prompt is unchanged. Reconnect clients after deployment.
+
+Gemini photo import: apply `202610280045_gemini_shelfie.sql`, then deploy with the
+server-only `GEMINI_API_KEY`. Optional `GEMINI_MODEL` defaults to `gemini-2.5-flash`.
+Owners can select **Import photos with Gemini** on `/shelfies`, upload up to three
+JPG/PNG/WebP photos (3 MiB total), consent to Google processing, review metadata,
+and import to an existing or new collection. Photos are decoded, stripped of EXIF,
+and sent inline; Shelfie Street never stores the photos. No API key reaches clients.
+Manual JSON and MCP flows are preserved.
+
+After import, the browser opens `/shelfies/gemini/covers?importId=…` and processes
+one book per request. PostgreSQL stores a per-import queue, leases concurrent
+claims, preserves completed outcomes across reloads, and bounds retries to three.
+Only imported books lacking covers enter the queue. Owners can pause, resume or
+retry unresolved tasks. Keep the page open for processing; returning resumes saved
+progress. Gemini uses Google Search grounding, selects images extracted from real
+source pages, and visually verifies candidates. Safe remote fetch enforces public
+HTTPS, bounded downloads and image decoding. Only verified images are saved;
+concurrent existing covers/owner uploads win. Search errors never roll back books.
+Source references and outcomes appear in the progress UI. Browser ownership is
+checked on every operation, and OAuth/anonymous callers cannot operate the queue.

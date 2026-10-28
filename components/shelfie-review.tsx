@@ -11,16 +11,17 @@ type OwnedCollection = { id: string; slug: string; name: string };
 type ReviewBook = ManualGenaiBook & { included: boolean; authorText: string; categoryText: string };
 const reviewBooks = (payload: ManualGenaiImport) => payload.books.map((book) => ({ ...book, included: true, authorText: book.authors.join("; "), categoryText: (book.categories ?? []).join("; ") }));
 
-export function ShelfieReview({ userId, collections, initialDraft, canImport = true }: {
+export function ShelfieReview({ userId, collections, initialDraft, initialPayload, discoverCovers = false, canImport = true }: {
   userId: string; collections: OwnedCollection[]; canImport?: boolean;
   initialDraft?: { id: string; payload: ManualGenaiImport };
+  initialPayload?: ManualGenaiImport; discoverCovers?: boolean;
 }) {
   const t = useTranslations();
   const router = useRouter();
   const [destination, setDestination] = useState(collections[0]?.id ?? "new");
   const [mode, setMode] = useState<"paste" | "file">("paste");
   const [raw, setRaw] = useState("");
-  const [books, setBooks] = useState<ReviewBook[]>(initialDraft ? reviewBooks(initialDraft.payload) : []);
+  const [books, setBooks] = useState<ReviewBook[]>(initialDraft ? reviewBooks(initialDraft.payload) : initialPayload ? reviewBooks(initialPayload) : []);
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState(t("Importing…"));
   const [copied, setCopied] = useState(false);
@@ -55,9 +56,10 @@ export function ShelfieReview({ userId, collections, initialDraft, canImport = t
     setBusy(true); setPhase(t("Importing…"));
     let createdCollectionId: string | null = null;
     let importCompleted = false;
-    const supabase = createSupabaseBrowserClient();
+    let supabase: ReturnType<typeof createSupabaseBrowserClient> | undefined;
     let target = collections.find((collection) => collection.id === destination) ?? null;
     try {
+      supabase = createSupabaseBrowserClient();
       if (destination === "new") {
         const name = String(form.get("collectionName") ?? "").trim();
         if (!name) throw new Error(t("Enter a collection name."));
@@ -69,20 +71,20 @@ export function ShelfieReview({ userId, collections, initialDraft, canImport = t
       if (!target) throw new Error(t("Choose a collection."));
       const imported = initialDraft
         ? await supabase.rpc("confirm_shelfie_draft", { target_draft_id: initialDraft.id, reviewed_payload: payload })
-        : await supabase.rpc("import_manual_genai_books", { target_collection_id: target.id, target_import_id: crypto.randomUUID(), payload });
+        : await supabase.rpc(discoverCovers ? "import_gemini_books" : "import_manual_genai_books", { target_collection_id: target.id, target_import_id: crypto.randomUUID(), payload });
       if (imported.error) throw new Error(imported.error.message);
       const result = imported.data as { imported: number; duplicate?: boolean; importId: string };
-      importCompleted = true; setPhase(t("ISBN matching is queued…"));
-      router.push(`/collections/${target.slug}?imported=${result.imported}`);
+      importCompleted = true; setPhase(t("Books saved."));
+      router.push(discoverCovers ? `/shelfies/gemini/covers?importId=${encodeURIComponent(result.importId)}` : `/collections/${target.slug}?imported=${result.imported}`);
       router.refresh();
     } catch (reason) {
-      if (createdCollectionId && !importCompleted) await supabase.from("collections").delete().eq("id", createdCollectionId);
+      if (createdCollectionId && !importCompleted && supabase) await supabase.from("collections").delete().eq("id", createdCollectionId);
       setError(reason instanceof Error ? t(reason.message) : t("Import failed.")); setBusy(false);
     }
   }
 
   return <div className="genai-import-flow">
-    {!initialDraft && <>
+    {!initialDraft && !initialPayload && <>
       <section className="genai-step">
         <span className="step-number">1</span><h2>{t("Read the photo in your own AI chat")}</h2>
         <p>{t("Upload the photo there and send the prompt. Recognition uses your own AI account.")}</p>
@@ -128,7 +130,7 @@ export function ShelfieReview({ userId, collections, initialDraft, canImport = t
         {canImport && <section className="genai-step"><h2>{t("Destination")}</h2>
           <label htmlFor="destination">{t("Collection")}</label><select id="destination" value={destination} onChange={(event) => setDestination(event.target.value)} disabled={Boolean(initialDraft)}>{collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}{!initialDraft && <option value="new">{t("New collection")}</option>}</select>
           {destination === "new" && <div className="new-collection-fields"><label htmlFor="collection-name">{t("Collection name")}</label><input id="collection-name" name="collectionName" required maxLength={100} /><label htmlFor="collection-description">{t("Description (optional)")}</label><textarea id="collection-description" name="collectionDescription" maxLength={500} rows={2} /></div>}
-          <p className="privacy-note">{t("The import uses the supplied ISBN and cover. Backend searching starts only for books without a cover URL.")}</p>
+          <p className="privacy-note">{discoverCovers ? t("After saving your books, Gemini will search for missing covers. You can follow progress on the next page.") : t("The import uses the supplied ISBN and cover. Backend searching starts only for books without a cover URL.")}</p>
           <button className="primary-button" type="submit" disabled={!includedCount}>{busy ? phase : t("Import {0} books", [includedCount])}</button>
         </section>}
       </fieldset>
