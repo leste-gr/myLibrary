@@ -15,32 +15,6 @@ test("photo analysis validates and strips metadata before sending; no cover gues
   await assert.rejects(()=>analyseShelfPhotos([]),/up to 3/);
 });
 
-test("image search candidates require positive visual verification before saving",async()=>{
-  const image=await sharp({create:{width:100,height:150,channels:3,background:"white"}}).jpeg().toBuffer();
-  let calls=0;const fetched:string[]=[];
-  const result=await discoverGeminiCover({title:"A book",author:"Author",language:"en"},{
-    generate:async()=>{calls++;if(calls===1)return reply({indices:[0]});return reply({matches:true,reason:"Title and author match the cover."});},
-    search:async()=>[{url:"https://publisher.example/cover.jpg",source:"https://publisher.example/book",label:"A book Author"}],
-    resource:async(url)=>{fetched.push(String(url));return {bytes:Uint8Array.from(image).buffer,contentType:"image/jpeg",finalUrl:String(url)};},
-  });
-  assert.equal(result.coverUrl,"https://publisher.example/cover.jpg");assert.equal(result.sourceUrl,"https://publisher.example/book");assert.equal(result.queries.length,1);assert.equal(calls,2);assert.deepEqual(fetched,["https://publisher.example/cover.jpg"]);
-});
-
-test("empty real search results never cause guessed image fetches or saved covers",async()=>{
-  const result=await discoverGeminiCover({title:"Book",author:"Author",language:"en"},{generate:async()=>reply({queries:["Book Author cover"]}),search:async()=>[],resource:async()=>{throw new Error("Must not fetch invented URLs");}});
-  assert.equal(result.coverUrl,null);assert.deepEqual(result.queries,["Book Author"]);
-});
-
-test("library candidates remain usable when retail source pages are unavailable",async()=>{
-  const image=await sharp({create:{width:100,height:150,channels:3,background:"white"}}).jpeg().toBuffer();let calls=0;
-  const result=await discoverGeminiCover({title:"The Hobbit",author:"Tolkien",language:"en"},{
-    generate:async()=>{calls++;return calls===1?reply({indices:[0]}):reply({matches:true,reason:"The cover identifies the requested book."});},
-    search:async()=>[],
-    resource:async url=>String(url).includes("search.json")?{bytes:new TextEncoder().encode(JSON.stringify({docs:[{key:"/works/OL123W",title:"The Hobbit",author_name:["Tolkien"],cover_i:123}]})).buffer,contentType:"application/json",finalUrl:String(url)}:{bytes:Uint8Array.from(image).buffer,contentType:"image/jpeg",finalUrl:String(url)},
-  });
-  assert.equal(result.coverUrl,"https://covers.openlibrary.org/b/id/123-L.jpg?default=false");assert.equal(result.sourceUrl,"https://openlibrary.org/works/OL123W");
-});
-
 test("API errors never expose credentials or upstream error bodies",async()=>{
   const oldFetch=globalThis.fetch,oldKey=process.env.GEMINI_API_KEY;
   process.env.GEMINI_API_KEY="private-test-key";
@@ -49,40 +23,33 @@ test("API errors never expose credentials or upstream error bodies",async()=>{
   finally{globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;}
 });
 
-test("provider failure returns unified no-cover result without retrying",async()=>{
-  let searches=0,catalogues=0;
-  const result=await discoverGeminiCover({title:"Book",author:"Author",language:"en"},{
-    search:async()=>{searches++;throw new Error("provider rate limit");},
-    resource:async()=>{catalogues++;throw new Error("catalogue unavailable");},
-    generate:async()=>{throw new Error("Should not verify invented candidates");},
-  });
-  assert.equal(searches,1);assert.equal(catalogues,1);
-  assert.equal(result.coverUrl,null);assert.equal(result.notes,"No suitable cover found.");
-});
 
-test("wrong-work and corrupt images are never saved; catalogue is a fallback",async()=>{
+test("first Serper image is saved without Gemini or catalogue calls",async()=>{
   const image=await sharp({create:{width:100,height:150,channels:3,background:"white"}}).jpeg().toBuffer();
-  let generated=0,searches=0,catalogues=0;
-  const result=await discoverGeminiCover({title:"Book",author:"Author",language:"en"},{
-    search:async()=>{searches++;return [{url:"https://publisher.example/wrong.jpg",source:"https://publisher.example/book",label:"Book"},{url:"https://publisher.example/corrupt.jpg",source:"https://publisher.example/book",label:"Book"}];},
-    generate:async()=>++generated===1?reply({indices:[0,1]}):reply({matches:false,reason:"Different work"}),
-    resource:async url=>{
-      if(String(url).includes("search.json")){catalogues++;return {bytes:new TextEncoder().encode('{"docs":[]}').buffer,contentType:"application/json",finalUrl:String(url)};}
-      return {bytes:String(url).includes("corrupt")?new ArrayBuffer(2):Uint8Array.from(image).buffer,contentType:"image/jpeg",finalUrl:String(url)};
-    },
+  const fetched:string[]=[];
+  const result=await discoverGeminiCover({title:"A book",author:"Author",language:"en"},{
+    search:async()=>[0,1].map(i=>({url:`https://publisher.example/${i}.jpg`,source:"https://publisher.example/book",label:"Book"})),
+    resource:async url=>{fetched.push(String(url));return {bytes:Uint8Array.from(image).buffer,contentType:"image/jpeg",finalUrl:String(url)};},
   });
-  assert.equal(result.coverUrl,null);assert.equal(searches,1);assert.equal(catalogues,1);assert.equal(result.notes,"No suitable cover found.");
+  assert.equal(result.coverUrl,"https://publisher.example/0.jpg");assert.equal(result.notes,"First image search result selected.");
+  assert.deepEqual(fetched,["https://publisher.example/0.jpg"]);
 });
 
-test("missing-author placeholders never pollute Dragon searches or catalogue lookups",async()=>{
-  for(const author of ["Άγνωστος","Unknown","Unknown author","  άγνωστος συγγραφέας  ",""]){
-    let searches=0,catalogues=0;
-    const book={title:"Dragon #292",author,language:"en",series:"Dragon",volume:"292"};
-    const result=await discoverGeminiCover(book,{
-      search:async(query,language)=>{searches++;assert.equal(query,"Dragon #292");assert.equal(language,"en");return [];},
-      resource:async url=>{catalogues++;assert.equal(new URL(url).searchParams.has("author"),false);return {bytes:new TextEncoder().encode('{"docs":[]}').buffer,contentType:"application/json",finalUrl:String(url)};},
+test("empty, unavailable and unreadable first results keep unified outcome without fallback",async()=>{
+  for(const scenario of ["empty","unavailable","corrupt"]){
+    let searches=0,downloads=0;
+    const result=await discoverGeminiCover({title:"Book",author:"Author",language:"en"},{
+      search:async()=>{searches++;if(scenario==="unavailable")throw new Error("provider error");return scenario==="empty"?[]:[0,1].map(i=>({url:`https://publisher.example/${i}.jpg`,source:"https://publisher.example/book",label:"Book"}));},
+      resource:async url=>{downloads++;assert.equal(String(url),"https://publisher.example/0.jpg");return {bytes:new ArrayBuffer(2),contentType:"image/jpeg",finalUrl:String(url)};},
     });
-    assert.equal(searches,1);assert.equal(catalogues,1);assert.deepEqual(result.queries,["Dragon #292"]);
-    assert.equal(book.author,author);
+    assert.equal(searches,1);assert.equal(downloads,scenario==="corrupt"?1:0);
+    assert.equal(result.coverUrl,null);assert.equal(result.notes,"No suitable cover found.");
+  }
+});
+
+test("missing author placeholders stay out of cover queries",async()=>{
+  for(const author of ["Άγνωστος","Unknown","Unknown author",""]){
+    const result=await discoverGeminiCover({title:"Dragon #292",author,language:"en"},{search:async(query,language)=>{assert.equal(query,"Dragon #292");assert.equal(language,"en");return [];}});
+    assert.deepEqual(result.queries,["Dragon #292"]);
   }
 });

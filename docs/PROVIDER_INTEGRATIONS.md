@@ -68,21 +68,17 @@ Compare these strategies independently:
 
 Measure correct-cover rate, wrong-cover rate, exact-edition rate, representative-cover rate, provider failure rate, elapsed time, and cost per resolved book. Do not optimize only for the number of images found: wrong-cover rate is the primary safety metric.
 
-## Gemini import image discovery
+## Photo-import cover discovery
 
-Gemini photo imports use Serper Google Images (`POST https://google.serper.dev/images`),
-not the legacy Bing RSS/DuckDuckGo HTML adapters. Configure server-only
-`SERPER_API_KEY` in Vercel Production alongside `GEMINI_API_KEY`, then redeploy.
-The request sends only title and author, uses `gl=gr` / `hl=el` for Greek metadata,
-and requests ten candidates. Original image URLs, source pages and titles are
-retained; invalid/non-public HTTPS URLs are rejected. Gemini ranks up to three
-candidates, then each image is safely fetched, decoded and visually verified
-against the work and volume before its original URL is saved. Prefer the
-photographed language; another edition is acceptable.
+Photo imports use Gemini only to identify books in photographs. Cover discovery
+uses Serper Google Images (`POST https://google.serper.dev/images`) and takes
+only the first returned image. Configure server-only `SERPER_API_KEY` in Vercel
+Production. Queries use title and author, omit unknown-author placeholders, and
+respect the book language for localization.
 
-If image candidates are exhausted, Open Library is queried once and its
-candidates undergo the same visual verification. There are no provider retries,
-second search rounds or retry controls. All unsuccessful discovery outcomes,
-including provider failures, return `No suitable cover found.`; the rest of the
-import continues. Existing owner covers remain preserved by the save RPC.
-The API key is never sent to the browser or image/source hosts.
+The first result's original image URL is validated, safely downloaded and decoded
+before saving. It is not visually matched to the book. An invalid, unavailable or
+unreadable first result returns `No suitable cover found.` without choosing the
+next result. There is no Gemini call, catalogue fallback or provider retry.
+Existing covers are preserved. New assets record provider `serper` and verification
+status `provisional`, not model verification. The API key stays server-side.

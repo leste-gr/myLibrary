@@ -457,8 +457,10 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     const secondTask=await rpc("claim_gemini_cover_job",[geminiImport.importId]);
     assert.notEqual(firstTask.id,secondTask.id,"concurrent claims never share a book");
     await assert.rejects(()=>rpc("finish_gemini_cover_job",[firstTask.id,secondTask.lease,"{}"]),/lease/);
-    const finishedGemini=await rpc("finish_gemini_cover_job",[firstTask.id,firstTask.lease,JSON.stringify({coverUrl:"https://images.example.test/gemini.jpg",notes:"Verified visually",queries:["title author"],sources:[]})]);
+    const finishedGemini=await rpc("finish_gemini_cover_job",[firstTask.id,firstTask.lease,JSON.stringify({provider:"serper",coverUrl:"https://images.example.test/gemini.jpg",notes:"First image search result selected.",queries:["title author"],sources:[]})]);
     assert.equal(finishedGemini,"found");
+    const serperAsset=(await db.query<{provider:string;verification_status:string}>("select provider,verification_status from public.cover_assets where source_url=$1",["https://images.example.test/gemini.jpg"])).rows[0];
+    assert.equal(serperAsset.provider,"serper");assert.equal(serperAsset.verification_status,"provisional");
     assert.equal(await rpc("finish_gemini_cover_job",[secondTask.id,secondTask.lease,JSON.stringify({coverUrl:null,notes:"No suitable image",queries:["title author"]})]),"not_found");
     await assert.rejects(()=>rpc("finish_gemini_cover_job",[firstTask.id,firstTask.lease,"{}"]),/lease/);
     const thirdTask=await rpc("claim_gemini_cover_job",[geminiImport.importId]);

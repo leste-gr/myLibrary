@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { discoverGeminiCover, geminiConfigured } from "@/lib/gemini";
+import { discoverGeminiCover } from "@/lib/gemini";
 import { sameOriginRequest } from "@/lib/gemini-request";
 export const runtime="nodejs";
 export const maxDuration=300;
@@ -10,7 +10,6 @@ export async function POST(request:Request) {
   if(!sameOriginRequest(request))return json({error:"Request not allowed."},403);
   const client=await createSupabaseServerClient();const {data:{user}}=await client.auth.getUser();
   if(!user)return json({error:"Please sign in to search for covers."},401);
-  if(!geminiConfigured())return json({error:"Gemini photo import is not configured yet."},503);
   const input=z.object({importId:z.string().uuid(),action:z.enum(["status","next"])}).safeParse(await request.json().catch(()=>null));
   if(!input.success)return json({error:"Invalid import request."},400);
   const {importId,action}=input.data;
