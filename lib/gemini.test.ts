@@ -73,3 +73,16 @@ test("wrong-work and corrupt images are never saved; catalogue is a fallback",as
   });
   assert.equal(result.coverUrl,null);assert.equal(searches,1);assert.equal(catalogues,1);assert.equal(result.notes,"No suitable cover found.");
 });
+
+test("missing-author placeholders never pollute Dragon searches or catalogue lookups",async()=>{
+  for(const author of ["Άγνωστος","Unknown","Unknown author","  άγνωστος συγγραφέας  ",""]){
+    let searches=0,catalogues=0;
+    const book={title:"Dragon #292",author,language:"en",series:"Dragon",volume:"292"};
+    const result=await discoverGeminiCover(book,{
+      search:async(query,language)=>{searches++;assert.equal(query,"Dragon #292");assert.equal(language,"en");return [];},
+      resource:async url=>{catalogues++;assert.equal(new URL(url).searchParams.has("author"),false);return {bytes:new TextEncoder().encode('{"docs":[]}').buffer,contentType:"application/json",finalUrl:String(url)};},
+    });
+    assert.equal(searches,1);assert.equal(catalogues,1);assert.deepEqual(result.queries,["Dragon #292"]);
+    assert.equal(book.author,author);
+  }
+});

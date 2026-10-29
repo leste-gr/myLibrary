@@ -27,3 +27,19 @@ test("provider errors are sanitized and never retried",async()=>{
     assert.equal(calls,1);
   }finally{if(old===undefined)delete process.env.SERPER_API_KEY;else process.env.SERPER_API_KEY=old;}
 });
+
+test("explicit English language wins over Greek script; unknown language can infer Greek",async()=>{
+  const old=process.env.SERPER_API_KEY;process.env.SERPER_API_KEY="fixture-secret";
+  try{
+    for(const [language,query,gl,hl] of [
+      ["en","Dragon #292 Άγνωστος","us","en"],
+      ["English","English book Ελληνικό όνομα","us","en"],
+      ["el-GR","Greek book transliterated","gr","el"],
+      ["Unknown","Ελληνικός τίτλος","gr","el"],
+      ["","Dragon #292","us","en"],
+    ])await searchCoverImages(query,language,undefined,async(_url,init)=>{
+      const body=JSON.parse(String(init?.body));assert.equal(body.gl,gl);assert.equal(body.hl,hl);
+      return Response.json({images:[]});
+    });
+  }finally{if(old===undefined)delete process.env.SERPER_API_KEY;else process.env.SERPER_API_KEY=old;}
+});

@@ -6,7 +6,11 @@ export type CoverImageCandidate = {url:string;source:string;label:string};
 export async function searchCoverImages(query:string, language:string, signal?:AbortSignal, fetcher:typeof fetch=fetch):Promise<CoverImageCandidate[]> {
   const key=process.env.SERPER_API_KEY;
   if(!key) throw new Error("Image search is not configured.");
-  const greek=/^(el|gr|greek|ελλην)/i.test(language)||/[\u0370-\u03ff\u1f00-\u1fff]/.test(query);
+  const languageKey=(language??"").trim().toLowerCase();
+  const unspecified=/^(?:unknown|und|n\/a|άγνωστ[οη]ς?|unspecified)?$/.test(languageKey);
+  // An explicit book language takes precedence over author/title script.
+  const greek=/^(?:(?:el|ell|gr)(?:[-_].+)?|greek|ελληνικά|ελληνικη|ελληνική)$/.test(languageKey)
+    ||(unspecified&&/[\u0370-\u03ff\u1f00-\u1fff]/.test(query));
   const response=await fetcher("https://google.serper.dev/images",{
     method:"POST",cache:"no-store",redirect:"error",
     headers:{"Content-Type":"application/json","X-API-KEY":key},

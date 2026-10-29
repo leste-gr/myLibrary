@@ -61,6 +61,11 @@ const VERIFY_SCHEMA={type:"OBJECT",properties:{matches:{type:"BOOLEAN"},reason:{
 export type GeminiCoverBook = {title:string;author:string;language:string;publisher?:string|null;series?:string|null;volume?:string|null};
 export type GeminiCoverResult = {coverUrl:string|null;sourceUrl:string|null;notes:string;queries:string[];sources:{title:string;url:string}[];searchSuggestions?:string};
 export async function discoverGeminiCover(book: GeminiCoverBook, options: {generate?:typeof generateGemini;resource?:typeof fetchPublicResource;search?:typeof searchCoverImages} = {}): Promise<GeminiCoverResult> {
+  // Importers retain a display placeholder when the author is unreadable.
+  // It is not bibliographic evidence and must never enter a search or verification.
+  const author=(book.author??"").trim();
+  const authorKey=author.normalize("NFD").replace(/\p{M}/gu,"").toLowerCase();
+  book={...book,author:/^(?:unknown(?: author)?|αγνωστος(?: συγγραφεας)?|n\/a|not known|[-—])$/.test(authorKey)?"":author};
   const generate=options.generate??generateGemini, resource=options.resource??fetchPublicResource;
   const signal=AbortSignal.timeout(210_000);
   const metadata=JSON.stringify(book);
@@ -79,7 +84,8 @@ export async function discoverGeminiCover(book: GeminiCoverBook, options: {gener
       // or collection identifiers are sent; Gemini still visually verifies covers.
       try {
         const catalogueUrl=new URL("https://openlibrary.org/search.json");
-        catalogueUrl.searchParams.set("title",book.title);catalogueUrl.searchParams.set("author",book.author);
+        catalogueUrl.searchParams.set("title",book.title);
+        if(book.author) catalogueUrl.searchParams.set("author",book.author);
         catalogueUrl.searchParams.set("limit","5");catalogueUrl.searchParams.set("fields","key,title,author_name,cover_i");
         const catalogue=await resource(catalogueUrl,{maxBytes:150_000,acceptedTypes:type=>type==="application/json",timeoutMs:8000});
         const docs=JSON.parse(new TextDecoder().decode(catalogue.bytes)).docs;
