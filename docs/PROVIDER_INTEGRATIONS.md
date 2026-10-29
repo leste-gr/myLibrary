@@ -70,15 +70,17 @@ Measure correct-cover rate, wrong-cover rate, exact-edition rate, representative
 
 ## Photo-import cover discovery
 
-Photo imports use Gemini only to identify books in photographs. Cover discovery
+Photo imports use Gemini to identify books in photographs and classify candidate images as books or covers. Cover discovery
 uses Serper Google Images (`POST https://google.serper.dev/images`) and takes
 only the first returned image. Configure server-only `SERPER_API_KEY` in Vercel
 Production. Queries use title and author, omit unknown-author placeholders, and
 respect the book language for localization.
 
 The first result's original image URL is validated, safely downloaded and decoded
-before saving. It is not visually matched to the book. An invalid, unavailable or
+before saving. Gemini checks only whether it depicts a book or cover; it does not match title or edition. An invalid, unavailable or
 unreadable first result returns `No suitable cover found.` without choosing the
-next result. There is no Gemini call, catalogue fallback or provider retry.
+next result. There is no catalogue fallback or provider retry.
 Existing covers are preserved. New assets record provider `serper` and verification
 status `provisional`, not model verification. The API key stays server-side.
+
+Manual ISBN submission resolves title and authors, publishes that copy’s metadata, and runs the same image search/classification flow to replace its cover. Missing complete metadata leaves the draft for review.

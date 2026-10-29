@@ -321,6 +321,14 @@ test("real migrations enforce private drafts, owner confirmation, idempotency an
     const candidatePublished = (await db.query<{title:string;author:string;cover_url:string}>("select w.title,w.author,c.cover_url from public.copies c join public.works w on w.id=c.work_id where c.id=$1", [siblingId])).rows[0];
     assert.deepEqual(candidatePublished, {title:"Matilda",author:"Roald Dahl",cover_url:previewCover}, "published candidate uses exactly the previewed cover and metadata");
 
+    await rpc("save_owned_isbn_draft",[siblingId,"9780140328721",JSON.stringify({...candidateDetails,title:"Corrected ISBN title"}),null]);
+    await claims(bob);
+    await assert.rejects(()=>rpc("apply_owned_isbn_refresh",[siblingId,"9780140328721",JSON.stringify({coverUrl:null})]),/ownership/);
+    await claims(alice);
+    await rpc("apply_owned_isbn_refresh",[siblingId,"9780140328721",JSON.stringify({coverUrl:"https://example.com/refreshed.jpg",sourceUrl:"https://example.com/book",provider:"serper"})]);
+    const refreshed=(await db.query("select w.title,w.author,c.cover_url,c.cover_source from public.copies c join public.works w on w.id=c.work_id where c.id=$1",[siblingId])).rows[0];
+    assert.deepEqual(refreshed,{title:"Corrected ISBN title",author:"Roald Dahl",cover_url:"https://example.com/refreshed.jpg",cover_source:"serper"});
+
     // Camera/manual ISBN creation is owner-only, atomic and idempotent.
     await claims(alice);
     const scanMetadata = { title: "Camera book", authors: ["Scan author"], publishers: ["Scan press"], language: "en", publishedDate: "2024" };

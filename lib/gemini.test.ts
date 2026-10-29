@@ -24,11 +24,12 @@ test("API errors never expose credentials or upstream error bodies",async()=>{
 });
 
 
-test("first Serper image is saved without Gemini or catalogue calls",async()=>{
+test("first Serper image is classified as a book before saving",async()=>{
   const image=await sharp({create:{width:100,height:150,channels:3,background:"white"}}).jpeg().toBuffer();
   const fetched:string[]=[];
   const result=await discoverGeminiCover({title:"A book",author:"Author",language:"en"},{
     search:async()=>[0,1].map(i=>({url:`https://publisher.example/${i}.jpg`,source:"https://publisher.example/book",label:"Book"})),
+    generate:async()=>reply({isBookOrCover:true}),
     resource:async url=>{fetched.push(String(url));return {bytes:Uint8Array.from(image).buffer,contentType:"image/jpeg",finalUrl:String(url)};},
   });
   assert.equal(result.coverUrl,"https://publisher.example/0.jpg");assert.equal(result.notes,"First image search result selected.");
@@ -52,4 +53,11 @@ test("missing author placeholders stay out of cover queries",async()=>{
     const result=await discoverGeminiCover({title:"Dragon #292",author,language:"en"},{search:async(query,language)=>{assert.equal(query,"Dragon #292");assert.equal(language,"en");return [];}});
     assert.deepEqual(result.queries,["Dragon #292"]);
   }
+});
+
+test("non-book image is rejected without selecting a later image",async()=>{
+ const image=await sharp({create:{width:20,height:30,channels:3,background:"white"}}).jpeg().toBuffer();
+ let classified=0;
+ const result=await discoverGeminiCover({title:"Book",author:"Author",language:"en"},{search:async()=>[{url:"https://example.com/image.jpg",source:"https://example.com/book",label:"Book"}],resource:async url=>({bytes:Uint8Array.from(image).buffer,contentType:"image/jpeg",finalUrl:String(url)}),generate:async()=>{classified++;return reply({isBookOrCover:false});}});
+ assert.equal(result.coverUrl,null);assert.equal(classified,1);
 });

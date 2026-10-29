@@ -23,4 +23,5 @@ export async function saveIsbnDraft(supabase: SupabaseClient, copyId: string, is
     target_copy_id: copyId, target_isbn: isbn, edition_metadata: metadata, target_candidate_id: candidate?.id ?? null,
   });
   if (draftError) throw new Error(draftError.message);
+  return metadata;
 }

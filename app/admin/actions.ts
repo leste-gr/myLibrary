@@ -7,6 +7,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { canonicalIsbn } from "@/lib/isbn";
 import { randomUUID } from "node:crypto";
 import { prepareCoverUpload, prepareCoverFromUrl } from "@/lib/cover-upload";
+import { discoverGeminiCover } from "@/lib/gemini";
 import { saveIsbnDraft } from "@/lib/save-isbn-draft";
 import { findBookIsbnCandidates } from "@/lib/book-isbn-search";
 
@@ -199,7 +200,14 @@ export async function saveManualIsbnDraft(formData: FormData) {
     .single();
   if (!copy) throw new Error("Book not found.");
 
-  await saveIsbnDraft(supabase, copyId, isbn13);
+  const metadata=await saveIsbnDraft(supabase, copyId, isbn13);
+  if(!metadata.title || !metadata.authors.length) {
+    redirect(editPath(collectionSlug,legacyId,"?error="+encodeURIComponent("No complete title and author metadata was found for this ISBN.")));
+  }
+  const cover=await discoverGeminiCover({title:metadata.title,author:metadata.authors.join(", "),language:metadata.language??""});
+  const {error:refreshError}=await supabase.rpc("apply_owned_isbn_refresh",{target_copy_id:copyId,target_isbn:isbn13,result:cover});
+  if(refreshError)throw new Error(refreshError.message);
+  revalidatePath("/");revalidatePath("/radar");
 
   revalidatePath("/collections/" + collectionSlug);
   revalidatePath(editPath(collectionSlug, legacyId));
