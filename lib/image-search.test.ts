@@ -1,0 +1,29 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {searchCoverImages} from "./image-search";
+
+test("Greek query uses localized Google Images and retains original URL and source",async()=>{
+  const old=process.env.SERPER_API_KEY;process.env.SERPER_API_KEY="fixture-secret";
+  try {
+    const result=await searchCoverImages("ΙΚΑΝΟΙ ΓΙΑ ΟΛΑ ΚΛΑΣ ΕΚΜΑΝ","Greek",undefined,async(url,init)=>{
+      assert.equal(url,"https://google.serper.dev/images");assert.equal(init?.redirect,"error");
+      assert.equal((init?.headers as Record<string,string>)["X-API-KEY"],"fixture-secret");
+      assert.deepEqual(JSON.parse(String(init?.body)),{q:"ΙΚΑΝΟΙ ΓΙΑ ΟΛΑ ΚΛΑΣ ΕΚΜΑΝ",gl:"gr",hl:"el",num:10});
+      return Response.json({images:[
+        {imageUrl:"https://publisher.example/cover.jpg",link:"https://bookshop.example/book",title:"Ικανοί για όλα",thumbnailUrl:"https://thumbnail.example/small.jpg"},
+        {imageUrl:"https://publisher.example/cover.jpg",link:"https://bookshop.example/book"},
+        {imageUrl:"http://127.0.0.1/private",link:"https://bookshop.example/book"},
+        {imageUrl:"https://publisher.example/other.jpg",link:"http://localhost/private"},null,
+      ]});
+    });
+    assert.deepEqual(result,[{url:"https://publisher.example/cover.jpg",source:"https://bookshop.example/book",label:"Ικανοί για όλα"}]);
+  }finally{if(old===undefined)delete process.env.SERPER_API_KEY;else process.env.SERPER_API_KEY=old;}
+});
+
+test("provider errors are sanitized and never retried",async()=>{
+  const old=process.env.SERPER_API_KEY;process.env.SERPER_API_KEY="fixture-secret";let calls=0;
+  try {
+    await assert.rejects(()=>searchCoverImages("Public book","en",undefined,async()=>{calls++;return new Response("fixture-secret",{status:429});}),/^Error: No suitable cover found\.$/);
+    assert.equal(calls,1);
+  }finally{if(old===undefined)delete process.env.SERPER_API_KEY;else process.env.SERPER_API_KEY=old;}
+});

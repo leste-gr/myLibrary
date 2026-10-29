@@ -4,7 +4,7 @@ This document tracks metadata providers beyond the reviewed local catalogue, Ope
 
 ## Verified book-page discovery
 
-Web discovery must search for book pages, not images. The intended query sequence is:
+The legacy deterministic resolver searches for book pages rather than images. The intended query sequence is:
 
 1. `"title" ISBN`
 2. `"title" "author" "publisher"`
@@ -67,3 +67,22 @@ Compare these strategies independently:
 5. visual checks for the remaining ambiguous cases.
 
 Measure correct-cover rate, wrong-cover rate, exact-edition rate, representative-cover rate, provider failure rate, elapsed time, and cost per resolved book. Do not optimize only for the number of images found: wrong-cover rate is the primary safety metric.
+
+## Gemini import image discovery
+
+Gemini photo imports use Serper Google Images (`POST https://google.serper.dev/images`),
+not the legacy Bing RSS/DuckDuckGo HTML adapters. Configure server-only
+`SERPER_API_KEY` in Vercel Production alongside `GEMINI_API_KEY`, then redeploy.
+The request sends only title and author, uses `gl=gr` / `hl=el` for Greek metadata,
+and requests ten candidates. Original image URLs, source pages and titles are
+retained; invalid/non-public HTTPS URLs are rejected. Gemini ranks up to three
+candidates, then each image is safely fetched, decoded and visually verified
+against the work and volume before its original URL is saved. Prefer the
+photographed language; another edition is acceptable.
+
+If image candidates are exhausted, Open Library is queried once and its
+candidates undergo the same visual verification. There are no provider retries,
+second search rounds or retry controls. All unsuccessful discovery outcomes,
+including provider failures, return `No suitable cover found.`; the rest of the
+import continues. Existing owner covers remain preserved by the save RPC.
+The API key is never sent to the browser or image/source hosts.

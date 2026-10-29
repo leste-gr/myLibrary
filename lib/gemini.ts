@@ -2,7 +2,7 @@ import sharp from "sharp";
 import { z } from "zod";
 import { parseManualGenaiImport, type ManualGenaiImport } from "./manual-genai-import";
 import { fetchPublicResource } from "./safe-remote-fetch";
-import { findBookPageUrls } from "./web-book-search";
+import { searchCoverImages } from "./image-search";
 import { publicCoverUrlSchema } from "./update-covers";
 
 export const MAX_SHELFIE_BYTES = 3 * 1024 * 1024;
@@ -55,62 +55,47 @@ export async function analyseShelfPhotos(files: File[], generate = generateGemin
   return parseManualGenaiImport({...raw,books:raw.books.map((book:Record<string,unknown>)=>({...book,coverUrl:null,isbn:null,visibleIsbn:null}))});
 }
 
-const QUERY_SCHEMA={type:"OBJECT",properties:{queries:{type:"ARRAY",items:{type:"STRING"},minItems:1,maxItems:2}},required:["queries"]};
 const CHOICE_SCHEMA={type:"OBJECT",properties:{indices:{type:"ARRAY",items:{type:"INTEGER"},maxItems:3}},required:["indices"]};
 const VERIFY_SCHEMA={type:"OBJECT",properties:{matches:{type:"BOOLEAN"},reason:{type:"STRING"}},required:["matches","reason"]};
 
 export type GeminiCoverBook = {title:string;author:string;language:string;publisher?:string|null;series?:string|null;volume?:string|null};
 export type GeminiCoverResult = {coverUrl:string|null;sourceUrl:string|null;notes:string;queries:string[];sources:{title:string;url:string}[];searchSuggestions?:string};
-export async function discoverGeminiCover(book: GeminiCoverBook, options: {generate?:typeof generateGemini;resource?:typeof fetchPublicResource;search?:typeof findBookPageUrls} = {}): Promise<GeminiCoverResult> {
+export async function discoverGeminiCover(book: GeminiCoverBook, options: {generate?:typeof generateGemini;resource?:typeof fetchPublicResource;search?:typeof searchCoverImages} = {}): Promise<GeminiCoverResult> {
   const generate=options.generate??generateGemini, resource=options.resource??fetchPublicResource;
   const signal=AbortSignal.timeout(210_000);
   const metadata=JSON.stringify(book);
-  let searchSuggestions="";
-  const queries:string[]=[],sources:{title:string;url:string}[]=[],outcomes:string[]=[];
-  for (let round=0;round<2;round++) {
-    signal.throwIfAborted();
-    const queryPlan=z.object({queries:z.array(z.string().trim().min(1).max(300)).min(1).max(2)}).parse(jsonReply(await generate([{text:`Plan up to two precise web searches to find a cover for this book: ${metadata}. Prefer the photographed language, then another edition of the same work and volume. Include author and title, use publisher/bookstore sources where useful. Return ONLY JSON {"queries":["title author cover"]}. ${round?`Earlier attempts: ${outcomes.join("; ")}. Try alternative queries or another edition.`:""}`}],{json:true,signal,schema:QUERY_SCHEMA})));
-    queries.push(...queryPlan.queries);
-    const links=[...new Set((await Promise.all(queryPlan.queries.map(query=>(options.search??findBookPageUrls)(query)))).flat())].slice(0,8);
-    const cited=links.map(url=>({title:new URL(url).hostname,url}));
-    sources.push(...cited);
-    if (!links.length)outcomes.push("Web searches returned no usable source pages. Search providers may be unavailable.");
-    const found={pages:links,images:[] as string[],notes:"No direct image links were found on the searched pages."};
-    const candidates:{url:string;source:string|null;label?:string}[]=found.images.map(url=>({url,source:null}));
-    // Reuse the app's existing Open Library metadata source. No account, photo
-    // or collection identifiers are sent; Gemini still visually verifies covers.
-    try {
-      const catalogueUrl=new URL("https://openlibrary.org/search.json");
-      catalogueUrl.searchParams.set("title",book.title);catalogueUrl.searchParams.set("author",book.author);
-      catalogueUrl.searchParams.set("limit","5");catalogueUrl.searchParams.set("fields","key,title,author_name,cover_i");
-      const catalogue=await resource(catalogueUrl,{maxBytes:150_000,acceptedTypes:type=>type==="application/json",timeoutMs:8000});
-      const docs=JSON.parse(new TextDecoder().decode(catalogue.bytes)).docs;
-      if(Array.isArray(docs))for(const doc of docs){
-        if(!Number.isSafeInteger(doc.cover_i)||doc.cover_i<=0||typeof doc.key!=="string"||!/^\/works\/[A-Za-z0-9]+$/.test(doc.key))continue;
-        const source="https://openlibrary.org"+doc.key;
-        candidates.push({url:`https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg?default=false`,source,label:`${String(doc.title).slice(0,300)} — ${Array.isArray(doc.author_name)?doc.author_name.join(", ").slice(0,300):""}`});
-        sources.push({title:String(doc.title).slice(0,300),url:source});
-      }
-    }catch{outcomes.push("Library catalogue was unavailable.");}
-
-    for (const page of [...new Set([...found.pages,...cited.map(source=>source.url)])].slice(0,4)) {
+  const searchSuggestions="";
+  const queries=[`${book.title} ${book.author}`.trim()],sources:{title:string;url:string}[]=[];
+  // One image-search request, then a catalogue fallback. Never retry providers.
+  for (const provider of ["images", "catalogue"] as const) {
+    const candidates:{url:string;source:string|null;label?:string}[]=[];
+    if (provider === "images") {
       try {
-        const response=await resource(page,{maxBytes:800_000,acceptedTypes:type=>type==="text/html",timeoutMs:6000});
-        const html=new TextDecoder().decode(response.bytes);
-        // Extract URLs actually present on the page, then let the model choose.
-        for (const tag of html.matchAll(/<(?:meta|img)\b[^>]*>/gi)) {
-          const attrs=Object.fromEntries([...tag[0].matchAll(/([\w:-]+)\s*=\s*["']([^"']*)["']/g)].map(match=>[match[1].toLowerCase(),match[2]]));
-          const value=/^<meta/i.test(tag[0]) ? (/^(og:image(?::url)?|twitter:image)$/.test(attrs.property??attrs.name??"")?attrs.content:null) : attrs.src??attrs["data-src"];
-          if (value) {try {candidates.push({url:new URL(value.replace(/&amp;/g,"&"),response.finalUrl).toString(),source:response.finalUrl});}catch{/* ignore invalid page URLs */}}
-          if(candidates.length>=60)break;
+        candidates.push(...await (options.search??searchCoverImages)(queries[0],book.language,signal));
+        for (const candidate of candidates) if(candidate.source) sources.push({title:candidate.label??new URL(candidate.source).hostname,url:candidate.source});
+      } catch { /* All unsuccessful searches have the same public result. */ }
+    } else {
+      // Reuse the app's existing Open Library metadata source. No account, photo
+      // or collection identifiers are sent; Gemini still visually verifies covers.
+      try {
+        const catalogueUrl=new URL("https://openlibrary.org/search.json");
+        catalogueUrl.searchParams.set("title",book.title);catalogueUrl.searchParams.set("author",book.author);
+        catalogueUrl.searchParams.set("limit","5");catalogueUrl.searchParams.set("fields","key,title,author_name,cover_i");
+        const catalogue=await resource(catalogueUrl,{maxBytes:150_000,acceptedTypes:type=>type==="application/json",timeoutMs:8000});
+        const docs=JSON.parse(new TextDecoder().decode(catalogue.bytes)).docs;
+        if(Array.isArray(docs))for(const doc of docs){
+          if(!Number.isSafeInteger(doc.cover_i)||doc.cover_i<=0||typeof doc.key!=="string"||!/^\/works\/[A-Za-z0-9]+$/.test(doc.key))continue;
+          const source="https://openlibrary.org"+doc.key;
+          candidates.push({url:`https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg?default=false`,source,label:`${String(doc.title).slice(0,300)} — ${Array.isArray(doc.author_name)?doc.author_name.join(", ").slice(0,300):""}`});
+          sources.push({title:String(doc.title).slice(0,300),url:source});
         }
-      } catch {outcomes.push("A source page was unavailable.");}
+      }catch{ /* Keep the unified no-cover result. */ }
     }
     const unique=[...new Map(candidates.filter(item=>publicCoverUrlSchema.safeParse(item.url).success).map(item=>[item.url,item])).values()].slice(0,50);
-    if (!unique.length){outcomes.push(found.notes||"No direct image links were found.");continue;}
+    if (!unique.length) continue;
     let choices:number[]=[];
-    try {const reply=jsonReply(await generate([{text:`Select up to 3 likely cover images for ${metadata} from this source-derived list. Exclude logos/icons and unrelated books. Return ONLY JSON {"indices":[0]} using zero-based indices. Never add URLs. List: ${JSON.stringify(unique)}`}],{json:true,signal,schema:CHOICE_SCHEMA}));choices=z.array(z.number().int().min(0).max(unique.length-1)).max(3).parse(reply.indices);}catch{outcomes.push("No image candidate could be selected.");continue;}
-    for (const index of choices) {
+    try {const reply=jsonReply(await generate([{text:`Select up to 3 likely cover images for ${metadata} from this source-derived list. Prefer the photographed language and publisher. Exclude logos/icons and unrelated books. Return ONLY JSON {"indices":[0]} using zero-based indices. Never add URLs. List: ${JSON.stringify(unique)}`}],{json:true,signal,schema:CHOICE_SCHEMA}));choices=z.array(z.number().int().min(0).max(unique.length-1)).max(3).parse(reply.indices);}catch{continue;}
+    for (const index of new Set(choices)) {
       try {
         const candidate=unique[index];
         const image=await resource(candidate.url,{maxBytes:4*1024*1024,acceptedTypes:type=>["image/jpeg","image/png","image/webp"].includes(type),timeoutMs:6000});
@@ -120,9 +105,8 @@ export async function discoverGeminiCover(book: GeminiCoverBook, options: {gener
           {inlineData:{mimeType:"image/jpeg",data:bytes.toString("base64")}},
         ],{json:true,signal,schema:VERIFY_SCHEMA})));
         if (verified.matches) return {searchSuggestions,coverUrl:publicCoverUrlSchema.parse(candidate.url),sourceUrl:candidate.source,notes:verified.reason,queries:[...new Set(queries)],sources:[...new Map(sources.map(source=>[source.url,source])).values()].slice(0,12)};
-        outcomes.push(verified.reason);
-      }catch(error){if(error instanceof Error && /rate limited|configuration/.test(error.message))throw error;outcomes.push("An image candidate could not be verified.");}
+      }catch{ /* Try the next candidate, without retrying the failed request. */ }
     }
   }
-  return {searchSuggestions,coverUrl:null,sourceUrl:null,notes:outcomes.join(" ").slice(0,1500)||"No suitable cover found.",queries:[...new Set(queries)],sources:sources.slice(0,12)};
+  return {searchSuggestions,coverUrl:null,sourceUrl:null,notes:"No suitable cover found.",queries:[...new Set(queries)],sources:sources.slice(0,12)};
 }
