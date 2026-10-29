@@ -44,13 +44,13 @@ test("explicit English language wins over Greek script; unknown language can inf
   }finally{if(old===undefined)delete process.env.SERPER_API_KEY;else process.env.SERPER_API_KEY=old;}
 });
 
-test("invalid first result never promotes a later result",async()=>{
+test("invalid image URLs are excluded while later candidates remain available",async()=>{
   const old=process.env.SERPER_API_KEY;process.env.SERPER_API_KEY="fixture-secret";
   try{
     const result=await searchCoverImages("Book","en",undefined,async()=>Response.json({images:[
       {imageUrl:"http://localhost/private",link:"https://example.com/book"},
       {imageUrl:"https://example.com/second.jpg",link:"https://example.com/book"},
     ]}));
-    assert.deepEqual(result,[]);
+    assert.equal(result[0]?.url,"https://example.com/second.jpg");
   }finally{if(old===undefined)delete process.env.SERPER_API_KEY;else process.env.SERPER_API_KEY=old;}
 });

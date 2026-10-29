@@ -21,7 +21,7 @@ export async function searchCoverImages(query:string, language:string, signal?:A
   const result=await response.json();
   if(!Array.isArray(result.images)) return [];
   const seen=new Set<string>();
-  return result.images.slice(0,1).flatMap((item:Record<string,unknown>)=>{
+  return result.images.flatMap((item:Record<string,unknown>)=>{
     if(!item||!publicCoverUrlSchema.safeParse(item.imageUrl).success||!publicCoverUrlSchema.safeParse(item.link).success||seen.has(String(item.imageUrl)))return [];
     const url=String(item.imageUrl);seen.add(url);
     return [{url,source:String(item.link),label:typeof item.title==="string"?item.title.slice(0,300):"Book cover"}];

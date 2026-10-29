@@ -32,7 +32,7 @@ test("first Serper image is classified as a book before saving",async()=>{
     generate:async()=>reply({isBookOrCover:true}),
     resource:async url=>{fetched.push(String(url));return {bytes:Uint8Array.from(image).buffer,contentType:"image/jpeg",finalUrl:String(url)};},
   });
-  assert.equal(result.coverUrl,"https://publisher.example/0.jpg");assert.equal(result.notes,"First image search result selected.");
+  assert.equal(result.coverUrl,"https://publisher.example/0.jpg");assert.equal(result.notes,"First image classified as a book or cover selected.");
   assert.deepEqual(fetched,["https://publisher.example/0.jpg"]);
 });
 
@@ -41,9 +41,9 @@ test("empty, unavailable and unreadable first results keep unified outcome witho
     let searches=0,downloads=0;
     const result=await discoverGeminiCover({title:"Book",author:"Author",language:"en"},{
       search:async()=>{searches++;if(scenario==="unavailable")throw new Error("provider error");return scenario==="empty"?[]:[0,1].map(i=>({url:`https://publisher.example/${i}.jpg`,source:"https://publisher.example/book",label:"Book"}));},
-      resource:async url=>{downloads++;assert.equal(String(url),"https://publisher.example/0.jpg");return {bytes:new ArrayBuffer(2),contentType:"image/jpeg",finalUrl:String(url)};},
+      resource:async url=>{downloads++;assert.match(String(url),/publisher.example/);return {bytes:new ArrayBuffer(2),contentType:"image/jpeg",finalUrl:String(url)};},
     });
-    assert.equal(searches,1);assert.equal(downloads,scenario==="corrupt"?1:0);
+    assert.equal(searches,1);assert.equal(downloads,scenario==="corrupt"?2:0);
     assert.equal(result.coverUrl,null);assert.equal(result.notes,"No suitable cover found.");
   }
 });
@@ -60,4 +60,10 @@ test("non-book image is rejected without selecting a later image",async()=>{
  let classified=0;
  const result=await discoverGeminiCover({title:"Book",author:"Author",language:"en"},{search:async()=>[{url:"https://example.com/image.jpg",source:"https://example.com/book",label:"Book"}],resource:async url=>({bytes:Uint8Array.from(image).buffer,contentType:"image/jpeg",finalUrl:String(url)}),generate:async()=>{classified++;return reply({isBookOrCover:false});}});
  assert.equal(result.coverUrl,null);assert.equal(classified,1);
+});
+
+test("uses the first positively classified image in search order",async()=>{
+ const image=await sharp({create:{width:20,height:30,channels:3,background:"white"}}).jpeg().toBuffer();let calls=0;const fetched:string[]=[];
+ const result=await discoverGeminiCover({title:"Book",author:"Author",language:"en"},{search:async()=>[0,1,2].map(i=>({url:`https://example.com/${i}.jpg`,source:"https://example.com/book",label:"Book"})),resource:async url=>{fetched.push(String(url));return {bytes:Uint8Array.from(image).buffer,contentType:"image/jpeg",finalUrl:String(url)};},generate:async()=>reply({isBookOrCover:++calls===2})});
+ assert.equal(result.coverUrl,"https://example.com/1.jpg");assert.equal(calls,2);assert.equal(fetched.length,2);
 });
